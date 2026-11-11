@@ -176,7 +176,7 @@ our module with TDD and CI in place.
 
 | # | Task | Done when |
 |---|---|---|
-| 1.1 | Install toolchain: Visual Studio 2022 Build Tools (C++), pixi; init submodules | `pixi run configure` succeeds |
+| 1.1 ✅ | Install toolchain: Visual Studio 2022 Build Tools (C++), pixi; init submodules (see [ADR 0003](adr/0003-native-windows-dev-environment.md)) | `pixi run configure` succeeds |
 | 1.2 | Baseline build (RelWithDebInfo, parallelism capped for 16 GB RAM) | FreeCAD launches from our build |
 | 1.3 | Baseline tests: run `ctest` and `FreeCADCmd -t 0`, record results in `docs/BASELINE.md` | Known upstream failures listed, so they're never mistaken for ours |
 | 1.4 | Benchmark harness in `tools/bench`: cold start, idle memory, open reference files | Baseline numbers recorded; budgets set in §1.3 |
@@ -184,7 +184,7 @@ our module with TDD and CI in place.
 | 1.6 | Scaffold `src/Mod/Studio` (layout from §2.3), registered with CMake and the test runner | `FreeCADCmd -t Studio` runs a real (initially failing → passing) test |
 | 1.7 | **Walking skeleton (TDD):** Studio workbench exists, is the default at startup, shows an empty shell; local-only socket guard test | Tests written first; all green |
 | 1.8 | CI for our fork: replace upstream's heavy workflows (they trigger on our pushes) with a lean Windows build + Studio tests; full suite nightly or on demand | CI green on `main` |
-| 1.9 | Repo docs: our own `AGENTS.md`/`CLAUDE.md` (TDD rules, layers, upstream rules), ADR template + first ADRs, `CORE_PATCHES.md`, upstream-merge procedure | Docs merged; a practice upstream merge has been done once |
+| 1.9 🟡 | Repo docs: our own `AGENTS.md`/`CLAUDE.md` (TDD rules, layers, upstream rules) ✅, ADR template + first ADRs ✅, `CORE_PATCHES.md` ✅, upstream-merge procedure | Docs merged; a practice upstream merge has been done once |
 
 **Exit:** one-command build, baseline and budgets recorded, Studio module green in CI.
 
@@ -275,6 +275,7 @@ simulation removed-volume matches reference; G-code golden files per post-proces
 ### Phase 10 — Distribution & interop
 
 - Windows installer (then macOS/Linux); explicit "check for updates" (the only background network call, opt-in).
+- **Code signing** for release binaries, so Windows Smart App Control / SmartScreen don't block the app for users.
 - Optional, user-started **parts library** download with material detection (legal review of
   catalog terms first).
 - Long term: feature-history import from other CAD formats.
