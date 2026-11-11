@@ -1,118 +1,98 @@
-<a href="https://freecad.org"><img src="/src/Gui/Icons/freecad.svg" height="100px" width="100px"></a>
+# CAD (working title)
 
-### Your own 3D Parametric Modeler
+A fast, fully local, lightweight CAD/CAM application built on top of [FreeCAD](https://github.com/FreeCAD/FreeCAD) — with a radically cleaner interface.
 
-[Website](https://www.freecad.org) •
-[Documentation](https://wiki.freecad.org) •
-[Forum](https://forum.freecad.org/) •
-[Bug tracker](https://github.com/FreeCAD/FreeCAD/issues) •
-[Git repository](https://github.com/FreeCAD/FreeCAD) •
-[Blog](https://blog.freecad.org)
+> **Status:** planning. This repository currently contains the upstream FreeCAD source as our starting point. Nothing below is implemented yet unless marked ✅.
 
+## Principles
 
-[![Release](https://img.shields.io/github/release/freecad/freecad.svg)](https://github.com/freecad/freecad/releases/latest) [![Crowdin](https://d322cqt584bo4o.cloudfront.net/freecad/localized.svg)](https://crowdin.com/project/freecad)
+1. **The UI gets out of your way.** Sparse by default, tools appear when relevant. No wall of toolbars.
+2. **One environment.** No switching "workbenches" to go from modeling → assembly → drawings → CAM. Parts and assemblies live in the same document; CAM is a mode you toggle on a body.
+3. **Fully local.** No accounts, no cloud, no telemetry. The only network call is an explicit "check for updates" (and optional, user-triggered part downloads).
+4. **Fast and lightweight.** Instant startup, quick file loads, runs well on a laptop.
+5. **Laptop friendly.** First-class trackpad navigation (pinch zoom, two-finger orbit) plus mouse.
+6. **Sensible defaults, deep preferences.** Right-click any field → "Make default".
 
-<img src="/.github/images/partdesign.jpg" width="800"/>
+## Feature roadmap
 
-Overview
---------
+Inspiration: the feature set shown in [this FizCAD demo](https://www.youtube.com/watch?v=YKVOVaaIY48). Legend for the FreeCAD column: **Has** = exists in FreeCAD core, **Partial** = exists but clunky/limited or addon-only, **Missing** = needs to be built.
 
-* **Freedom to build what you want**  FreeCAD is an open-source parametric 3D
-modeler for designing real-life objects of any size. Parametric modeling lets
-you modify a design by changing parameters in its model history.
+### Core modeling
 
-* **Create 3D from 2D and back** FreeCAD lets you sketch geometry-constrained
-2D shapes and use them as a base to build other objects. It also provides tools
-to adjust dimensions and create high-quality production drawings from 3D models.
+| Feature | FreeCAD today | What we need to do |
+|---|---|---|
+| Sketch → extrude, single-key shortcuts (`E` extrude) | Partial — Sketcher + PartDesign Pad, but multi-step, workbench-bound | Unified sketch/feature tools, hotkey-driven, in-viewport drag handles |
+| Section view | Has — Std ClippingPlane / Part Section | Single clean toggle with draggable plane |
+| Sketch on curved surfaces (wraps around) | Missing — sketches are planar; wrap only via Curves addon | New: surface-mapped sketches |
+| Rich text tool (box / area / centered area, system fonts) | Partial — Draft ShapeString (single line, font file path) | Word-processor-style text editor in sketches |
+| Fonts embedded in the file | Missing — ShapeString references a font path | Embed font data in the document |
+| Text on curved surfaces + extrude in/out | Missing | Falls out of surface sketches + text tool |
+| 3D sketches / wire routing with draggable nodes, extend by adding points | Partial — Draft BSpline/Wire + Part Sweep; Cables addon | Native 3D spline sketch with node handles + auto sweep (wires, cables, tubing) |
+| Threads: cosmetic or modeled, toggle anytime, "model all threads on export" | Partial — PartDesign Hole can model threads, but per-feature and fixed at creation | Cosmetic-by-default threads, global "model on export" |
+| Thread allowance/clearance scrubber (3D printing fits) | Partial — Hole has custom thread clearance | Scroll-to-adjust allowance, works on cosmetic + modeled |
+| Auto hole chamfer | Partial — Hole countersink/countersink-ish options | One-click hole chamfer |
+| Sheet metal: unfold animation, movable fold lines, auto seam relief cutouts | Partial — SheetMetal is an external addon | Bring in built-in, add animated unfold + relief options |
 
-* **Designed for your needs** FreeCAD is designed to fit a wide range of uses
-including product design, mechanical engineering and architecture,
-whether you are a hobbyist, programmer, experienced CAD user, student or teacher.
+### Assemblies
 
-* **Cross platform** FreeCAD runs on Windows, macOS and Linux operating systems.
+| Feature | FreeCAD today | What we need to do |
+|---|---|---|
+| Joints (revolute, spherical/ball, etc.), drag to move | Has — Assembly workbench (1.0+) | Merge into the single environment; direct drag manipulation |
+| No part-vs-assembly distinction | Partial — Std Part / App::Link exist but the UX separates them | One document type; a body becomes an assembly when you add parts |
+| Import as clone or link; "file out of sync — reimport?" keeping local adjustments | Partial — App::Link to external files | Explicit clone/link prompt + change detection with reimport |
+| Exploded views + animation | Partial — Assembly exploded views; animation is addon-only | Built-in |
 
-* **Underlying technology**
-    * **OpenCASCADE** A powerful geometry kernel, the most important component of FreeCAD
-    * **Coin3D library** Open Inventor-compliant 3D scene representation model
-    * **Python** FreeCAD offers a broad Python API
-    * **Qt** Graphical user interface built with Qt
+### CAM
 
+| Feature | FreeCAD today | What we need to do |
+|---|---|---|
+| CAM toggled on a body (icon on body, no environment switch) | Missing — separate CAM workbench + Job setup | CAM as a mode/badge on a body |
+| One-click "Add vise" (auto placement, jaw width/opening, parallel height) | Missing | New fixture system |
+| Automatic stock generation (auto, explicit size, or from a solid body) | Has — Job stock (box/cylinder/from base) | Simplify, make "auto" the default |
+| Probing cycles (all sides, pick feature/bore, collision-aware, draggable points; Tormach first) | Partial — basic Probe op exists | Real probing wizard with collision checks |
+| Adaptive 2D/3D, bores, chamfers, scallop | Has — Adaptive, Helix, Deburr, Surface/Waterline | Mostly UX; evaluate scallop quality |
+| Fast full-job simulation; "accuracy" view (unmachined stock highlighted); realistic aluminum view | Partial — new CAM simulator exists, slower and fewer views | Faster sim, accuracy + realistic material modes |
+| Multi-setup with "flip part this way" animation; sim result overlaid on next setup | Missing | New |
 
-Installing
-----------
+### Drawings
 
-Precompiled packages for stable releases are available for Windows, macOS and Linux on the
-[latest releases page](https://github.com/FreeCAD/FreeCAD/releases/latest).
+| Feature | FreeCAD today | What we need to do |
+|---|---|---|
+| Live-linked 2D drawings | Has — TechDraw | Cleaner UX |
+| Auto views + auto scale-to-fit on "Create drawing" | Partial — projection groups, manual layout/scale | One-click drawing with auto layout |
+| Auto dimensioning (None / Basic / Thorough) | Missing (only manual / limited) | New |
+| Flat pattern view for sheet metal | Partial — via SheetMetal addon + TechDraw | Built-in |
 
-On most Linux distributions, FreeCAD is also directly installable from the 
-software center application.
+### Visualization
 
-For weekly development releases visit the [releases page](https://github.com/FreeCAD/FreeCAD/releases/).
+| Feature | FreeCAD today | What we need to do |
+|---|---|---|
+| Display modes: "pretty" w/ shadows, gray box, realistic, hidden line | Partial — draw styles + basic shadows (1.0) | Polished presets |
+| Perspective / orthographic toggle | Has | — |
+| Animation studio (play, auto-explode) | Missing (addon) | New |
+| Ray-traced render engine with studio environments | Partial — Render addon (external renderers) | Built-in path tracer |
 
-Other options are described on the [wiki Download page](https://wiki.freecad.org/Download).
+### Navigation, files, and app
 
-Compiling
----------
+| Feature | FreeCAD today | What we need to do |
+|---|---|---|
+| Instant startup, fast loads | Partial — notably slow startup (Python workbench init) | Lazy-load modules, profile startup |
+| Trackpad: pinch zoom, two-finger orbit; `F` focus selection, `Shift+F` fit all | Partial — Touchpad/Gesture nav styles; fit-selection is `V,S` | New default nav style + Blender-like hotkeys |
+| Recent files browser (remove/hide entries) | Partial — Start page recents | Cleaner browser with management |
+| Import STEP/IGES/STL/etc. as solids | Has | — |
+| Import feature history from other CAD | Missing | Long-term |
+| Fully offline, no telemetry | Has | Keep it that way |
+| Parts library download (McMaster-style) with auto material detection | Missing (Parts Library addon is offline files) | Optional, user-triggered; legal review needed for third-party catalogs |
+| Right-click any field → "Make default" | Missing | New |
 
-See the [Developers Handbook – Getting Started](https://freecad.github.io/DevelopersHandbook/gettingstarted/)
-for build instructions.
+### Our additions
 
+_Add features here that go beyond the demo._
 
-Reporting Issues
----------
+## Building
 
-To report an issue please:
+This currently builds exactly like upstream FreeCAD — see FreeCAD's build docs in [`README.FreeCAD.md`](README.FreeCAD.md) and the [developer guide](https://freecad.github.io/DevelopersHandbook/).
 
-- Consider posting to the [Forum](https://forum.freecad.org), [Discord](https://discord.com/invite/w2cTKGzccC) channel, or [Reddit](https://www.reddit.com/r/FreeCAD) to verify the issue; 
-- Search the existing [issues](https://github.com/FreeCAD/FreeCAD/issues) for potential duplicates; 
-- Use the most updated stable or [development versions](https://github.com/FreeCAD/FreeCAD/releases/) of FreeCAD; 
-- Post version info from `Help > About FreeCAD > Copy to clipboard`; 
-- Restart FreeCAD in safe mode `Help > Restart in safe mode` and try to reproduce the issue again. If the issue is resolved it can be fixed by deleting the FreeCAD config files.
-- Start recording a macro `Macro > Macro recording...` and repeat all steps. Stop recording after the issue occurs and upload the saved macro or copy the macro code in the issue; 
-- Post a Step-By-Step explanation on how to recreate the issue; 
-- Upload an example file (FCStd as ZIP file) to demonstrate the problem; 
+## License
 
-For more details see:
-
-- [Bug Tracker](https://github.com/FreeCAD/FreeCAD/issues)
-- [Reporting Issues and Requesting Features](https://github.com/FreeCAD/FreeCAD/issues/new/choose)
-- [Contributing](https://github.com/FreeCAD/FreeCAD/blob/main/CONTRIBUTING.md)
-- [Help Forum](https://forum.freecad.org/viewforum.php?f=3)
-
-Contributing Code
------------------
-
-Read the [contribution process](CONTRIBUTING.md) and the
-[contributor guidelines](contrib/guidelines/README.md) for practical advice on architecture,
-code reuse, implementation, UI design, testing, and review. The guides link to relevant
-sections of the [Developers Handbook](https://freecad.github.io/DevelopersHandbook/) and FEPs.
-
-> [!NOTE]
-The [FPA](https://fpa.freecad.org) offers developers the opportunity
-to apply for a grant to work on projects of their choosing. Check
-[jobs and funding](https://blog.freecad.org/jobs/) to know more.
-
-
-Usage & Getting Help
---------------------
-
-The FreeCAD wiki contains documentation on general usage and Python scripting.
-View these pages for more information:
-
-- [Getting started](https://wiki.freecad.org/Getting_started)
-- [Features list](https://wiki.freecad.org/Feature_list)
-- [Frequent questions](https://wiki.freecad.org/FAQ/en)
-- [Workbenches](https://wiki.freecad.org/Workbenches)
-- [Scripting](https://wiki.freecad.org/Power_users_hub)
-- [Developers Handbook](https://freecad.github.io/DevelopersHandbook/)
-
-The [FreeCAD forum](https://forum.freecad.org) is a great place
-to find help and solve specific problems when learning to use FreeCAD.
-
----
-
-<p>This project receives generous infrastructure support from
-  <a href="https://www.digitalocean.com/">
-    <img src="https://opensource.nyc3.cdn.digitaloceanspaces.com/attribution/assets/SVG/DO_Logo_horizontal_blue.svg" width="91px">
-  </a> and <a href="https://www.kipro-pcb.com/">KiCad Services Corp.</a>
-</p>
+This project is a fork of FreeCAD and is licensed under the **GNU LGPL v2.1 or later** — see [`LICENSE`](LICENSE). FreeCAD is © its contributors. Upstream is tracked as the `upstream` git remote so we can pull in fixes.
