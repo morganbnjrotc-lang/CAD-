@@ -15,6 +15,8 @@ A fast, fully local, lightweight CAD/CAM application built on top of [FreeCAD](h
 
 ## Feature roadmap
 
+**How we build it — phases, architecture and TDD workflow: [docs/PLAN.md](docs/PLAN.md).**
+
 Inspiration: the feature set shown in [this FizCAD demo](https://www.youtube.com/watch?v=YKVOVaaIY48). Legend for the FreeCAD column: **Has** = exists in FreeCAD core, **Partial** = exists but clunky/limited or addon-only, **Missing** = needs to be built.
 
 ### Core modeling
