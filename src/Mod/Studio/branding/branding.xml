@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Product configuration read by FreeCAD at startup from <AppHomePath>/bin/branding.xml
+  (src/App/Application.cpp, filtered by src/App/Branding.cpp). Lets us brand the app without
+  editing FreeCAD sources.
+-->
+<Branding version="1.0">
+  <StartWorkbench>StudioWorkbench</StartWorkbench>
+</Branding>

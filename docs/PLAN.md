@@ -147,6 +147,9 @@ window and keeps our code separate from FreeCAD's so upstream merges stay cheap.
 src/Mod/Studio/
   CMakeLists.txt
   Init.py / InitGui.py          # registers workbench + test suites
+  TestStudioApp.py              # headless suite entry:  FreeCADCmd -t TestStudioApp
+  TestStudioGui.py              # GUI suite entry:       FreeCAD -t TestStudioGui
+  branding/branding.xml         # product config (start workbench, name, nav style…), copied to bin/
   studio/
     services/                   # headless domain services
     interaction/                # tools, keymap, navigation, transactions
@@ -154,8 +157,10 @@ src/Mod/Studio/
     settings.py                 # typed preferences + "make default"
   Gui/                          # Qt widgets, resources, icons, .ui files
   App/                          # C++ (only when needed)
-  tests/
-    services/  interaction/  viewmodels/  gui/
+  StudioTests/                  # FreeCAD convention <Module>Tests (a bare "tests" package would clash)
+    support.py                  # shared helpers, e.g. no_network() guard
+    test_architecture.py        # enforces the layer rules automatically
+    gui/                        # tests that need FreeCAD.exe
 tests/src/Mod/Studio/           # GoogleTest suites for C++ parts
 tools/bench/                    # performance benchmarks + budgets
 docs/
@@ -177,12 +182,12 @@ our module with TDD and CI in place.
 | # | Task | Done when |
 |---|---|---|
 | 1.1 ✅ | Install toolchain: Visual Studio 2022 Build Tools (C++), pixi; init submodules (see [ADR 0003](adr/0003-native-windows-dev-environment.md)) | `pixi run configure` succeeds |
-| 1.2 | Baseline build (RelWithDebInfo, parallelism capped for 16 GB RAM) | FreeCAD launches from our build |
-| 1.3 | Baseline tests: run `ctest` and `FreeCADCmd -t 0`, record results in `docs/BASELINE.md` | Known upstream failures listed, so they're never mistaken for ours |
-| 1.4 | Benchmark harness in `tools/bench`: cold start, idle memory, open reference files | Baseline numbers recorded; budgets set in §1.3 |
+| 1.2 ✅ | Baseline build (RelWithDebInfo, parallelism capped for 16 GB RAM) | FreeCAD launches from our build |
+| 1.3 ✅ | Baseline tests: run `ctest` and the headless suites, record results in [`docs/BASELINE.md`](BASELINE.md). Added `tools/test/run_headless_suites.py` (isolated profile, per-test watchdog) | Known upstream failures listed, so they're never mistaken for ours |
+| 1.4 🟡 | Benchmark harness in `tools/bench`: cold start ✅, idle memory ✅, open reference files | Baseline numbers recorded; budgets set in §1.3 |
 | 1.5 | **Slim build** preset: turn off FEM, BIM, Robot, OpenSCAD, Points, ReverseEngineering, Inspection, Web, JtReader, AddonManager (verify dependencies one module at a time) | Slim build launches, tests no worse than baseline, startup and memory measured |
-| 1.6 | Scaffold `src/Mod/Studio` (layout from §2.3), registered with CMake and the test runner | `FreeCADCmd -t Studio` runs a real (initially failing → passing) test |
-| 1.7 | **Walking skeleton (TDD):** Studio workbench exists, is the default at startup, shows an empty shell; local-only socket guard test | Tests written first; all green |
+| 1.6 ✅ | Scaffold `src/Mod/Studio` (layout from §2.3), registered with CMake and the test runner | `FreeCADCmd -t TestStudioApp` runs a real (initially failing → passing) test |
+| 1.7 ✅ | **Walking skeleton (TDD):** Studio workbench exists, is the default at startup (via [branding.xml](adr/0004-branding-via-branding-xml.md)), shows an empty shell; layer-rule tests; local-only socket guard test; end-to-end `tools/test/startup_smoke.py` | Tests written first; all green |
 | 1.8 | CI for our fork: replace upstream's heavy workflows (they trigger on our pushes) with a lean Windows build + Studio tests; full suite nightly or on demand | CI green on `main` |
 | 1.9 🟡 | Repo docs: our own `AGENTS.md`/`CLAUDE.md` (TDD rules, layers, upstream rules) ✅, ADR template + first ADRs ✅, `CORE_PATCHES.md` ✅, upstream-merge procedure | Docs merged; a practice upstream merge has been done once |
 

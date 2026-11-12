@@ -68,10 +68,28 @@ pixi run configure            # CMake configure (RelWithDebInfo, Ninja) -> build
 pixi run build                # compile
 pixi run test                 # ctest (C++ suites)
 pixi run freecad              # install and launch
-# Python suites, headless and GUI:
-build\relWithDebInfo\bin\FreeCADCmd.exe -t Studio
-build\relWithDebInfo\bin\FreeCAD.exe -t StudioGui
+# Headless suites in a throwaway profile with a per-test hang watchdog:
+pixi run python tools/test/run_headless_suites.py TestStudioApp
+pixi run python tools/test/run_headless_suites.py --exclude TestCAMApp   # everything but CAM (~3 min)
+# GUI suite:
+pixi run build\relWithDebInfo\bin\FreeCAD.exe -t TestStudioGui
+# End-to-end: launch the real app on a brand-new profile and check what a new user sees:
+pixi run python tools/test/startup_smoke.py
+# Startup/memory benchmark (don't run it at the same time as a test run):
+pixi run python tools/bench/bench_startup.py --runs 6
 ```
+
+PowerShell 5.1 strips double quotes inside arguments passed to programs, so `FreeCADCmd -c "..."` code
+that contains quotes breaks. Put the code in a `.py` file and pass the file instead.
+
+Gotchas found the hard way (details in `docs/BASELINE.md` and ADR 0004):
+
+- FreeCAD **silently ignores** `FREECAD_USER_HOME/DATA/TEMP` unless the folders already exist. Without
+  isolation, test runs read and write the developer's real profile.
+- The full CAM suite hangs on Windows if run in one process (port exhaustion from `asyncio.run()` in
+  the CAM asset manager). Run CAM in batches.
+- Never run the benchmark and a test run at the same time: they compete for CPU and, without
+  isolation, for FreeCAD's lock files.
 
 Run the narrowest suite that covers your change while iterating, then the Studio suites before
 committing. Use `pixi run <cmd>` so the right Python, Qt and compilers are on PATH.

@@ -124,6 +124,11 @@ if(BUILD_TEST)
   add_subdirectory(Test)
 endif(BUILD_TEST)
 
+# Fork: our own module (docs/CORE_PATCHES.md)
+if(BUILD_STUDIO)
+  add_subdirectory(Studio)
+endif(BUILD_STUDIO)
+
 if(BUILD_TUX)
     add_subdirectory(Tux)
 endif(BUILD_TUX)
