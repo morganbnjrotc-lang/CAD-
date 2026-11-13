@@ -2,7 +2,7 @@
 """Run FreeCAD's CAM test suite in batches, so it doesn't hang on Windows.
 
 Usage (from the repo root):
-    pixi run python tools/test/run_cam_batches.py [--batch-size 12]
+    pixi run python tools/test/run_cam_batches.py [--batch-size 12] [--build-dir build/release]
 
 Why: CAM's tool-asset manager calls asyncio.run() per asset. On Windows every call leaves a
 loopback TCP port in TIME_WAIT for ~2 minutes; after ~16k calls the ports run out and CPython's
@@ -19,7 +19,6 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 RUNNER = Path(__file__).resolve().parent / "run_headless_suites.py"
-MODULE_LIST = REPO / "build/relWithDebInfo/Mod/CAM/CAMTests/cam_test_modules.py"
 # Widget tests are excluded by CAMTests/__init__.py as well (they need a GUI).
 EXCLUDED = {
     "TestPathToolBitBrowserWidget",
@@ -40,10 +39,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--batch-size", type=int, default=12)
     parser.add_argument("--timeout", type=int, default=180, help="seconds allowed per test")
+    parser.add_argument("--build-dir", type=Path, default=REPO / "build/relWithDebInfo")
     args = parser.parse_args()
+    build_dir = args.build_dir.resolve()
+    module_list = build_dir / "Mod/CAM/CAMTests/cam_test_modules.py"
+    exe = build_dir / "bin" / "FreeCADCmd.exe"
 
     modules = [
-        m for m in re.findall(r'"([A-Za-z0-9_]+)"', MODULE_LIST.read_text(encoding="utf-8"))
+        m for m in re.findall(r'"([A-Za-z0-9_]+)"', module_list.read_text(encoding="utf-8"))
         if m not in EXCLUDED
     ]
     totals = {"ran": 0, "failures": 0, "errors": 0, "skipped": 0}
@@ -54,7 +57,7 @@ def main() -> int:
         names = ",".join(f"CAMTests.{m}" for m in modules[start : start + args.batch_size])
         log_name = f"cam-batch-{number}.log"
         code = subprocess.run(
-            [sys.executable, str(RUNNER), "--timeout", str(args.timeout), "--log", log_name, names],
+            [sys.executable, str(RUNNER), "--exe", str(exe), "--timeout", str(args.timeout), "--log", log_name, names],
             capture_output=True,
         ).returncode
         log = (REPO / "build/test-logs" / log_name).read_text(encoding="utf-8", errors="replace")

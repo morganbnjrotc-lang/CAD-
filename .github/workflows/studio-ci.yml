@@ -1,0 +1,140 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+#
+# Studio CI: builds this fork on Windows and runs our checks (docs/adr/0005-own-ci-workflow.md).
+#
+#   every push to main and every PR   Release build (ccache) + Studio app/GUI suites + startup smoke
+#   nightly, or "Run workflow"        the above + every headless FreeCAD suite (CAM in batches)
+#
+# Repo checks (tools/repo_tests) need no build and report within a minute.
+# Upstream FreeCAD's workflows were removed from this fork on purpose; tools/repo_tests fails if
+# an upstream merge brings them back.
+
+name: Studio CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**.md"]
+  pull_request:
+    paths-ignore: ["docs/**", "**.md"]
+  schedule:
+    - cron: "0 7 * * *" # nightly full suite, 07:00 UTC
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Also run every headless FreeCAD suite (CAM in batches)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studio-ci-${{ github.ref }}
+  # Superseded PR pushes are cancelled; runs on main always finish so the cache keeps filling.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  repo-checks:
+    name: Repo checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Workflow and repo hygiene tests
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet pyyaml==6.0.3
+          "$RUNNER_TEMP/venv/bin/python" -m unittest discover -s tools/repo_tests -v
+
+  windows:
+    name: Windows build + Studio tests
+    runs-on: windows-2022
+    # The first build has no compiler cache and can take hours; later builds reuse the cache.
+    timeout-minutes: 345
+    env:
+      CCACHE_COMPILERCHECK: "%compiler%"
+      CCACHE_COMPRESS: true
+      CCACHE_COMPRESSLEVEL: 5
+      CCACHE_DIR: ${{ github.workspace }}/ccache
+      CCACHE_MAXSIZE: 2G
+      CCACHE_NODIRECT: true
+      CCACHE_NOHASHDIR: true
+      CCACHE_NOINODECACHE: true
+      CCACHE_SLOPPINESS: "include_file_ctime,include_file_mtime,pch_defines,time_macros"
+      FULL_SUITE: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.full) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          pixi-version: v0.82.1
+          cache: false
+          locked: true
+
+      - name: Restore compiler cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: studio-ccache-windows-${{ github.ref }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            studio-ccache-windows-${{ github.ref }}-
+            studio-ccache-windows-
+
+      - name: Configure (Release)
+        run: |
+          pixi run ccache --zero-stats
+          pixi run configure-release
+
+      - name: Build
+        id: build
+        timeout-minutes: 300
+        run: pixi run build-release
+
+      - name: Compiler cache statistics
+        if: always()
+        run: pixi run ccache --show-stats
+
+      # Saved even when the build fails or times out, so the next run starts further along.
+      - name: Save compiler cache
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: studio-ccache-windows-${{ github.ref }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # Each test step runs whenever the build succeeded, even if an earlier test step failed.
+      - name: Studio app tests (headless)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 20
+        run: pixi run python tools/test/run_headless_suites.py --exe build/release/bin/FreeCADCmd.exe TestStudioApp
+
+      - name: Studio GUI tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 20
+        run: pixi run python tools/test/run_gui_suites.py TestStudioGui --build-dir build/release
+
+      - name: Startup smoke test (fresh profile)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 10
+        run: pixi run python tools/test/startup_smoke.py --build-dir build/release
+
+      - name: All headless FreeCAD suites except CAM
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && env.FULL_SUITE == 'true' }}
+        timeout-minutes: 60
+        run: pixi run python tools/test/run_headless_suites.py --exe build/release/bin/FreeCADCmd.exe --exclude TestCAMApp
+
+      - name: CAM suite in batches
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && env.FULL_SUITE == 'true' }}
+        timeout-minutes: 90
+        run: pixi run python tools/test/run_cam_batches.py --build-dir build/release
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: studio-test-logs
+          path: build/test-logs/
+          if-no-files-found: ignore
+          retention-days: 14

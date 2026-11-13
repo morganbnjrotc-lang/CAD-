@@ -3,11 +3,12 @@
 user would see.
 
 Usage (from the repo root):
-    pixi run python tools/test/startup_smoke.py
+    pixi run python tools/test/startup_smoke.py [--build-dir build/release]
 
 Unit tests check pieces; this checks the assembled app actually starts the way we intend. Exit code 0 = pass.
 """
 
+import argparse
 import json
 import os
 import subprocess
@@ -17,7 +18,6 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 PROBE = Path(__file__).resolve().parent / "_startup_smoke_probe.py"
-EXE = REPO / "build/relWithDebInfo/bin/FreeCAD.exe"
 
 EXPECTED = {
     "active_workbench": "StudioWorkbench",
@@ -25,6 +25,11 @@ EXPECTED = {
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--build-dir", type=Path, default=REPO / "build/relWithDebInfo")
+    args = parser.parse_args()
+    exe = args.build_dir.resolve() / "bin" / "FreeCAD.exe"
+
     with tempfile.TemporaryDirectory(prefix="studio-smoke-") as tmp:
         tmp = Path(tmp)
         out = tmp / "state.json"
@@ -38,7 +43,7 @@ def main() -> int:
             FREECAD_USER_DATA=str(tmp / "data"),
             FREECAD_USER_TEMP=str(tmp / "temp"),
         )
-        subprocess.run([str(EXE), str(PROBE)], env=env, timeout=180, capture_output=True)
+        subprocess.run([str(exe), str(PROBE)], env=env, timeout=180, capture_output=True)
         if not out.exists():
             print("FAIL: app did not report its state (crashed or hung during startup)")
             return 1

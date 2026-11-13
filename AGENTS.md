@@ -71,18 +71,24 @@ pixi run freecad              # install and launch
 # Headless suites in a throwaway profile with a per-test hang watchdog:
 pixi run python tools/test/run_headless_suites.py TestStudioApp
 pixi run python tools/test/run_headless_suites.py --exclude TestCAMApp   # everything but CAM (~3 min)
-# GUI suite:
-pixi run build\relWithDebInfo\bin\FreeCAD.exe -t TestStudioGui
+# GUI suite, same isolation (never run a bare `FreeCAD.exe -t`: see below):
+pixi run python tools/test/run_gui_suites.py TestStudioGui
 # End-to-end: launch the real app on a brand-new profile and check what a new user sees:
 pixi run python tools/test/startup_smoke.py
+# Repo checks (CI workflow rules; no build needed):
+pixi run python -m unittest discover -s tools/repo_tests -v
 # Startup/memory benchmark (don't run it at the same time as a test run):
 pixi run python tools/bench/bench_startup.py --runs 6
 ```
 
+The test tools take `--build-dir build/release` (or `--exe` for `run_headless_suites.py`) to test
+another build. CI ([`.github/workflows/studio-ci.yml`](.github/workflows/studio-ci.yml), [ADR 0005](docs/adr/0005-own-ci-workflow.md))
+builds Release on Windows and runs the same commands. Upstream FreeCAD's workflows were removed on purpose.
+
 PowerShell 5.1 strips double quotes inside arguments passed to programs, so `FreeCADCmd -c "..."` code
 that contains quotes breaks. Put the code in a `.py` file and pass the file instead.
 
-Gotchas found the hard way (details in `docs/BASELINE.md` and ADR 0004):
+Gotchas found the hard way (details in `docs/BASELINE.md` and ADRs 0004–0005):
 
 - FreeCAD **silently ignores** `FREECAD_USER_HOME/DATA/TEMP` unless the folders already exist. Without
   isolation, test runs read and write the developer's real profile.
@@ -90,6 +96,9 @@ Gotchas found the hard way (details in `docs/BASELINE.md` and ADR 0004):
   the CAM asset manager). Run CAM in batches.
 - Never run the benchmark and a test run at the same time: they compete for CPU and, without
   isolation, for FreeCAD's lock files.
+- A bare `FreeCAD.exe -t ...` uses the real profile. If the dev build's profile folder doesn't exist but an
+  older FreeCAD's does, a modal "Welcome to FreeCAD" migration dialog appears and the tests hang
+  behind it forever. Use `tools/test/run_gui_suites.py`.
 
 Run the narrowest suite that covers your change while iterating, then the Studio suites before
 committing. Use `pixi run <cmd>` so the right Python, Qt and compilers are on PATH.
