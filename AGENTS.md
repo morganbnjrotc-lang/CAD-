@@ -115,8 +115,8 @@ committing. Use `pixi run <cmd>` so the right Python, Qt and compilers are on PA
 - Commit and push only when the user asks or has already approved it for the current task. Keep commits small and focused.
 - Write clear commit messages (imperative summary line, body explains why). AI-assisted
   commits end with a `Co-Authored-By:` trailer naming the model.
-- Upstream merges happen on a branch (`git fetch upstream && git merge upstream/main`), get a
-  full test run, and then merge to `main`. Don't rebase or rewrite published history.
+- Upstream merges happen on a branch, get a full test run, and then merge to `main`: follow
+  [docs/UPSTREAM_MERGE.md](docs/UPSTREAM_MERGE.md). Don't rebase or rewrite published history.
 - Very large pushes over SSH can drop. Push in batches of about 200 commits if that happens.
 
 ## Keep docs current

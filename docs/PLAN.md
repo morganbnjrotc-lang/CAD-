@@ -64,8 +64,8 @@ We want FreeCAD's kernel and bug fixes for years, so:
 - **Core edits are minimal, isolated and logged** in [`docs/CORE_PATCHES.md`](CORE_PATCHES.md) (file, reason, owner).
   Prefer FreeCAD's extension points (`WorkbenchManipulator`, navigation-style registration,
   command registration, preference pages, overlays) over editing core.
-- **Monthly upstream merge** (`git fetch upstream && git merge upstream/main`) on a branch,
-  full test run, then merge to `main`.
+- **Monthly upstream merge** on a branch, full test run, then merge to `main`
+  (procedure and log: [`docs/UPSTREAM_MERGE.md`](UPSTREAM_MERGE.md)).
 - License stays **LGPL-2.1-or-later**; anything ported from addons gets a license check first.
 
 ### 1.5 Decisions are written down
@@ -174,7 +174,7 @@ docs/
 Each phase ends with a working app, green tests, and budgets checked. Phases 3–9 can be
 reordered by priority; Phases 1–2 come first because everything else sits on top of them.
 
-### Phase 1 — Foundation *(current)*
+### Phase 1 — Foundation *(done 2026-11-14)*
 
 **Goal:** build FreeCAD from source on this PC with one command, record a baseline, and scaffold
 our module with TDD and CI in place.
@@ -189,11 +189,11 @@ our module with TDD and CI in place.
 | 1.6 ✅ | Scaffold `src/Mod/Studio` (layout from §2.3), registered with CMake and the test runner | `FreeCADCmd -t TestStudioApp` runs a real (initially failing → passing) test |
 | 1.7 ✅ | **Walking skeleton (TDD):** Studio workbench exists, is the default at startup (via [branding.xml](adr/0004-branding-via-branding-xml.md)), shows an empty shell; layer-rule tests; local-only socket guard test; end-to-end `tools/test/startup_smoke.py` | Tests written first; all green |
 | 1.8 ✅ | CI for our fork: replace upstream's heavy workflows (they trigger on our pushes) with a lean Windows build + Studio tests; full suite nightly or on demand. Upstream workflows + Dependabot removed, `studio-ci.yml` + `tools/repo_tests` added ([ADR 0005](adr/0005-own-ci-workflow.md)). First run green on `main` 2026-11-13 (cold build, no compiler cache: 2 h 9 min) | CI green on `main` |
-| 1.9 🟡 | Repo docs: our own `AGENTS.md`/`CLAUDE.md` (TDD rules, layers, upstream rules) ✅, ADR template + first ADRs ✅, `CORE_PATCHES.md` ✅, upstream-merge procedure | Docs merged; a practice upstream merge has been done once |
+| 1.9 ✅ | Repo docs: our own `AGENTS.md`/`CLAUDE.md` (TDD rules, layers, upstream rules) ✅, ADR template + first ADRs ✅, `CORE_PATCHES.md` ✅, upstream-merge procedure ✅ ([`UPSTREAM_MERGE.md`](UPSTREAM_MERGE.md); first merge 2026-11-14: 19 commits, no conflicts, 0 tests worse) | Docs merged; a practice upstream merge has been done once |
 
 **Exit:** one-command build, baseline and budgets recorded, Studio module green in CI.
 
-### Phase 2 — The Shell (clean, unified UI)
+### Phase 2 — The Shell (clean, unified UI) *(current)*
 
 **Goal:** the app *feels* different: sparse, viewport-first, one environment, laptop-friendly.
 

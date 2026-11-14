@@ -28,6 +28,9 @@ All runs below use a **throwaway FreeCAD profile** (verified: FreeCAD's `user.cf
 Skips are environmental: 24 need the GUI and run under `FreeCAD.exe`, not `FreeCADCmd`; one
 Sketcher case is skipped upstream on purpose ("secants still under discussion").
 
+**After merging upstream `00cb280454` (2026-11-14, [UPSTREAM_MERGE.md](UPSTREAM_MERGE.md)):** the
+same results, except CAM now has 2,077 tests (11 added upstream), all passing.
+
 ### Known upstream issue: CAM hangs on Windows after ~16,000 `asyncio.run()` calls
 
 Running the whole CAM suite in one process **hangs forever** on this machine, always somewhere

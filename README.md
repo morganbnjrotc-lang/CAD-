@@ -2,7 +2,10 @@
 
 A fast, fully local, lightweight CAD/CAM application built on top of [FreeCAD](https://github.com/FreeCAD/FreeCAD) — with a radically cleaner interface.
 
-> **Status:** planning. This repository currently contains the upstream FreeCAD source as our starting point. Nothing below is implemented yet unless marked ✅.
+> **Status:** Phase 1 (foundation) is done. The app builds from source with one command, the
+> baseline and performance budgets are recorded, and CI is green. It still looks like FreeCAD;
+> Phase 2 (the clean, unified shell) is next. See [docs/PLAN.md](docs/PLAN.md). Nothing below is
+> implemented yet unless marked ✅.
 
 ## Principles
 
