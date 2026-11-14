@@ -19,9 +19,25 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 PROBE = Path(__file__).resolve().parent / "_startup_smoke_probe.py"
 
+sys.path.insert(0, str(REPO / "tools" / "bench"))
+from benchlib import make_profile  # noqa: E402  (shared throwaway profile)
+
 EXPECTED = {
     "active_workbench": "StudioWorkbench",
+    # Nothing waiting for a click in front of a new user. The profile has the OpenGL 1.x warning
+    # dismissed (a hardware warning, shown on GPU-less CI runners), so any dialog here is ours or
+    # a first-run dialog from upstream.
+    "dialogs": [],
 }
+
+
+def failures(state: dict, profile_dir: Path) -> dict:
+    """{check: (expected, got)} for every check the reported app state fails; {} = pass."""
+    found = {k: (v, state.get(k)) for k, v in EXPECTED.items() if state.get(k) != v}
+    user_cfg = state.get("user_parameter_file") or ""
+    if not (user_cfg and Path(user_cfg).resolve().is_relative_to(profile_dir.resolve())):
+        found["user_parameter_file"] = ("inside the throwaway profile", user_cfg)
+    return found
 
 
 def main() -> int:
@@ -33,33 +49,20 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="studio-smoke-") as tmp:
         tmp = Path(tmp)
         out = tmp / "state.json"
-        # FreeCAD silently ignores FREECAD_USER_* unless the folders already exist
-        for sub in ("home", "data", "temp"):
-            (tmp / sub).mkdir()
         env = dict(os.environ)
-        env.update(
-            STUDIO_SMOKE_OUT=str(out),
-            FREECAD_USER_HOME=str(tmp / "home"),
-            FREECAD_USER_DATA=str(tmp / "data"),
-            FREECAD_USER_TEMP=str(tmp / "temp"),
-        )
+        env.update(make_profile(tmp), STUDIO_SMOKE_OUT=str(out))
         subprocess.run([str(exe), str(PROBE)], env=env, timeout=180, capture_output=True)
         if not out.exists():
             print("FAIL: app did not report its state (crashed or hung during startup)")
             return 1
         state = json.loads(out.read_text(encoding="utf-8"))
-        profile_isolated = Path(state.get("user_parameter_file", "")).resolve().is_relative_to(
-            tmp.resolve()
-        )
+        failed = failures(state, tmp)
 
-    failures = {k: (v, state.get(k)) for k, v in EXPECTED.items() if state.get(k) != v}
-    if not profile_isolated:
-        failures["user_parameter_file"] = ("inside the throwaway profile", state.get("user_parameter_file"))
     print(json.dumps(state, indent=2))
-    for key, (want, got) in failures.items():
+    for key, (want, got) in failed.items():
         print(f"FAIL: {key}: expected {want!r}, got {got!r}")
-    print("PASS" if not failures else f"{len(failures)} check(s) failed")
-    return 1 if failures else 0
+    print("PASS" if not failed else f"{len(failed)} check(s) failed")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

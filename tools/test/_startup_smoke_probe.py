@@ -10,15 +10,26 @@ import os
 
 import FreeCAD
 import FreeCADGui
-from PySide import QtCore
+from PySide import QtCore, QtWidgets  # FreeCAD's PySide shim
 
 SETTLE_MS = 1500  # let deferred startup work (Start page, migrations) finish
+
+
+def open_dialogs():
+    """Titles of dialogs on screen, modal or not. A dialog opened with show() leaves the event
+    loop running, so the app looks started even while a new user is looking at the dialog."""
+    return [
+        w.windowTitle()
+        for w in QtWidgets.QApplication.topLevelWidgets()
+        if isinstance(w, QtWidgets.QDialog) and w.isVisible()
+    ]
 
 
 def report():
     workbench = FreeCADGui.activeWorkbench()
     state = {
         "active_workbench": workbench.name() if workbench else None,
+        "dialogs": open_dialogs(),
         "start_workbench_config": FreeCAD.ConfigGet("StartWorkbench"),
         "autoload_module_pref": FreeCAD.ParamGet(
             "User parameter:BaseApp/Preferences/General"
