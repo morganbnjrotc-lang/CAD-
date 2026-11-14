@@ -75,6 +75,28 @@ class WorkbenchLoadingTest(unittest.TestCase):
             self.helper.initialize_workbench("NoSuchWorkbench")
 
 
+class DeclaredShortcutTest(unittest.TestCase):
+    """FreeCAD reports a command's shortcut through its button, so a command no menu or toolbar
+    shows seems to have none: Studio removed the Windows menu, and Ctrl+Tab (next window)
+    vanished from the command catalog. The catalog reads the declared default instead."""
+
+    def setUp(self):
+        import StudioGui
+
+        self.helper = StudioGui
+
+    def test_declared_default_even_without_a_menu_or_toolbar(self):
+        self.assertEqual(self.helper.declared_shortcut("Std_ActivateNextWindow"), "Ctrl+Tab")
+        self.assertEqual(self.helper.declared_shortcut("Std_Undo"), "Ctrl+Z")
+
+    def test_no_shortcut_is_empty_text(self):
+        self.assertEqual(self.helper.declared_shortcut("Studio_CommandPalette"), "")
+
+    def test_unknown_command_is_a_key_error(self):
+        with self.assertRaises(KeyError):
+            self.helper.declared_shortcut("No_Such_Command")
+
+
 class CommandServiceInTheAppTest(unittest.TestCase):
     def test_first_use_loads_the_workbench_and_runs_the_real_command(self):
         self.assertFalse(registered("Spreadsheet_CreateSheet"), "precondition: Spreadsheet not loaded yet")

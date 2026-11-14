@@ -429,7 +429,7 @@
    "workbench": null,
    "menu_text": "F&reeze Display",
    "tooltip": "Freezes the current view position",
-   "shortcut": "",
+   "shortcut": "Shift+F",
    "icon": null
   },
   {
@@ -567,30 +567,6 @@
    "tooltip": "Unlinks the object by placing it directly in the container",
    "shortcut": "",
    "icon": "src/Gui/Icons/Unlink.svg"
-  },
-  {
-   "name": "Std_MDITest1",
-   "workbench": null,
-   "menu_text": "Remove MDI 1",
-   "tooltip": "Remove MDI from main window",
-   "shortcut": "",
-   "icon": null
-  },
-  {
-   "name": "Std_MDITest2",
-   "workbench": null,
-   "menu_text": "Remove MDI 2",
-   "tooltip": "Remove view from MDI area",
-   "shortcut": "",
-   "icon": null
-  },
-  {
-   "name": "Std_MDITest3",
-   "workbench": null,
-   "menu_text": "Remove MDI 3",
-   "tooltip": "Unset parent and remove from main window",
-   "shortcut": "",
-   "icon": null
   },
   {
    "name": "Std_MacroAttachDebugger",
@@ -990,126 +966,6 @@
    "menu_text": "St&ore Working View",
    "tooltip": "Stores a temporary working view for the current document",
    "shortcut": "Shift+End",
-   "icon": null
-  },
-  {
-   "name": "Std_Test1",
-   "workbench": null,
-   "menu_text": "Test1",
-   "tooltip": "Test function 1",
-   "shortcut": "",
-   "icon": "src/Gui/Icons/Std_Tool1.svg"
-  },
-  {
-   "name": "Std_Test2",
-   "workbench": null,
-   "menu_text": "Test2",
-   "tooltip": "Test function 2",
-   "shortcut": "",
-   "icon": "src/Gui/Icons/Std_Tool2.svg"
-  },
-  {
-   "name": "Std_Test3",
-   "workbench": null,
-   "menu_text": "Test3",
-   "tooltip": "Test function 3",
-   "shortcut": "",
-   "icon": "src/Gui/Icons/Std_Tool3.svg"
-  },
-  {
-   "name": "Std_Test4",
-   "workbench": null,
-   "menu_text": "Test4",
-   "tooltip": "Test function 4",
-   "shortcut": "",
-   "icon": "src/Gui/Icons/Std_Tool4.svg"
-  },
-  {
-   "name": "Std_Test5",
-   "workbench": null,
-   "menu_text": "Test5",
-   "tooltip": "Test function 5",
-   "shortcut": "",
-   "icon": "src/Gui/Icons/Std_Tool5.svg"
-  },
-  {
-   "name": "Std_Test6",
-   "workbench": null,
-   "menu_text": "Test6",
-   "tooltip": "Test function 6",
-   "shortcut": "",
-   "icon": "src/Gui/Icons/Std_Tool6.svg"
-  },
-  {
-   "name": "Std_TestCmdFuncs",
-   "workbench": null,
-   "menu_text": "Test Functions",
-   "tooltip": "Test functions",
-   "shortcut": "",
-   "icon": null
-  },
-  {
-   "name": "Std_TestConsoleOutput",
-   "workbench": null,
-   "menu_text": "Test Console Output",
-   "tooltip": "Runs test cases to verify console messages",
-   "shortcut": "",
-   "icon": null
-  },
-  {
-   "name": "Std_TestProgress1",
-   "workbench": null,
-   "menu_text": "Breakable Bar",
-   "tooltip": "Test a breakable progress bar",
-   "shortcut": "",
-   "icon": "src/Gui/Icons/Std_Tool7.svg"
-  },
-  {
-   "name": "Std_TestProgress2",
-   "workbench": null,
-   "menu_text": "Unbreakable Bar",
-   "tooltip": "Test a unbreakable progress bar",
-   "shortcut": "",
-   "icon": "src/Gui/Icons/Std_Tool7.svg"
-  },
-  {
-   "name": "Std_TestProgress3",
-   "workbench": null,
-   "menu_text": "Nested Progress Bar",
-   "tooltip": "Test nested progress bar",
-   "shortcut": "",
-   "icon": "src/Gui/Icons/Std_Tool8.svg"
-  },
-  {
-   "name": "Std_TestProgress4",
-   "workbench": null,
-   "menu_text": "Mixed Nested Bar",
-   "tooltip": "Test a mixed up nested progress bar",
-   "shortcut": "",
-   "icon": "src/Gui/Icons/Std_Tool7.svg"
-  },
-  {
-   "name": "Std_TestProgress5",
-   "workbench": null,
-   "menu_text": "From Thread",
-   "tooltip": "Test a progress bar from a thread",
-   "shortcut": "",
-   "icon": "src/Gui/Icons/Std_Tool7.svg"
-  },
-  {
-   "name": "Std_TestQM",
-   "workbench": null,
-   "menu_text": "Test Translation Files",
-   "tooltip": "Runs a test to verify .qm translation files",
-   "shortcut": "",
-   "icon": null
-  },
-  {
-   "name": "Std_TestReloadQM",
-   "workbench": null,
-   "menu_text": "Reload Translation Files",
-   "tooltip": "Reloads the translation files",
-   "shortcut": "",
    "icon": null
   },
   {
@@ -1845,7 +1701,7 @@
    "workbench": "SketcherWorkbench",
    "menu_text": "Clone",
    "tooltip": "Creates a clone of the geometry taking as reference the last selected point",
-   "shortcut": "",
+   "shortcut": "Z, L",
    "icon": "src/Mod/Sketcher/Gui/Resources/icons/tools/Sketcher_Clone.svg"
   },
   {
@@ -1861,7 +1717,7 @@
    "workbench": "SketcherWorkbench",
    "menu_text": "Radius/Diameter Dimension",
    "tooltip": "Constrains the radius or diameter of an arc or a circle",
-   "shortcut": "",
+   "shortcut": "R",
    "icon": null
   },
   {
@@ -2013,7 +1869,7 @@
    "workbench": "SketcherWorkbench",
    "menu_text": "Coincident Constraint",
    "tooltip": "Constrains the selected elements to be coincident",
-   "shortcut": "",
+   "shortcut": "C, C",
    "icon": "src/Mod/Sketcher/Gui/Resources/icons/constraints/Constraint_PointOnPoint.svg"
   },
   {
@@ -2069,7 +1925,7 @@
    "workbench": "SketcherWorkbench",
    "menu_text": "Group Constraint",
    "tooltip": "Constrains the selected geometries together as a single entity.The position and size of the grouped geometries can be defined by constraining the construction line that is generated.Constraints applied to grouped edges are ignored as long as the Group constraint is here.",
-   "shortcut": "",
+   "shortcut": "K, G",
    "icon": "src/Mod/Sketcher/Gui/Resources/icons/constraints/Constraint_Group.svg"
   },
   {
@@ -2117,7 +1973,7 @@
    "workbench": "SketcherWorkbench",
    "menu_text": "Point-On-Object Constraint",
    "tooltip": "Constrains the selected point onto the selected object",
-   "shortcut": "",
+   "shortcut": "O",
    "icon": "src/Mod/Sketcher/Gui/Resources/icons/constraints/Constraint_PointOnObject.svg"
   },
   {
@@ -2173,7 +2029,7 @@
    "workbench": "SketcherWorkbench",
    "menu_text": "Copy",
    "tooltip": "Creates a simple copy of the geometry taking as reference the last selected point",
-   "shortcut": "",
+   "shortcut": "Z, C",
    "icon": "src/Mod/Sketcher/Gui/Resources/icons/tools/Sketcher_Copy.svg"
   },
   {
@@ -2557,7 +2413,7 @@
    "workbench": "SketcherWorkbench",
    "menu_text": "Move",
    "tooltip": "Moves the geometry taking as reference the last selected point",
-   "shortcut": "",
+   "shortcut": "Z, M",
    "icon": "src/Mod/Sketcher/Gui/Resources/icons/tools/Sketcher_Move.svg"
   },
   {
@@ -2605,7 +2461,7 @@
    "workbench": "SketcherWorkbench",
    "menu_text": "Rectangular Array",
    "tooltip": "Creates a rectangular array pattern of the geometry taking as reference the last selected point",
-   "shortcut": "",
+   "shortcut": "Z, A",
    "icon": "src/Mod/Sketcher/Gui/Resources/icons/tools/Sketcher_RectangularArray.svg"
   },
   {
@@ -3413,7 +3269,7 @@
    "workbench": "PartWorkbench",
    "menu_text": "Edge Selection",
    "tooltip": "Only allows the selection of edges",
-   "shortcut": "",
+   "shortcut": "E, S",
    "icon": "src/Gui/Icons/edge-selection.svg"
   },
   {
@@ -3461,7 +3317,7 @@
    "workbench": "PartWorkbench",
    "menu_text": "Face Selection",
    "tooltip": "Only allows the selection of faces",
-   "shortcut": "",
+   "shortcut": "F, S",
    "icon": "src/Gui/Icons/face-selection.svg"
   },
   {
@@ -3661,7 +3517,7 @@
    "workbench": "PartWorkbench",
    "menu_text": "No Selection Filters",
    "tooltip": "Clears all selection filters",
-   "shortcut": "",
+   "shortcut": "C, S",
    "icon": "src/Gui/Icons/clear-selection.svg"
   },
   {
@@ -3829,7 +3685,7 @@
    "workbench": "PartWorkbench",
    "menu_text": "Vertex Selection",
    "tooltip": "Only allows the selection of vertices",
-   "shortcut": "",
+   "shortcut": "X, S",
    "icon": "src/Gui/Icons/vertex-selection.svg"
   },
   {
@@ -3885,7 +3741,7 @@
    "workbench": "AssemblyWorkbench",
    "menu_text": "Belt Joint",
    "tooltip": "<p>Creates a belt joint that links 2 rotating objects together. They will have the same rotation direction.</p><p>Select the same coordinate systems as the revolute joints.</p>",
-   "shortcut": "",
+   "shortcut": "L",
    "icon": "src/Mod/Assembly/Gui/Resources/icons/Assembly_CreateJointPulleys.svg"
   },
   {
@@ -3925,7 +3781,7 @@
    "workbench": "AssemblyWorkbench",
    "menu_text": "Gears Joint",
    "tooltip": "<p>Creates a gears joint that links 2 rotating gears together. They will have inverse rotation direction.</p><p>Select the same coordinate systems as the revolute joints.</p>",
-   "shortcut": "",
+   "shortcut": "T",
    "icon": "src/Mod/Assembly/Gui/Resources/icons/Assembly_CreateJointGears.svg"
   },
   {
@@ -4029,7 +3885,7 @@
    "workbench": "AssemblyWorkbench",
    "menu_text": "Insert Component",
    "tooltip": "<p>Inserts a component into the active assembly. This will create dynamic links to parts, bodies, primitives, and assemblies. To insert external components, make sure that the file is <b>open in the current session</b></p><ul><li>Insert by left clicking items in the list.</li><li>Remove by right clicking items in the list.</li><li>Press shift to add several instances of the component while clicking on the view.</li></ul>",
-   "shortcut": "",
+   "shortcut": "I",
    "icon": "src/Mod/Assembly/Gui/Resources/icons/Assembly_InsertLink.svg"
   },
   {
@@ -4037,7 +3893,7 @@
    "workbench": "AssemblyWorkbench",
    "menu_text": "New Part",
    "tooltip": "Insert a new part into the active assembly. The new part's origin can be positioned in the assembly.",
-   "shortcut": "",
+   "shortcut": "P",
    "icon": "src/Gui/Icons/Geofeaturegroup.svg"
   },
   {
@@ -5501,7 +5357,7 @@
    "workbench": "CAMWorkbench",
    "menu_text": "Quick Validate",
    "tooltip": "Validates the CAM job for common issues without generating a full report",
-   "shortcut": "",
+   "shortcut": "P, V",
    "icon": "src/Mod/CAM/Gui/Resources/icons/CAM_Sanity.svg"
   },
   {

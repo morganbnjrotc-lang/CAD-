@@ -17,7 +17,21 @@ from PySide import QtCore  # FreeCAD's PySide shim
 
 
 def _infos(names):
-    return [Gui.Command.get(name).getInfo() for name in sorted(names)]
+    """getInfo() of each command, with the shortcut it declares: getInfo() reports the shortcut of
+    the command's button, so a command that no menu or toolbar shows would seem to have none."""
+    import StudioGui  # Studio's C++ helpers
+    from studio.interaction.keymap import normalize
+
+    infos = []
+    for name in sorted(names):
+        info = Gui.Command.get(name).getInfo()
+        declared = StudioGui.declared_shortcut(name)  # as written in FreeCAD: "A,C", "SHIFT+H"
+        try:
+            info["shortcut"] = normalize(declared)
+        except ValueError:
+            info["shortcut"] = declared  # the keymap test on the shipped catalog will name it
+        infos.append(info)
+    return infos
 
 
 def _run():

@@ -21,6 +21,7 @@
 #include <Base/PyObjectBase.h>  // PyMOD_INIT_FUNC
 #include <Base/Type.h>
 #include <Gui/Application.h>
+#include <Gui/Command.h>
 #include <Gui/MainWindow.h>
 #include <Gui/Workbench.h>
 #include <Gui/WorkbenchManager.h>
@@ -120,6 +121,14 @@ public:
             &Module::removeKeyFilter,
             "remove_key_filter(id): removes a filter installed by add_key_filter()."
         );
+        add_varargs_method(
+            "declared_shortcut",
+            &Module::declaredShortcut,
+            "declared_shortcut(name) -> str\n\n"
+            "The key sequence a command declares as its default (Command::getAccel), whether or not\n"
+            "a menu or toolbar shows the command; '' if it declares none. FreeCAD's own Python API\n"
+            "reports a command's shortcut only through its button. KeyError for an unknown command."
+        );
         initialize("Studio's C++ helpers for the shell (docs/adr/0007, 0008).");
     }
 
@@ -141,6 +150,20 @@ private:
         const long id = nextGateId++;
         gates[id] = gate;
         return Py::Long(id);
+    }
+
+    Py::Object declaredShortcut(const Py::Tuple& args)
+    {
+        char* name = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "s", &name)) {
+            throw Py::Exception();
+        }
+        Gui::Command* command = Gui::Application::Instance->commandManager().getCommandByName(name);
+        if (!command) {
+            throw Py::KeyError(name);
+        }
+        const char* accel = command->getAccel();
+        return Py::String(accel ? accel : "");
     }
 
     Py::Object removeKeyFilter(const Py::Tuple& args)

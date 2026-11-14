@@ -114,6 +114,18 @@ class Catalog(unittest.TestCase):
             {"name": "PartDesignWorkbench", "class": "PartDesignGui::Workbench"},
         ])
 
+    def test_freecads_developer_test_commands_are_left_out(self):
+        # Std_Test1 ("Test1", Ctrl+T), Std_TestProgress*, Std_MDITest*: tools for testing FreeCAD
+        # itself; they'd clutter the palette and take global keys.
+        probe = dict(PROBE, core=PROBE["core"] + [info("Std_Test1", "Test1", shortcut="Ctrl+T"),
+                                                  info("Std_MDITest2", "Remove MDI 2"),
+                                                  info("Std_TestProgress1", "Breakable Bar")])
+        names = {c["name"] for c in gen.build_catalog(probe, gen.IconIndex(Path(self._tmp.name) / "src"))["commands"]}
+        self.assertNotIn("Std_Test1", names)
+        self.assertNotIn("Std_MDITest2", names)
+        self.assertNotIn("Std_TestProgress1", names)
+        self.assertIn("Std_Undo", names)
+
     def test_missing_icons_are_reported(self):
         self.assertEqual(gen.missing_icons(self.catalog), ["PartDesign_Body", "Sketcher_NewSketch", "Std_Undo"])
 

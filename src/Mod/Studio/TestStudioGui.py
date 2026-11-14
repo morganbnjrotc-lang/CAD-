@@ -3,6 +3,7 @@
 
 from StudioTests.gui.test_command_backend import (  # noqa: F401
     CommandServiceInTheAppTest,
+    DeclaredShortcutTest,
     WorkbenchLoadingTest,
 )
 from StudioTests.gui.test_main_window import Chrome, FollowsSelection, OneEnvironment  # noqa: F401

@@ -18,6 +18,7 @@ an upstream merge renamed or added a command: regenerate, review the diff, commi
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -41,6 +42,9 @@ WORKBENCHES = (
     "SpreadsheetWorkbench",
 )
 FIELDS = ("workbench", "menu_text", "tooltip", "shortcut", "icon")
+# FreeCAD's commands for testing FreeCAD itself (Std_Test1 "Test1" on Ctrl+T, progress bars, MDI
+# tests): not user tools, so they stay out of the palette and the keymap.
+DEVELOPER_COMMANDS = re.compile(r"Std_(MDI)?Test")
 
 
 class IconIndex:
@@ -109,6 +113,8 @@ def build_catalog(probe: dict, icons: IconIndex) -> dict:
     groups = [(None, probe["core"])] + [(w["name"], w["commands"]) for w in probe["workbenches"]]
     for workbench, infos in groups:
         for info in infos:
+            if DEVELOPER_COMMANDS.match(info["name"]):
+                continue
             commands.append({
                 "name": info["name"],
                 "workbench": workbench,

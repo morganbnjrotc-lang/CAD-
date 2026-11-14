@@ -63,11 +63,12 @@ class Normalize(unittest.TestCase):
             with self.subTest(given=given), self.assertRaises(ValueError):
                 normalize(given)
 
-    def test_every_freecad_default_in_the_shipped_catalog_is_understood(self):
+    def test_every_freecad_default_in_the_shipped_catalog_is_stored_in_canonical_form(self):
+        # The catalog holds what commands declare ("A,C", "SHIFT+H"), normalized by its generator.
         for info in CommandCatalog.load().commands():
             if info.shortcut:
                 with self.subTest(command=info.name):
-                    self.assertEqual(normalize(normalize(info.shortcut)), normalize(info.shortcut))
+                    self.assertEqual(normalize(info.shortcut), info.shortcut)
 
 
 class KeymapTestCase(unittest.TestCase):
