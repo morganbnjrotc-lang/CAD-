@@ -6,6 +6,7 @@ file(GLOB_RECURSE Studio_Package_SRCS
     RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
     CONFIGURE_DEPENDS
     studio/*.py
+    studio/*.json
     StudioTests/*.py
     Resources/icons/*.svg
 )
@@ -36,7 +37,7 @@ install(FILES ${Studio_Scripts} DESTINATION Mod/Studio)
 install(
     DIRECTORY studio StudioTests
     DESTINATION Mod/Studio
-    FILES_MATCHING PATTERN "*.py"
+    FILES_MATCHING PATTERN "*.py" PATTERN "*.json"
 )
 install(DIRECTORY Resources DESTINATION Mod/Studio)
 install(FILES branding/branding.xml DESTINATION ${CMAKE_INSTALL_BINDIR})
