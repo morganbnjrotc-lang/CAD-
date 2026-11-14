@@ -54,8 +54,8 @@ reference laptop (Ryzen AI 7 445, 16 GB RAM); each later phase must stay within 
 
 | Metric | Budget (set after baseline) |
 |---|---|
-| Cold start to usable window | ≤ **1.5 s** by end of Phase 2; **1.0 s** is the stretch goal. Upstream FreeCAD takes 1.97 s (full build) / 1.85 s (slim) on a quiet machine (2026-11-14). Measure on a quiet machine, alternating with a reference build in back-to-back batches: a single number can be off by 1 s or more ([BASELINE.md](BASELINE.md)). The earlier 2.2 s target (half the first 4.4 s measurement) was dropped on 2026-11-14 because upstream FreeCAD already meets it |
-| Idle memory after start | baseline → must not grow phase-over-phase without sign-off |
+| Cold start to usable window | ≤ **1.5 s** by end of Phase 2; **1.0 s** is the stretch goal. Checked on the **slim Release build** (what we ship): 1.72–1.75 s on 2026-11-14 (RelWithDebInfo builds: 1.97 s full / 1.85 s slim; their debug symbols add ~0.3 s). Measure on a quiet machine, alternating with a reference build in back-to-back batches: a single number can be off by 1 s or more ([BASELINE.md](BASELINE.md)). The earlier 2.2 s target (half the first 4.4 s measurement) was dropped on 2026-11-14 because upstream FreeCAD already meets it |
+| Idle memory after start | must not grow phase-over-phase without sign-off. Slim Release: 394 MB working set / 361 MB private (2026-11-14) |
 | Open reference model (STEP + native) | no slower than the baseline without sign-off, compared back to back: 0.49–0.70 s for the three native files, 1.33 s for the STEP file (2026-11-14, [BASELINE.md](BASELINE.md#reference-files-2026-11-14)) |
 | Full CAM simulation of reference job | baseline (Phase 8) |
 
@@ -204,7 +204,7 @@ Foundations come first, then the visible changes built on them (order agreed 202
 
 | # | Task | Done when |
 |---|---|---|
-| 2.1 🟡 | **Startup profiler ✅ + lazy-loading design.** A tool showing where startup time goes (C++ init, Python imports, each module's `Init.py`/`InitGui.py`, first workbench activation). FreeCAD runs its embedded Python in isolated mode, so `PYTHON*` variables such as `PYTHONPROFILEIMPORTTIME` are ignored and the hook has to live inside the app. ADR: how the single environment offers every module's tools without loading those modules at startup | Profile recorded in `BASELINE.md`; ADR accepted |
+| 2.1 🟡 | **Startup profiler ✅ + lazy-loading design.** A tool showing where startup time goes (C++ init, Python imports, each module's `Init.py`/`InitGui.py`, first workbench activation). FreeCAD runs its embedded Python in isolated mode, so `PYTHON*` variables such as `PYTHONPROFILEIMPORTTIME` are ignored and the hook has to live inside the app. ADR: how the single environment offers every module's tools without loading those modules at startup ([ADR 0007](adr/0007-lazy-loading-command-catalog.md), proposed: generated command catalog, load on first use, warm-up for cheap modules; CAM alone would add ~0.6 s to startup) | Profile recorded in `BASELINE.md` ✅; ADR accepted |
 | 2.2 | **Settings service** (`studio/settings.py`): typed preferences on FreeCAD's parameter store, defaults, "Make default" | Headless tests green |
 | 2.3 | **Command catalog** (service): every command's name, icon, module and the context it applies to, readable *without* importing the module; commands load on first use | Headless tests green; startup not slower |
 | 2.4 | **Keymap service**: `E` extrude, `F` focus selection, `Shift+F` fit all, user-editable bindings, conflict detection | Headless resolution tests; shortcuts work in the app |

@@ -147,22 +147,23 @@ with the full build:
 
 `pixi run python tools/bench/profile_startup.py --runs 6` (Phase 2 task 2.1) splits startup into
 phases at known lines in FreeCAD's log, which is flushed after every message. Medians of runs 2–6,
-RelWithDebInfo builds, same afternoon. "Without PDBs": the slim build with its debug-symbol files
-moved aside for the run (an experiment; Release builds have none):
+same afternoon. "Without PDBs": the slim RelWithDebInfo build with its debug-symbol files moved aside
+for the run (an experiment). "Slim Release": `pixi run configure-slim-release` /
+`build-slim-release` → `build/slim-release`, the configuration we ship and CI builds:
 
-| Phase (code that runs in it) | Full | Slim | Slim without PDBs |
-|---|---|---|---|
-| Process start → first log line (EXE + DLL loading) | 99 ms | 114 ms | 108 ms |
-| **Config + crash reporter setup** (`Application::initCrashReporter`) | **420 ms** | **432 ms** | **273 ms** |
-| App init script (`FreeCADInit.py`, every `Init.py`) | 111 ms | 120 ms | 123 ms |
-| Qt application, main window, style sheet, OpenGL check | 274 ms | 432 ms | 302 ms |
-| Coin3D init + splash | 45 ms | 41 ms | n/a |
-| GUI init script (`FreeCADGuiInit.py`, every `InitGui.py`) | 367 ms | 282 ms | 267 ms |
-| **Start workbench activation** (Studio's workbench is empty) | 226 ms | 228 ms | 230 ms |
-| Window settings, autoloaded modules, migration check | 102 ms | 144 ms | n/a |
-| First events after the event loop starts (Start page, f3d thumbnails, …) | 311 ms | 353 ms | n/a |
-| Command-line files → idle | 113 ms | 104 ms | n/a |
-| **Ready** | **2.10 s** | **2.27 s** | **1.91 s** |
+| Phase (code that runs in it) | Full | Slim | Slim without PDBs | **Slim Release** |
+|---|---|---|---|---|
+| Process start → first log line (EXE + DLL loading) | 99 ms | 114 ms | 108 ms | 101 ms |
+| **Config + crash reporter setup** (`Application::initCrashReporter`) | **420 ms** | **432 ms** | **273 ms** | **271 ms** |
+| App init script (`FreeCADInit.py`, every `Init.py`) | 111 ms | 120 ms | 123 ms | 105 ms |
+| Qt application, main window, style sheet, OpenGL check | 274 ms | 432 ms | 302 ms | 284 ms |
+| Coin3D init + splash | 45 ms | 41 ms | n/a | 42 ms |
+| GUI init script (`FreeCADGuiInit.py`, every `InitGui.py`) | 367 ms | 282 ms | 267 ms | 245 ms |
+| **Start workbench activation** (Studio's workbench is empty) | 226 ms | 228 ms | 230 ms | 151 ms |
+| Window settings, autoloaded modules, migration check | 102 ms | 144 ms | n/a | 100 ms |
+| First events after the event loop starts (Start page, f3d thumbnails, …) | 311 ms | 353 ms | n/a | 338 ms |
+| Command-line files → idle | 113 ms | 104 ms | n/a | 134 ms |
+| **Ready** | **2.10 s** | **2.27 s** | **1.91 s** | **1.79 s** |
 
 The full and slim columns were measured one after the other, not alternated, so their totals carry
 batch noise (alternated runs showed slim ~6% faster, see above). The shares are what matter:
@@ -170,7 +171,8 @@ batch noise (alternated runs showed slim ~6% faster, see above). The shares are 
 - **The crash reporter is the largest single phase.** Upstream's `Base::CrashReporter::Writer::prewarm()`
   takes a stack trace with cpptrace at startup so the stack-walking code is loaded before any crash.
   About 160 ms of it only happens when debug symbols (PDBs) are present, so **RelWithDebInfo
-  measurements overstate what users of a Release build see**. The remaining ~270 ms is real.
+  measurements overstate what users of a Release build see**. The Release build confirms it: 271 ms,
+  the same as without PDBs. That remaining ~270 ms is real.
   Candidate: run the prewarm after the window is up (core patch; worth offering upstream).
 - **Each module's `Init.py`/`InitGui.py` is cheap, except the first `InitGui.py` that imports shared
   heavy modules.** On the full build AddonManager takes 252 ms; on slim (no AddonManager) Draft takes
@@ -180,6 +182,23 @@ batch noise (alternated runs showed slim ~6% faster, see above). The shares are 
 - **~300–350 ms go to the first events after the event loop starts**, mostly the Start page and
   its thumbnails (f3d). The file browser (2.8) replaces the Start page.
 - Watching the log costs a little CPU. Use `bench_startup.py` for the startup number itself.
+
+### Release build: the numbers budgets are checked against
+
+`bench_startup.py --runs 6`, slim RelWithDebInfo and slim Release alternated twice, quiet machine
+(CPU under 15% for 30 s before starting), AC power, "Balanced":
+
+| | Slim RelWithDebInfo | **Slim Release** |
+|---|---|---|
+| Median start | 2.25 / 2.01 s | **1.75 / 1.72 s** |
+| Working set at ready | 584 MB | **394 MB** |
+| Private bytes at ready | 540 MB | **361 MB** |
+
+The Release build starts 0.3–0.5 s faster and uses a third less memory. Most of the memory difference
+is very likely the crash reporter's prewarm loading debug symbols. **From now on the startup and memory budgets
+(PLAN §1.3) are checked on the slim Release build**: 1.72–1.75 s today, so the 1.5 s target needs
+about 0.25 s and the 1.0 s stretch goal about 0.75 s. RelWithDebInfo numbers stay useful for comparing
+two builds of the same kind.
 
 ## Tools
 

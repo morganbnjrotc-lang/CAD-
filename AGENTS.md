@@ -79,7 +79,10 @@ pixi run python tools/test/run_gui_suites.py TestStudioGui
 pixi run python tools/test/startup_smoke.py
 # Repo checks (CI workflow rules; no build needed):
 pixi run python -m unittest discover -s tools/repo_tests -v
-# Benchmarks (on a quiet machine: not during a build, a test run or other heavy apps):
+# Benchmarks (on a quiet machine: not during a build, a test run or other heavy apps).
+# Budgets are checked on the slim Release build (what we ship): pixi run configure-slim-release;
+# pixi run build-slim-release, then pass --exe build/slim-release/bin/FreeCAD.exe.
+# RelWithDebInfo builds start ~0.3 s slower and use ~190 MB more because of their debug symbols.
 pixi run python tools/bench/bench_startup.py --runs 6   # startup and memory
 pixi run python tools/bench/bench_open.py --runs 6      # open the reference files (STEP + native)
 pixi run python tools/bench/profile_startup.py --runs 6 # where startup time goes, by phase and module
