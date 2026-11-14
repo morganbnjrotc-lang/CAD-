@@ -143,6 +143,44 @@ with the full build:
 > runs weren't actually isolated (FreeCAD ignores `FREECAD_USER_*` unless the folders exist) and
 > used a profile that test runs had filled up. The numbers above replace them.
 
+## Startup profile (2026-11-14)
+
+`pixi run python tools/bench/profile_startup.py --runs 6` (Phase 2 task 2.1) splits startup into
+phases at known lines in FreeCAD's log, which is flushed after every message. Medians of runs 2–6,
+RelWithDebInfo builds, same afternoon. "Without PDBs": the slim build with its debug-symbol files
+moved aside for the run (an experiment; Release builds have none):
+
+| Phase (code that runs in it) | Full | Slim | Slim without PDBs |
+|---|---|---|---|
+| Process start → first log line (EXE + DLL loading) | 99 ms | 114 ms | 108 ms |
+| **Config + crash reporter setup** (`Application::initCrashReporter`) | **420 ms** | **432 ms** | **273 ms** |
+| App init script (`FreeCADInit.py`, every `Init.py`) | 111 ms | 120 ms | 123 ms |
+| Qt application, main window, style sheet, OpenGL check | 274 ms | 432 ms | 302 ms |
+| Coin3D init + splash | 45 ms | 41 ms | n/a |
+| GUI init script (`FreeCADGuiInit.py`, every `InitGui.py`) | 367 ms | 282 ms | 267 ms |
+| **Start workbench activation** (Studio's workbench is empty) | 226 ms | 228 ms | 230 ms |
+| Window settings, autoloaded modules, migration check | 102 ms | 144 ms | n/a |
+| First events after the event loop starts (Start page, f3d thumbnails, …) | 311 ms | 353 ms | n/a |
+| Command-line files → idle | 113 ms | 104 ms | n/a |
+| **Ready** | **2.10 s** | **2.27 s** | **1.91 s** |
+
+The full and slim columns were measured one after the other, not alternated, so their totals carry
+batch noise (alternated runs showed slim ~6% faster, see above). The shares are what matter:
+
+- **The crash reporter is the largest single phase.** Upstream's `Base::CrashReporter::Writer::prewarm()`
+  takes a stack trace with cpptrace at startup so the stack-walking code is loaded before any crash.
+  About 160 ms of it only happens when debug symbols (PDBs) are present, so **RelWithDebInfo
+  measurements overstate what users of a Release build see**. The remaining ~270 ms is real.
+  Candidate: run the prewarm after the window is up (core patch; worth offering upstream).
+- **Each module's `Init.py`/`InitGui.py` is cheap, except the first `InitGui.py` that imports shared
+  heavy modules.** On the full build AddonManager takes 252 ms; on slim (no AddonManager) Draft takes
+  104 ms and Tux 81 ms. Removing modules (the slim build) mostly moves this cost elsewhere.
+- **Activating an empty workbench costs ~230 ms**: FreeCAD's generic activation (menus, toolbars,
+  command bars), not our code. Relevant to the unified main window (2.6).
+- **~300–350 ms go to the first events after the event loop starts**, mostly the Start page and
+  its thumbnails (f3d). The file browser (2.8) replaces the Start page.
+- Watching the log costs a little CPU. Use `bench_startup.py` for the startup number itself.
+
 ## Tools
 
 - `tools/test/run_headless_suites.py`: runs suites in a throwaway profile (fails if the profile
@@ -153,5 +191,6 @@ with the full build:
 - `tools/test/run_gui_suites.py`: GUI suites (`FreeCAD.exe -t`) in a throwaway profile, killed on timeout.
 - `tools/test/compare_test_logs.py`: diffs two suite logs (missing tests by module, tests that got worse).
 - `tools/bench/bench_startup.py`: startup and memory benchmark, also in a throwaway profile.
+- `tools/bench/profile_startup.py`: where startup time goes, by phase and by module (`InitGui.py`).
 - `tools/bench/bench_open.py`: opens the reference files; stops with an error if any load is incomplete.
   CI runs one pass of it on the slim Release build as a check (timings on a shared runner aren't used).

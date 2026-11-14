@@ -204,7 +204,7 @@ Foundations come first, then the visible changes built on them (order agreed 202
 
 | # | Task | Done when |
 |---|---|---|
-| 2.1 | **Startup profiler + lazy-loading design.** A tool showing where startup time goes (C++ init, Python imports, each module's `Init.py`/`InitGui.py`, first workbench activation). FreeCAD runs its embedded Python in isolated mode, so `PYTHON*` variables such as `PYTHONPROFILEIMPORTTIME` are ignored and the hook has to live inside the app. ADR: how the single environment offers every module's tools without loading those modules at startup | Profile recorded in `BASELINE.md`; ADR accepted |
+| 2.1 🟡 | **Startup profiler ✅ + lazy-loading design.** A tool showing where startup time goes (C++ init, Python imports, each module's `Init.py`/`InitGui.py`, first workbench activation). FreeCAD runs its embedded Python in isolated mode, so `PYTHON*` variables such as `PYTHONPROFILEIMPORTTIME` are ignored and the hook has to live inside the app. ADR: how the single environment offers every module's tools without loading those modules at startup | Profile recorded in `BASELINE.md`; ADR accepted |
 | 2.2 | **Settings service** (`studio/settings.py`): typed preferences on FreeCAD's parameter store, defaults, "Make default" | Headless tests green |
 | 2.3 | **Command catalog** (service): every command's name, icon, module and the context it applies to, readable *without* importing the module; commands load on first use | Headless tests green; startup not slower |
 | 2.4 | **Keymap service**: `E` extrude, `F` focus selection, `Shift+F` fit all, user-editable bindings, conflict detection | Headless resolution tests; shortcuts work in the app |

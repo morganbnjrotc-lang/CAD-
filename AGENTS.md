@@ -82,6 +82,7 @@ pixi run python -m unittest discover -s tools/repo_tests -v
 # Benchmarks (on a quiet machine: not during a build, a test run or other heavy apps):
 pixi run python tools/bench/bench_startup.py --runs 6   # startup and memory
 pixi run python tools/bench/bench_open.py --runs 6      # open the reference files (STEP + native)
+pixi run python tools/bench/profile_startup.py --runs 6 # where startup time goes, by phase and module
 ```
 
 The test tools take `--build-dir build/release` (or `--exe` for `run_headless_suites.py`) to test
