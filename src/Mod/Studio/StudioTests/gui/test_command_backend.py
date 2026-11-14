@@ -38,9 +38,10 @@ class WorkbenchLoadingTest(unittest.TestCase):
         self.assertEqual(FreeCADGui.activeWorkbench().name(), self.active, "switched workbench")
 
     def test_cpp_workbench_commands_appear_without_switching(self):
-        self.assertFalse(registered("Sketcher_NewSketch"), "precondition: Sketcher not loaded yet")
-        self.assertTrue(self.helper.initialize_workbench("SketcherWorkbench"))
-        self.assertTrue(registered("Sketcher_NewSketch"))
+        # Part Design: other GUI tests edit a sketch, which loads Sketcher's library.
+        self.assertFalse(registered("PartDesign_Pad"), "precondition: Part Design not loaded yet")
+        self.assertTrue(self.helper.initialize_workbench("PartDesignWorkbench"))
+        self.assertTrue(registered("PartDesign_Pad"))
         self.assert_still_active()
 
     def test_python_workbench_commands_appear_without_switching(self):

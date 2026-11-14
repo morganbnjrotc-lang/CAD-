@@ -63,6 +63,43 @@ class Chrome(unittest.TestCase):
         self.assertTrue(model.isVisible())
 
 
+class OneEnvironment(unittest.TestCase):
+    """Found by hand (2026-11-14): editing a sketch switched to FreeCAD's Sketcher workbench and
+    its old window (workbench dropdown, toolbars, menu bar) came back."""
+
+    def test_editing_a_sketch_stays_in_studio_with_sketch_tools(self):
+        doc = FreeCAD.newDocument("StudioSketchEditTest")
+        self.addCleanup(settle)
+        self.addCleanup(FreeCAD.closeDocument, doc.Name)
+        sketch = doc.addObject("Sketcher::SketchObject", "Sketch")
+        doc.recompute()
+        settle()
+
+        FreeCADGui.ActiveDocument.setEdit(sketch.Name)
+        settle()
+        self.addCleanup(lambda: FreeCADGui.ActiveDocument and FreeCADGui.ActiveDocument.resetEdit())
+
+        self.assertEqual(FreeCADGui.activeWorkbench().name(), "StudioWorkbench")
+        self.assertTrue(session_window().top_bar.isVisible())
+        self.assertFalse(FreeCADGui.getMainWindow().menuBar().isVisible())
+        self.assertEqual(labels()[0], "Line")
+
+        FreeCADGui.ActiveDocument.resetEdit()
+        settle()
+        self.assertEqual(FreeCADGui.activeWorkbench().name(), "StudioWorkbench")
+        # FreeCAD leaves the sketch selected after editing, so the next step is offered: Extrude.
+        self.assertEqual([o.Name for o in FreeCADGui.Selection.getSelection()], ["Sketch"])
+        self.assertEqual(labels()[0], "Extrude")
+
+    def test_a_switch_from_elsewhere_comes_back_to_studio(self):
+        FreeCADGui.activateWorkbench("PartWorkbench")  # e.g. a macro or FreeCAD's Start page
+        settle()
+        settle()
+        self.assertEqual(FreeCADGui.activeWorkbench().name(), "StudioWorkbench")
+        self.assertTrue(session_window().top_bar.isVisible())
+        self.assertFalse(FreeCADGui.getMainWindow().menuBar().isVisible())
+
+
 class FollowsSelection(unittest.TestCase):
     def setUp(self):
         self.addCleanup(lambda: (FreeCADGui.Selection.clearSelection(), settle(), session_window().refresh()))

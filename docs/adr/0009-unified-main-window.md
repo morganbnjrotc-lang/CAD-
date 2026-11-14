@@ -50,6 +50,12 @@ The user was shown three layouts with mockups for each kind of selection: A, a l
   The window's own setup is ~20 ms. Activation grows from 165 to 447 ms, but the first events after
   startup shrink from 348 to 63 ms (sum 513 vs 510 ms): showing our widgets during activation moves
   Qt's one-time styling and layout work earlier rather than adding to it.
+- **Staying in one environment** (`studio/shell/environment.py`), found by hand: editing a sketch
+  switched to FreeCAD's Sketcher workbench through `Show.TempoVis` (each sketch's `EditingWorkbench`)
+  and brought FreeCAD's old window back. While Studio is active, that workbench step is skipped. The
+  sketch editor, its task panel and context menu work in any workbench, and Studio's toolbar, keymap
+  and palette provide the tools. Setting `EditingWorkbench` to "" on each sketch would also work but
+  changes the document. Any other switch (a macro, FreeCAD's Start page) is undone right after it.
 - A probe that ends the app with `os._exit` logs two "Unhandled unknown exception caught in
   GUIApplication::notify" lines with the window installed. A normal close logs none.
 

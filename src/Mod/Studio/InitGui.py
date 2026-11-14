@@ -26,8 +26,10 @@ class StudioWorkbench(FreeCADGui.Workbench):
                 self.removeMenu(name)
 
     def Activated(self):
-        from studio.shell import shortcuts, warmup, window
+        from studio.shell import environment, shortcuts, warmup, window
 
+        # One environment (docs/adr/0009): editing a sketch no longer switches workbench.
+        environment.install_once()
         # Keyboard shortcuts by context (docs/adr/0008); the keymap is read on the first key press.
         shortcuts.install_once()
         # Top bar, toolbar that follows the selection, status-bar hint (docs/adr/0009).
@@ -36,10 +38,12 @@ class StudioWorkbench(FreeCADGui.Workbench):
         warmup.start_once()
 
     def Deactivated(self):
-        from studio.shell import window
+        from studio.shell import environment, window
 
         if window.current() is not None:
             window.current().hide()
+        # Something switched to another workbench (a macro, FreeCAD's Start page): come back.
+        environment.schedule_return()
 
     def GetClassName(self):
         return "Gui::PythonWorkbench"
