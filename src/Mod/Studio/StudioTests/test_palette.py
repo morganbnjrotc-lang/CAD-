@@ -106,6 +106,14 @@ class Ranking(PaletteTestCase):
         self.assertEqual(self.names("sketch dim"), ["Sketcher_Dimension"])
         self.assertEqual(self.names("techdraw dim"), ["TechDraw_Dimension"])
 
+    def test_plain_tool_names_show_and_freecads_names_still_find_them(self):
+        # ADR 0009: Extrude is FreeCAD's Pad, Cut is Pocket.
+        items = {item.command: item for item in self.palette.items()}
+        self.assertEqual(items["PartDesign_Pad"].title, "Extrude")
+        self.assertEqual(self.names("extrude")[0], "PartDesign_Pad")
+        self.assertEqual(self.names("pocket")[0], "PartDesign_Pocket")
+        self.assertEqual(self.names("cut")[0], "PartDesign_Pocket")
+
     def test_case_and_surrounding_spaces_do_not_matter(self):
         self.assertEqual(self.names("  UNDO "), ["Std_Undo"])
 

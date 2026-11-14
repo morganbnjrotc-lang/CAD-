@@ -15,6 +15,7 @@ import re
 from dataclasses import dataclass
 
 from studio.services.settings import Setting
+from studio.viewmodels.tool_names import clean_title, display_title  # noqa: F401 (clean_title re-exported)
 
 _CATEGORIES = {
     None: "General", "SketcherWorkbench": "Sketcher", "PartDesignWorkbench": "Part Design",
@@ -23,12 +24,6 @@ _CATEGORIES = {
 }
 _WORD = re.compile(r"[a-z0-9]+")
 _CAMEL = re.compile(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|[0-9]+")
-
-
-def clean_title(menu_text: str) -> str:
-    """A menu text as people read it: "Save &As..." -> "Save As", "&&" -> "&"."""
-    text = re.sub(r"&(&?)", lambda m: "&" if m.group(1) else "", menu_text)
-    return re.sub(r"(\.\.\.|…)\s*$", "", text).strip()
 
 
 def category_of(workbench) -> str:
@@ -54,20 +49,22 @@ class _Entry:
 
     def __init__(self, info, order):
         self.info, self.order = info, order
-        self.title = clean_title(info.menu_text)
+        self.title = display_title(info)
         self.category = category_of(info.workbench)
         self.title_lower = self.title.lower()
-        self.title_words = _WORD.findall(self.title_lower)
+        # A plain name (Extrude) keeps FreeCAD's (Pad) as a second name to find it by.
+        self.names = list(dict.fromkeys([self.title_lower, clean_title(info.menu_text).lower()]))
+        self.title_words = [w for name in self.names for w in _WORD.findall(name)]
         self.name_words = [w.lower() for w in _CAMEL.findall(info.name.replace("_", " "))]
         self.category_words = _WORD.findall(self.category.lower())
         self.tooltip = info.tooltip.lower()
 
     def score(self, word: str):
-        if self.title_lower.startswith(word):
+        if any(name.startswith(word) for name in self.names):
             return 300
         if any(w.startswith(word) for w in self.title_words):
             return 200
-        if word in self.title_lower:
+        if any(word in name for name in self.names):
             return 120
         if any(w.startswith(word) for w in self.name_words):
             return 100
@@ -75,7 +72,8 @@ class _Entry:
             return 60
         if word in self.tooltip:
             return 40
-        span = _span(word, self.title_lower)
+        spans = [s for s in (_span(word, name) for name in self.names) if s is not None]
+        span = min(spans) if spans else None
         if span is not None and len(word) > 1:
             return 20 + 20 * len(word) / span
         return None
@@ -157,7 +155,7 @@ class Palette:
                     break
                 total += score
             else:
-                if entry.title_lower == whole:
+                if whole in entry.names:
                     total += 1000
                 ranked.append((-total, recent.get(entry.info.name, len(recent)), len(entry.title), entry.order, entry))
         ranked.sort(key=lambda row: row[:4])

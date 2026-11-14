@@ -144,6 +144,13 @@ class UserBindings(KeymapTestCase):
         again = Keymap(self.catalog, self.settings)  # next session
         self.assertEqual(again.resolve("Ctrl+Shift+A"), "Std_ViewFitAll")
 
+    def test_rebinding_a_command_replaces_its_studio_default_wherever_it_lives(self):
+        # E (Extrude = PartDesign_Pad) is a Studio default in Global, though Pad belongs to Part
+        # Design's context: rebinding Extrude must take E away, not add a second key.
+        self.keymap.set_sequences("PartDesign_Pad", ["Ctrl+E"])
+        self.assertIsNone(self.keymap.resolve("E"))
+        self.assertEqual(self.keymap.resolve("Ctrl+E"), "PartDesign_Pad")
+
     def test_several_sequences_for_one_command(self):
         self.keymap.set_sequences("PartDesign_Pad", ["E", "P, D"])
         self.assertEqual(Keymap(self.catalog, self.settings).sequences("PartDesign_Pad"), ["E", "P, D"])

@@ -186,8 +186,11 @@ class Keymap:
         return Setting(f"Keymap/{context}/{command}", "")
 
     def _context_of(self, command: str, context) -> str:
+        """`context`, or else where the command's Studio default lives (E for PartDesign_Pad is in
+        Global, so rebinding Extrude replaces E), or else its workbench's context."""
         info = self._catalog.get(command)  # KeyError for an unknown command
-        context = context or info.workbench or GLOBAL
+        studio_home = next((ctx for ctx, binds in STUDIO_DEFAULTS.items() if command in binds.values()), None)
+        context = context or studio_home or info.workbench or GLOBAL
         if context not in self._contexts:
             raise KeyError(context)
         return context
