@@ -111,6 +111,15 @@ Loading them all takes the number of registered commands from 207 to 719. Startu
 without them: 1.72–1.75 s ([BASELINE.md](../BASELINE.md)). Measure has no workbench of its own in this
 build; its commands are registered at startup already.
 
+**Implemented (2.3, 2026-11-14):** catalog generator `tools/studio/generate_command_catalog.py`
+(each workbench loaded alone in a fresh process; 719 commands; CI checks the catalog matches the
+build), `studio/services/commands.py`, the C++ helper `StudioGui.initialize_workbench` and
+`studio/shell/warmup.py` (starts 1 s after Studio activates, one workbench per 50 ms tick, pauses
+while a mouse button is held). `tools/test/startup_smoke.py` runs the app twice: with warm-up off,
+no catalog command may exist after startup; with default settings, warm-up must load its plan
+and not CAM. Startup with the warm-up wiring, alternated 8 times on slim Release: 1.91 s (on), 1.90 s
+(setting off), 1.88 s (not wired), within run-to-run noise (1.82–2.07 s).
+
 Studio as `PythonBlankWorkbench`: the app crashes while activating it (access violation, after
 "Init: Activating default workbench StudioWorkbench"). As `PythonWorkbench`, activation takes
 150–230 ms depending on the run.

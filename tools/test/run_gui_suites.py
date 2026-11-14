@@ -12,6 +12,8 @@ Why not just `FreeCAD.exe -t TestStudioGui`?
     FreeCAD skips that dialog when FREECAD_USER_HOME/DATA/TEMP are set, which also keeps the run
     from reading or changing the developer's settings.
   * Hang protection: if the app hasn't exited after --timeout seconds it is killed and the run fails.
+  * Background warm-up off (docs/adr/0007): it would load workbenches while tests run, and tests
+    that check their workbench isn't loaded yet would fail depending on timing.
 
 Output goes to stdout and to build/test-logs/<suites>.log. Exit code 0 only if every test passed.
 """
@@ -24,6 +26,11 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+
+sys.path.insert(0, str(REPO / "tools" / "bench"))
+from benchlib import make_profile  # noqa: E402  (shared throwaway profile)
+
+SETTINGS = {"BaseApp/Preferences/Mod/Studio/Commands/WarmUp": False}
 
 
 def main() -> int:
@@ -41,15 +48,8 @@ def main() -> int:
     log_path = log_dir / (suites.replace(",", "+") + ".log")
 
     with tempfile.TemporaryDirectory(prefix="studio-gui-test-") as tmp:
-        # FreeCAD silently ignores FREECAD_USER_* unless the folders already exist
-        for sub in ("home", "data", "temp"):
-            (Path(tmp) / sub).mkdir()
         env = dict(os.environ)
-        env.update(
-            FREECAD_USER_HOME=str(Path(tmp) / "home"),
-            FREECAD_USER_DATA=str(Path(tmp) / "data"),
-            FREECAD_USER_TEMP=str(Path(tmp) / "temp"),
-        )
+        env.update(make_profile(Path(tmp), SETTINGS))
         try:
             proc = subprocess.run(
                 [str(exe), "-t", suites],

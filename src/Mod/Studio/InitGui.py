@@ -20,7 +20,10 @@ class StudioWorkbench(FreeCADGui.Workbench):
         pass
 
     def Activated(self):
-        pass
+        # Load the cheap workbenches in the background once startup is done (docs/adr/0007).
+        from studio.shell import warmup
+
+        warmup.start_once()
 
     def Deactivated(self):
         pass

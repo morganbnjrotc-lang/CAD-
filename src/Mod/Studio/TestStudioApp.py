@@ -15,6 +15,7 @@ from StudioTests.test_commands import (  # noqa: F401
     Service,
     ShippedCatalog,
 )
+from StudioTests.test_warmup import WarmUpPlan  # noqa: F401
 from StudioTests.test_settings import (  # noqa: F401
     Choices,
     DefaultsAndOverrides,

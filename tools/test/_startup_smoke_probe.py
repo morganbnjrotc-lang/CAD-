@@ -1,18 +1,22 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 """Runs inside FreeCAD.exe for startup_smoke.py. Do not run directly.
 
-Waits for startup to settle, records observable app state to STUDIO_SMOKE_OUT as JSON, then exits
-without saving preferences.
+Waits for startup to settle (STUDIO_SMOKE_MODE "lazy") or for background warm-up to finish
+("warm"), records observable app state to STUDIO_SMOKE_OUT as JSON, then exits without saving
+preferences.
 """
 
 import json
 import os
+import time
 
 import FreeCAD
 import FreeCADGui
 from PySide import QtCore, QtWidgets  # FreeCAD's PySide shim
 
 SETTLE_MS = 1500  # let deferred startup work (Start page, migrations) finish
+WARMUP_TIMEOUT_S = 30
+MODE = os.environ.get("STUDIO_SMOKE_MODE", "lazy")
 
 
 def open_dialogs():
@@ -23,6 +27,27 @@ def open_dialogs():
         for w in QtWidgets.QApplication.topLevelWidgets()
         if isinstance(w, QtWidgets.QDialog) and w.isVisible()
     ]
+
+
+def early_commands():
+    """Commands of the catalog's workbenches that exist already (ADR 0007: none should)."""
+    from studio.services.commands import CommandCatalog
+
+    return [
+        c.name
+        for c in CommandCatalog.load().commands()
+        if c.workbench is not None and FreeCADGui.Command.get(c.name) is not None
+    ][:20]
+
+
+def warmup_state():
+    from studio.shell import warmup
+
+    current = warmup.current()
+    if current is None:
+        return None
+    return {"done": current.done, "loaded": current.loaded, "failed": current.failed,
+            "planned": current.planned}
 
 
 def report():
@@ -36,9 +61,25 @@ def report():
         ).GetString("AutoloadModule"),
         "user_parameter_file": FreeCAD.ConfigGet("UserParameter"),
     }
+    if MODE == "lazy":
+        state["early_commands"] = early_commands()
+    else:
+        state["warmup"] = warmup_state()
+        state["cam_loaded"] = FreeCADGui.Command.get("CAM_Job") is not None
     with open(os.environ["STUDIO_SMOKE_OUT"], "w", encoding="utf-8") as f:
         json.dump(state, f)
     os._exit(0)
 
 
-QtCore.QTimer.singleShot(SETTLE_MS, report)
+_deadline = time.monotonic() + WARMUP_TIMEOUT_S
+
+
+def wait_for_warmup():
+    state = warmup_state()
+    if (state and state["done"]) or time.monotonic() > _deadline:
+        report()
+    else:
+        QtCore.QTimer.singleShot(100, wait_for_warmup)
+
+
+QtCore.QTimer.singleShot(SETTLE_MS, report if MODE == "lazy" else wait_for_warmup)
