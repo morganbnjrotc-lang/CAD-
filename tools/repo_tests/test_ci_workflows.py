@@ -98,6 +98,9 @@ class StudioCITest(unittest.TestCase):
         self.assertRegex(commands, r"run_gui_suites\.py .*TestStudioGui")
         self.assertNotRegex(commands, r"FreeCAD\.exe.* -t ")
         self.assertIn("startup_smoke.py", commands)
+        # One pass of the reference-file benchmark: it fails if any reference file opens
+        # incompletely in the build we ship (the timings on a shared runner aren't used).
+        self.assertRegex(commands, r"bench_open\.py .*--runs 1")
 
     def test_these_repo_checks_run_in_ci(self):
         commands = "\n".join(run_commands(job) for job in self.jobs.values())

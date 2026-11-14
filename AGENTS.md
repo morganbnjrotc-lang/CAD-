@@ -79,8 +79,9 @@ pixi run python tools/test/run_gui_suites.py TestStudioGui
 pixi run python tools/test/startup_smoke.py
 # Repo checks (CI workflow rules; no build needed):
 pixi run python -m unittest discover -s tools/repo_tests -v
-# Startup/memory benchmark (don't run it at the same time as a test run):
-pixi run python tools/bench/bench_startup.py --runs 6
+# Benchmarks (on a quiet machine: not during a build, a test run or other heavy apps):
+pixi run python tools/bench/bench_startup.py --runs 6   # startup and memory
+pixi run python tools/bench/bench_open.py --runs 6      # open the reference files (STEP + native)
 ```
 
 The test tools take `--build-dir build/release` (or `--exe` for `run_headless_suites.py`) to test
@@ -97,8 +98,9 @@ Gotchas found the hard way (details in `docs/BASELINE.md` and ADRs 0004–0005):
   isolation, test runs read and write the developer's real profile.
 - The full CAM suite hangs on Windows if run in one process (port exhaustion from `asyncio.run()` in
   the CAM asset manager). Run CAM in batches.
-- Never run the benchmark and a test run at the same time: they compete for CPU and, without
-  isolation, for FreeCAD's lock files.
+- Never run a benchmark and a test run at the same time: they compete for CPU and, without
+  isolation, for FreeCAD's lock files. Check the machine is quiet first; a busy background app
+  made startup measure 13 s instead of 3 s.
 - A bare `FreeCAD.exe -t ...` uses the real profile. If the dev build's profile folder doesn't exist but an
   older FreeCAD's does, a modal "Welcome to FreeCAD" migration dialog appears and the tests hang
   behind it forever. Use `tools/test/run_gui_suites.py`.

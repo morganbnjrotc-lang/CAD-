@@ -6,51 +6,20 @@ process memory to the JSON file named in STUDIO_BENCH_OUT, then exits immediatel
 preferences.
 """
 
-import ctypes
-import ctypes.wintypes as wt
 import json
 import os
 import sys
 import time
 
-from PySide import QtCore  # FreeCAD's PySide shim
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from PySide import QtCore  # noqa: E402  (FreeCAD's PySide shim)
 
-class _ProcessMemoryCounters(ctypes.Structure):
-    _fields_ = [
-        ("cb", wt.DWORD),
-        ("PageFaultCount", wt.DWORD),
-        ("PeakWorkingSetSize", ctypes.c_size_t),
-        ("WorkingSetSize", ctypes.c_size_t),
-        ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
-        ("QuotaPagedPoolUsage", ctypes.c_size_t),
-        ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
-        ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
-        ("PagefileUsage", ctypes.c_size_t),
-        ("PeakPagefileUsage", ctypes.c_size_t),
-    ]
-
-
-def _memory():
-    if sys.platform != "win32":
-        return {}
-    kernel32 = ctypes.windll.kernel32
-    kernel32.GetCurrentProcess.restype = wt.HANDLE
-    get_info = kernel32.K32GetProcessMemoryInfo
-    get_info.argtypes = [wt.HANDLE, ctypes.POINTER(_ProcessMemoryCounters), wt.DWORD]
-    get_info.restype = wt.BOOL
-    counters = _ProcessMemoryCounters()
-    counters.cb = ctypes.sizeof(counters)
-    if not get_info(kernel32.GetCurrentProcess(), ctypes.byref(counters), counters.cb):
-        raise ctypes.WinError()
-    return {
-        "working_set_mb": counters.WorkingSetSize / 2**20,
-        "private_mb": counters.PagefileUsage / 2**20,
-    }
+from benchlib import process_memory  # noqa: E402
 
 
 def _report():
-    result = {"ready": time.time(), **_memory()}
+    result = {"ready": time.time(), **process_memory()}
     with open(os.environ["STUDIO_BENCH_OUT"], "w", encoding="utf-8") as f:
         json.dump(result, f)
     os._exit(0)  # skip shutdown so preferences/recent files are never written

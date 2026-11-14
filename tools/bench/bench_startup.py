@@ -13,77 +13,24 @@ Results are appended to build/bench/startup.jsonl.
 import argparse
 import datetime
 import json
-import os
 import statistics
-import subprocess
 import sys
-import tempfile
-import time
 from pathlib import Path
+
+from benchlib import run_probe
 
 REPO = Path(__file__).resolve().parents[2]
 PROBE = Path(__file__).resolve().parent / "_startup_probe.py"
 TIMEOUT_S = 180
 
 
-def _kill_leftover_probes() -> None:
-    if sys.platform != "win32":
-        return
-    subprocess.run(
-        [
-            "powershell", "-NoProfile", "-NonInteractive", "-Command",
-            "Get-CimInstance Win32_Process -Filter \"Name='FreeCAD.exe'\" | "
-            "Where-Object { $_.CommandLine -like '*_startup_probe.py*' } | "
-            "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
-        ],
-        check=False,
-        capture_output=True,
-    )
-
-
 def run_once(exe: Path) -> dict:
-    with tempfile.TemporaryDirectory(prefix="studio-bench-") as tmp:
-        tmp = Path(tmp)
-        out = tmp / "result.json"
-        env = dict(os.environ)
-        # Isolate home, data AND temp: FreeCAD keeps lock files in its temp cache, and sharing it
-        # with another running FreeCAD (e.g. a test run) can make that process wait forever.
-        # FreeCAD silently ignores these variables unless the folders already exist.
-        for sub in ("home", "data", "temp"):
-            (tmp / sub).mkdir()
-        env.update(
-            STUDIO_BENCH_OUT=str(out),
-            FREECAD_USER_HOME=str(tmp / "home"),
-            FREECAD_USER_DATA=str(tmp / "data"),
-            FREECAD_USER_TEMP=str(tmp / "temp"),
-        )
-        log = tmp / "freecad.log"
-        start = time.time()
-        try:
-            proc = subprocess.run(
-                [str(exe), "--log-file", str(log), str(PROBE)],
-                env=env,
-                timeout=TIMEOUT_S,
-                capture_output=True,
-                text=True,
-            )
-        finally:
-            # FreeCAD can relaunch itself as a detached process (e.g. one-time first-run setup);
-            # that copy outlives `proc`, so close anything still running our probe.
-            _kill_leftover_probes()
-        if not out.exists():
-            tail = log.read_text(encoding="utf-8", errors="replace")[-3000:] if log.exists() else ""
-            raise RuntimeError(
-                f"probe did not report (exit code {proc.returncode})\n"
-                f"--- stdout/stderr ---\n{(proc.stdout + proc.stderr)[-2000:]}\n"
-                f"--- FreeCAD log ---\n{tail}"
-            )
-        data = json.loads(out.read_text(encoding="utf-8"))
-        return {
-            "startup_s": data["ready"] - start,
-            "working_set_mb": data.get("working_set_mb"),
-            "private_mb": data.get("private_mb"),
-        }
+    data = run_probe(exe, PROBE, {}, TIMEOUT_S)
+    return {
+        "startup_s": data["ready"] - data["launched"],
+        "working_set_mb": data.get("working_set_mb"),
+        "private_mb": data.get("private_mb"),
+    }
 
 
 def main() -> int:

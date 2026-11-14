@@ -63,10 +63,13 @@ Test comparison: `tools/test/compare_test_logs.py full.log slim.log --allow-miss
 
 ## Consequences
 
-- **Startup is not faster.** FreeCAD only runs each module's small `Init.py`/`InitGui.py` at
+- **Startup is barely faster.** FreeCAD only runs each module's small `Init.py`/`InitGui.py` at
   startup; the expensive loading happens when a workbench is first activated, which removed modules
   never were. Memory at startup drops 2–3%. The startup budget has to be met in the core (lazy
   loading, Phase 2), not by removing modules.
+  *Update 2026-11-14:* on a quiet machine, alternating the two builds twice, slim starts in
+  1.83–1.88 s vs 1.97–1.98 s for full (−6%). The 11-13 numbers above were taken on a busier
+  machine, where the difference was lost in the noise. See `docs/BASELINE.md`.
 - Real gains: a smaller install, fewer tests and compiles for CI, no network-capable Addon Manager
   in the product, and fewer workbenches and commands to hide in the unified UI.
 - Start page "new architectural project" no longer switches to BIM (it stays in the current

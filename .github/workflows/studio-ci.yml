@@ -120,6 +120,13 @@ jobs:
         timeout-minutes: 10
         run: pixi run python tools/test/startup_smoke.py --build-dir build/slim-release
 
+      # One pass of the reference-file benchmark. Fails if a reference file opens incompletely
+      # (missing object types or Python code). Timings on a shared runner aren't comparable.
+      - name: Reference files open completely
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 20
+        run: pixi run python tools/bench/bench_open.py --runs 1 --exe build/slim-release/bin/FreeCAD.exe --label ci
+
       - name: All headless FreeCAD suites except CAM
         if: ${{ !cancelled() && steps.build.outcome == 'success' && env.FULL_SUITE == 'true' }}
         timeout-minutes: 60

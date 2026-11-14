@@ -71,8 +71,8 @@ hardcoded `PartDesignWorkbench`, ignoring `branding.xml`. Fixed in our fork (see
 | Working set at ready | **598 MB** |
 | Private bytes at ready | **559 MB** |
 
-Budgets from this baseline (PLAN §1.3): startup at or below **2.2 s** by the end of Phase 2; memory must
-not grow without sign-off.
+Budgets from this baseline (PLAN §1.3): startup at or below **1.5 s** by the end of Phase 2, with
+**1.0 s** as the stretch goal (set 2026-11-14, see below); memory must not grow without sign-off.
 
 **Re-measured 2026-11-13** (same full build, laptop on AC power, Windows "Balanced" plan, 6 runs):
 median start **3.03 s**, working set 597 MB, private 559 MB. Memory matches; startup is 1.3 s faster
@@ -80,6 +80,45 @@ than on 2026-11-11. The 11-11 runs came right after the build finished, likely w
 OS was still scanning the new binaries. Startup numbers are only comparable when measured back to
 back in one session; record the power state with them. **Decision (2026-11-13): the Phase 2 target
 stays 2.2 s**, now a fixed number rather than 50% of whatever the baseline measures.
+
+**Re-measured 2026-11-14 on a quiet machine** (same full build, AC power, "Balanced", CPU at ~5%
+before starting, no other heavy apps): median start **1.97 s**, working set 596 MB, private 559 MB.
+Repeated three times back to back: 1.95 / 1.99 / 1.98 s. The committed `bench_startup.py` and the
+refactored one (shared `benchlib.py`) gave the same numbers in those back-to-back runs, so the drop from
+3.03 s is the machine, not the tool. The very first start of the session, with the OS file cache
+cold, took 9.6 s. On this laptop the same build has measured 4.4 s, 3.03 s and 1.97 s on three
+days. Only back-to-back comparisons mean anything; a single absolute number doesn't. Memory has
+stayed the same every time (596–598 MB / 558–559 MB).
+
+**Decision (2026-11-14):** upstream FreeCAD already meets the 2.2 s target on a quiet machine, so it no
+longer pushes us anywhere. The Phase 2 target is now **≤ 1.5 s**, with **1.0 s** as the stretch goal.
+
+## Reference files (2026-11-14)
+
+`pixi run python tools/bench/bench_open.py --runs 6`. Each run starts the app in a fresh profile,
+opens one file the way File > Open does and waits until the app is idle with the document shown
+(**open**: includes loading the modules the file needs), then closes it and opens it again in the
+same process (**reopen**: mostly the file itself). A load only counts if it was complete: every
+saved object present, no object missing its Python code, and geometry on screen. Same quiet
+machine and session as the startup numbers above. Medians of runs 2–6:
+
+| File | Objects | Faces | Open, full | Open, slim | Reopen | + private memory |
+|---|---|---|---|---|---|---|
+| `data/examples/PartDesignExample.FCStd` | 28 | 255 | **0.49 s** | 0.49 s | 0.16 s | 120 MB |
+| `data/examples/AssemblyExample.FCStd` | 54 | 288 | **0.70 s** | 0.68 s | 0.33 s | 143 MB |
+| `data/examples/EngineBlock.FCStd` | 36 | 184 | **0.60 s** | 0.57 s | 0.17 s | 137 MB |
+| `data/examples/Schenkel.stp` (STEP) | 1 | 409 | **1.33 s** | 1.34 s | 0.98 s | 114–121 MB |
+
+- Run-to-run spread was small (PartDesign 0.47–0.54 s, STEP 1.28–1.36 s), and full and slim agree within 0.03 s.
+- **STEP is the slow one:** reopening (modules already loaded) still takes 1 s for 409 faces, so the
+  time is in reading and meshing the file, not in startup work.
+- The first file opened in a session is much slower (PartDesign: 3.4 s on the full build) because the
+  OS file cache is still cold for the modules it loads.
+- **A new user can't open a STEP file without a dialog:** every new profile shows a modal "STEP Import Settings"
+  dialog on the first STEP open (preference `Mod/Part/STEP/VisibleImportDialog`). The benchmark turns
+  it off. To fix in the shell phases.
+- On slim, the FEM and BIM example files are correctly rejected as incomplete (their object types
+  aren't built), so they aren't in the reference set.
 
 ## Slim build (2026-11-13)
 
@@ -93,6 +132,7 @@ with the full build:
 | CAM in batches | 2,066 pass, 11 skipped | 2,066 pass, 11 skipped |
 | GUI suite, startup smoke | pass | pass |
 | Median start | 3.03 s | 3.00 s |
+| Median start, quiet machine (2026-11-14, alternating full/slim twice) | 1.98 / 1.97 s | **1.83 / 1.88 s** (−6%) |
 | Working set / private at ready | 597 / 559 MB | 584 / 542 MB |
 | `bin` + `Mod` on disk | 5.3 GB | 4.2 GB |
 
@@ -110,3 +150,5 @@ with the full build:
 - `tools/test/run_gui_suites.py`: GUI suites (`FreeCAD.exe -t`) in a throwaway profile, killed on timeout.
 - `tools/test/compare_test_logs.py`: diffs two suite logs (missing tests by module, tests that got worse).
 - `tools/bench/bench_startup.py`: startup and memory benchmark, also in a throwaway profile.
+- `tools/bench/bench_open.py`: opens the reference files; stops with an error if any load is incomplete.
+  CI runs one pass of it on the slim Release build as a check (timings on a shared runner aren't used).
