@@ -40,6 +40,19 @@ The user was shown three layouts with mockups for each kind of selection: A, a l
 6. **"Make default" on fields moves to Phase 3**, where Studio's own tool panels (the direct extrude tool
    and others) get fields with defaults. FreeCAD's property panel has no per-property defaults to set.
 
+## Implementation (2.6, 2026-11-14)
+
+- `studio/viewmodels/context_toolbar.py` and `tool_names.py` hold the logic; `studio/shell/window.py`
+  draws it. Studio's `Initialize()` removes its 9 inherited toolbars and every menu but File, Edit,
+  View and Help. The bars are plain `QToolBar`s, which FreeCAD's toolbar manager leaves alone (it only
+  hides its own `Gui::ToolBar` class). If another workbench becomes active, FreeCAD's menu bar comes back.
+- Startup, slim Release, alternated 8×: ready 1971 ms before vs 1859 ms after (machine busy, CPU ~33%).
+  The window's own setup is ~20 ms. Activation grows from 165 to 447 ms, but the first events after
+  startup shrink from 348 to 63 ms (sum 513 vs 510 ms): showing our widgets during activation moves
+  Qt's one-time styling and layout work earlier rather than adding to it.
+- A probe that ends the app with `os._exit` logs two "Unhandled unknown exception caught in
+  GUIApplication::notify" lines with the window installed. A normal close logs none.
+
 ## Consequences
 
 - FreeCAD's module toolbars and the workbench switcher never show; a tool is reached through the toolbar,

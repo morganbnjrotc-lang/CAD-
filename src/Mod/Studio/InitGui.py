@@ -17,18 +17,29 @@ class StudioWorkbench(FreeCADGui.Workbench):
     )
 
     def Initialize(self):
-        pass
+        # Layout A (docs/adr/0009): Studio's own top bar and toolbar replace FreeCAD's toolbars,
+        # and one ☰ menu shows FreeCAD's File, Edit, View and Help menus.
+        for name in self.listToolbars():
+            self.removeToolbar(name)
+        for name in self.listMenus():
+            if name not in ("&File", "&Edit", "&View", "&Help"):
+                self.removeMenu(name)
 
     def Activated(self):
-        # Keyboard shortcuts by context (docs/adr/0008); the keymap is read on the first key press.
-        from studio.shell import shortcuts, warmup
+        from studio.shell import shortcuts, warmup, window
 
+        # Keyboard shortcuts by context (docs/adr/0008); the keymap is read on the first key press.
         shortcuts.install_once()
+        # Top bar, toolbar that follows the selection, status-bar hint (docs/adr/0009).
+        window.install_once()
         # Load the cheap workbenches in the background once startup is done (docs/adr/0007).
         warmup.start_once()
 
     def Deactivated(self):
-        pass
+        from studio.shell import window
+
+        if window.current() is not None:
+            window.current().hide()
 
     def GetClassName(self):
         return "Gui::PythonWorkbench"
