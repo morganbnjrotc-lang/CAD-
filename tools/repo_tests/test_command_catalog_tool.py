@@ -67,7 +67,9 @@ class IconLookup(unittest.TestCase):
                          "src/Mod/PartDesign/Gui/Resources/icons/PartDesign_Pad.svg")
 
     def test_resource_paths_and_extensions_are_reduced_to_the_name(self):
-        for pixmap in (":/icons/PartDesign_Pad.svg", "PartDesign_Pad.svg", "PartDesign_Pad"):
+        for pixmap in (":/icons/PartDesign_Pad.svg", "PartDesign_Pad.svg", "PartDesign_Pad",
+                       r"C:\dev\CAD\build\Mod\PartDesign\Resources\icons\PartDesign_Pad.svg",  # Windows path
+                       "/usr/share/freecad/Mod/PartDesign/icons/PartDesign_Pad.svg"):
             with self.subTest(pixmap=pixmap):
                 self.assertEqual(self.icons.find(pixmap, "PartDesign"),
                                  "src/Mod/PartDesign/Gui/Resources/icons/PartDesign_Pad.svg")
@@ -154,6 +156,21 @@ class Ownership(unittest.TestCase):
         names = [c["name"] for w in workbenches for c in w["commands"]]
         self.assertEqual(sorted(names), sorted(set(names)))
         self.assertEqual(workbenches[0]["class"], "SketcherWorkbenchClass")
+
+
+class StartupCheck(unittest.TestCase):
+    """2026-11-14: Studio's InitGui.py failed in the build, the app fell back to FreeCAD's empty
+    workbench, and the generator wrote a catalog without Studio's command and with dozens of
+    shortcuts missing (FreeCAD reports a command's shortcut only while a workbench provides its
+    menus). A broken startup must stop the generator instead."""
+
+    def test_startup_in_studio_is_fine(self):
+        self.assertEqual(gen.startup_problems({"start_workbench": "StudioWorkbench"}), [])
+
+    def test_any_other_start_workbench_is_a_problem(self):
+        for start in ("NoneWorkbench", "PartDesignWorkbench", None):
+            with self.subTest(start=start):
+                self.assertNotEqual(gen.startup_problems({"start_workbench": start}), [])
 
 
 class DriftCheck(unittest.TestCase):

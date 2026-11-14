@@ -29,6 +29,10 @@ STUDIO_DEFAULTS = {
         "E": "PartDesign_Pad",  # extrude; a direct-manipulation extrude tool replaces it in Phase 3
         "F": "Std_ViewFitSelection",  # focus the selection
         "Shift+F": "Std_ViewFitAll",
+        # The command palette (PLAN 2.5): S like Fusion 360 (while sketching S is Sketcher's own),
+        # Ctrl+K everywhere. Chosen by the user, 2026-11-14.
+        "S": "Studio_CommandPalette",
+        "Ctrl+K": "Studio_CommandPalette",
     }
 }
 

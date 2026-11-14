@@ -1689,6 +1689,14 @@
    "icon": "src/Gui/Icons/freecad.svg"
   },
   {
+   "name": "Studio_CommandPalette",
+   "workbench": null,
+   "menu_text": "Command Palette",
+   "tooltip": "Search every tool by name and run it",
+   "shortcut": "",
+   "icon": "src/Mod/Studio/Resources/icons/Studio.svg"
+  },
+  {
    "name": "Material_Edit",
    "workbench": "SketcherWorkbench",
    "menu_text": "Edit",

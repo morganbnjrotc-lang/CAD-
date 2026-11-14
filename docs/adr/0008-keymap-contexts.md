@@ -41,7 +41,9 @@ press for it.
 3. **Defaults:** FreeCAD's own shortcuts, each in its command's context (core commands in Global),
    so FreeCAD users keep their habits (Sketcher's letters, `V, F`). Studio's defaults on top, in Global:
    `E` → extrude (`PartDesign_Pad` until Phase 3 brings a direct extrude tool), `F` → fit selection
-   (`Std_ViewFitSelection`), `Shift+F` → fit all (`Std_ViewFitAll`).
+   (`Std_ViewFitSelection`), `Shift+F` → fit all (`Std_ViewFitAll`). Added with the command palette
+   (2.5, the user's choice): `S` and `Ctrl+K` → `Studio_CommandPalette`. While sketching, `S` is
+   Sketcher's own, so `Ctrl+K` is the key that works everywhere.
 4. **The user's bindings are stored with the settings service**, one setting per context and command:
    `Keymap/<Context>/<Command>` = key sequence, empty = deliberately unbound. Precedence: user, then
    Studio's defaults, then FreeCAD's.

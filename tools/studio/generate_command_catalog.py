@@ -55,7 +55,7 @@ class IconIndex:
 
     def find(self, pixmap: str, module: str | None):
         """Repo-relative path of the SVG for a command's `pixmap`, preferring its own module."""
-        name = pixmap.removeprefix(":/icons/").rsplit("/", 1)[-1]
+        name = pixmap.replace("\\", "/").rsplit("/", 1)[-1]  # resource path, file path or bare name
         for extension in (".svg", ".png", ".xpm"):
             name = name.removesuffix(extension)
         candidates = self._by_name.get(name, []) if name else []
@@ -67,6 +67,16 @@ class IconIndex:
 
 def _module(workbench: str | None):
     return workbench.removesuffix("Workbench") if workbench else None
+
+
+def startup_problems(run: dict) -> list:
+    """Why a probe run can't be trusted. If Studio's InitGui.py fails, the app starts in FreeCAD's
+    empty workbench and reports commands without their shortcuts (only a workbench's menus give
+    actions their keys), so the catalog would come out wrong without any error."""
+    start = run.get("start_workbench")
+    if start != "StudioWorkbench":
+        return [f"the app started in {start!r}, not StudioWorkbench: Studio's InitGui.py failed?"]
+    return []
 
 
 def assign_owners(alone: dict, classes: dict, order) -> list:
@@ -157,6 +167,9 @@ def main() -> int:
         )
         if "error" in run:
             print(f"FAIL: probe error loading {workbench}\n{run['error']}", file=sys.stderr)
+            return 1
+        for problem in startup_problems(run):
+            print(f"FAIL: {problem}", file=sys.stderr)
             return 1
         if run["missing"]:
             print(f"FAIL: {workbench} is not in this build", file=sys.stderr)

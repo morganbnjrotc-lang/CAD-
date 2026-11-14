@@ -22,6 +22,8 @@ def _infos(names):
 
 def _run():
     result = {"freecad": "{}.{}.{}".format(*App.Version()[:3]), "workbenches": [], "missing": []}
+    active = Gui.activeWorkbench()
+    result["start_workbench"] = active.name() if active else None
     try:
         before = set(Gui.Command.listAll())
         result["core"] = _infos(before)

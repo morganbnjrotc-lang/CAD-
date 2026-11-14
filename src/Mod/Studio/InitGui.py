@@ -34,6 +34,34 @@ class StudioWorkbench(FreeCADGui.Workbench):
         return "Gui::PythonWorkbench"
 
 
+class _CommandPalette:
+    """Search every tool by name and run it (PLAN 2.5). Bound to S and Ctrl+K (docs/adr/0008).
+
+    FreeCAD runs InitGui.py with separate globals and locals, so methods here can't see this file's
+    other top-level names (StudioWorkbench, os, FreeCAD): they import what they need.
+    """
+
+    def GetResources(self):
+        import os
+
+        import FreeCAD
+
+        return {
+            "MenuText": "Command Palette",
+            "ToolTip": "Search every tool by name and run it",
+            "Pixmap": os.path.join(FreeCAD.getHomePath(), "Mod", "Studio", "Resources", "icons", "Studio.svg"),
+        }
+
+    def IsActive(self):
+        return True
+
+    def Activated(self):
+        from studio.shell import palette
+
+        palette.open_palette()
+
+
+FreeCADGui.addCommand("Studio_CommandPalette", _CommandPalette())
 FreeCADGui.addWorkbench(StudioWorkbench())
 
 FreeCAD.__unit_test__ += ["TestStudioGui"]

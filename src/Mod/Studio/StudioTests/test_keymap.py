@@ -80,9 +80,12 @@ class KeymapTestCase(unittest.TestCase):
 
 
 class Defaults(KeymapTestCase):
-    def test_studio_defaults_are_e_f_shift_f_in_global(self):
-        self.assertEqual(STUDIO_DEFAULTS, {GLOBAL: {"E": "PartDesign_Pad", "F": "Std_ViewFitSelection",
-                                                    "Shift+F": "Std_ViewFitAll"}})
+    def test_studio_defaults_in_global(self):
+        # E / F / Shift+F from PLAN 2.4; S and Ctrl+K open the command palette (the user's choice for
+        # 2.5: S like Fusion 360 outside sketches, where S is Sketcher's; Ctrl+K everywhere).
+        self.assertEqual(STUDIO_DEFAULTS, {GLOBAL: {
+            "E": "PartDesign_Pad", "F": "Std_ViewFitSelection", "Shift+F": "Std_ViewFitAll",
+            "S": "Studio_CommandPalette", "Ctrl+K": "Studio_CommandPalette"}})
 
     def test_global_keys_work_everywhere(self):
         self.assertEqual(self.keymap.resolve("E"), "PartDesign_Pad")

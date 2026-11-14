@@ -28,6 +28,25 @@ if(BUILD_GUI)
     add_subdirectory(Gui)  # StudioGui C++ helpers
 endif(BUILD_GUI)
 
+# Icons of the command catalog's commands (docs/adr/0007): the catalog names each icon's source
+# SVG ("icon": "src/Mod/..."). Copy them next to Studio so the palette can show icons of commands
+# whose module isn't loaded yet (FreeCAD registers a module's icons only when it loads).
+set(Studio_CATALOG ${CMAKE_CURRENT_SOURCE_DIR}/studio/services/command_catalog.json)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${Studio_CATALOG})
+file(STRINGS ${Studio_CATALOG} Studio_ICON_LINES REGEX "\"icon\": \"src/")
+set(Studio_ICONS "")
+foreach(line ${Studio_ICON_LINES})
+    string(REGEX REPLACE ".*\"icon\": \"src/([^\"]+)\".*" "\\1" icon "${line}")
+    list(APPEND Studio_ICONS ${icon})
+endforeach()
+list(REMOVE_DUPLICATES Studio_ICONS)
+foreach(icon ${Studio_ICONS})
+    configure_file(${CMAKE_SOURCE_DIR}/src/${icon}
+                   ${CMAKE_BINARY_DIR}/Mod/Studio/Resources/command_icons/${icon} COPYONLY)
+    get_filename_component(icon_dir ${icon} DIRECTORY)
+    install(FILES ${CMAKE_SOURCE_DIR}/src/${icon} DESTINATION Mod/Studio/Resources/command_icons/${icon_dir})
+endforeach()
+
 add_custom_target(StudioScripts ALL
     SOURCES ${Studio_All}
 )

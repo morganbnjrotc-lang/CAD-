@@ -102,6 +102,11 @@ class ShortcutHandler:
             StudioGui.remove_key_filter(self._filter)
             self._filter = None
 
+    @property
+    def contexts(self) -> list:
+        """The active keymap contexts, most specific first (Global is implied)."""
+        return list(self._contexts)
+
     def set_contexts(self, contexts):
         self._contexts = list(contexts)
         self._matcher = None
