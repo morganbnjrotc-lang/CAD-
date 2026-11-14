@@ -51,8 +51,28 @@ press for it.
 6. **Typing is safe:** a single-key shortcut doesn't fire while a text field has focus (Qt gives the
    key to the field first). A shell test checks it.
 7. **Until 2.6 replaces FreeCAD's menus**, their actions (Undo, Save, …) keep their own shortcuts. The
-   shell doesn't install a binding that one of FreeCAD's live actions already serves, so no key ends up
-   with two owners.
+   shell claims every key of the active keymap before Qt's shortcut system sees it, including keys a
+   FreeCAD menu action also has, and runs the same command itself, so no key reaches two owners.
+   *Changed during implementation (2026-11-14):* the first version left keys FreeCAD's actions
+   already serve to FreeCAD, but that breaks sequences that share a first key. With `V, S` Studio's
+   and `V, F` FreeCAD's, Studio has to claim `V`, and FreeCAD's sequence could never complete.
+
+## Implementation (2.4, 2026-11-14)
+
+- `studio/interaction/keymap.py` (no Qt): `normalize`, `Keymap` (contexts, defaults, user bindings,
+  conflicts, `active_bindings` with no sequence starting another) and `SequenceMatcher` (keys one
+  chord at a time; no timeouts needed).
+- `studio/shell/shortcuts.py`: `ShortcutHandler` claims the active keymap's keys and runs commands
+  through the session's command service; `EditContextObserver` switches to Sketcher or Assembly
+  while one is edited. Installed when Studio's workbench activates; the keymap is built on the first
+  key press, not during startup.
+- The application-wide filter is C++ (`StudioGui.add_key_filter`): it checks for text fields, modal
+  dialogs and the main window in C++, and calls Python only for key events. A Python filter on the
+  application cost ~2.5 µs on *every* event of the app; the C++ one costs nothing measurable (slim
+  Release: 1.89 vs 1.88 µs per event; startup 1.915 s vs 1.918 s without the handler, alternated 8×).
+- With FreeCAD's defaults the keymap has 76 Global and 77 Sketcher bindings and reports 15 conflicts,
+  all inside FreeCAD's own defaults (Sketcher dropdown groups sharing a member's key; prefix pairs
+  such as `Z, P` / `Z, P, S`).
 
 ## Consequences
 

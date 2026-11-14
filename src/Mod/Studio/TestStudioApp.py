@@ -18,6 +18,7 @@ from StudioTests.test_commands import (  # noqa: F401
 from StudioTests.test_keymap import (  # noqa: F401
     Conflicts,
     Defaults,
+    Matching,
     Normalize,
     UserBindings,
 )

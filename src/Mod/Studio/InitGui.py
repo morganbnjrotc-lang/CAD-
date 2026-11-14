@@ -20,9 +20,11 @@ class StudioWorkbench(FreeCADGui.Workbench):
         pass
 
     def Activated(self):
-        # Load the cheap workbenches in the background once startup is done (docs/adr/0007).
-        from studio.shell import warmup
+        # Keyboard shortcuts by context (docs/adr/0008); the keymap is read on the first key press.
+        from studio.shell import shortcuts, warmup
 
+        shortcuts.install_once()
+        # Load the cheap workbenches in the background once startup is done (docs/adr/0007).
         warmup.start_once()
 
     def Deactivated(self):

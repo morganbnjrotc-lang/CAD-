@@ -12,7 +12,7 @@ import uuid
 
 import FreeCAD
 
-from studio.interaction.keymap import GLOBAL, STUDIO_DEFAULTS, Keymap, normalize
+from studio.interaction.keymap import GLOBAL, STUDIO_DEFAULTS, Keymap, SequenceMatcher, normalize
 from studio.services.commands import CommandCatalog
 from studio.services.settings import Settings
 
@@ -175,6 +175,56 @@ class UserBindings(KeymapTestCase):
             self.keymap.set_sequences("Std_Undo", ["Ctrl+Foo"])
         self.assertEqual(self.settings.names(f"Keymap/{GLOBAL}"), [])
         self.assertEqual(self.keymap.sequences("Std_Undo"), ["Ctrl+Z"])
+
+
+class Matching(unittest.TestCase):
+    """SequenceMatcher: keys arrive one chord at a time; a sequence runs when complete."""
+
+    BINDINGS = {"E": "PartDesign_Pad", "G, L": "Sketcher_CreateLine", "G, 3, A": "Sketcher_Arc3",
+                "Ctrl+Z": "Std_Undo"}
+
+    def setUp(self):
+        self.matcher = SequenceMatcher(self.BINDINGS)
+
+    def test_single_key_runs_at_once(self):
+        self.assertEqual(self.matcher.feed("E"), ("run", "PartDesign_Pad"))
+        self.assertEqual(self.matcher.pending, "")
+
+    def test_a_sequence_waits_then_runs(self):
+        self.assertEqual(self.matcher.feed("G"), ("wait", None))
+        self.assertEqual(self.matcher.pending, "G")
+        self.assertEqual(self.matcher.feed("L"), ("run", "Sketcher_CreateLine"))
+        self.assertEqual(self.matcher.feed("G"), ("wait", None))
+        self.assertEqual(self.matcher.feed("3"), ("wait", None))
+        self.assertEqual(self.matcher.feed("A"), ("run", "Sketcher_Arc3"))
+
+    def test_unbound_key_is_not_ours(self):
+        self.assertEqual(self.matcher.feed("Q"), ("none", None))
+        self.assertEqual(self.matcher.feed("Ctrl+S"), ("none", None))
+
+    def test_a_dead_end_drops_the_pending_keys_and_tries_the_key_on_its_own(self):
+        self.assertEqual(self.matcher.feed("G"), ("wait", None))
+        self.assertEqual(self.matcher.feed("E"), ("run", "PartDesign_Pad"))
+        self.assertEqual(self.matcher.feed("G"), ("wait", None))
+        self.assertEqual(self.matcher.feed("Q"), ("none", None))
+        self.assertEqual(self.matcher.pending, "")
+
+    def test_reset_forgets_pending_keys(self):
+        self.matcher.feed("G")
+        self.matcher.reset()
+        self.assertEqual(self.matcher.feed("L"), ("none", None))
+
+    def test_wants_says_whether_a_key_would_be_used_without_consuming_it(self):
+        self.assertTrue(self.matcher.wants("E"))
+        self.assertTrue(self.matcher.wants("G"))
+        self.assertFalse(self.matcher.wants("L"))  # only after G
+        self.matcher.feed("G")
+        self.assertTrue(self.matcher.wants("L"))
+        self.assertEqual(self.matcher.pending, "G")
+
+    def test_refuses_bindings_where_one_sequence_starts_another(self):
+        with self.assertRaises(ValueError):
+            SequenceMatcher({"V": "A", "V, F": "B"})
 
 
 class ShippedCatalog(unittest.TestCase):

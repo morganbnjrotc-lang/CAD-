@@ -91,6 +91,60 @@ def _clashes(a: str, b: str) -> bool:
     return a == b or a.startswith(b + ", ") or b.startswith(a + ", ")
 
 
+class SequenceMatcher:
+    """Turns key presses (one normalized chord at a time) into commands.
+
+    `bindings` ({sequence: command}, e.g. Keymap.active_bindings()) may not contain a sequence that
+    starts another one, which active_bindings() guarantees; so a complete sequence can run at once
+    and no timeout is needed to tell "V" from "V, F".
+    """
+
+    def __init__(self, bindings: dict):
+        for a in bindings:
+            for b in bindings:
+                if a != b and _clashes(a, b):
+                    raise ValueError(f"{a!r} starts {b!r}")
+        self._bindings = dict(bindings)
+        self._prefixes = {", ".join(s.split(", ")[:n]) for s in bindings for n in range(1, s.count(", ") + 1)}
+        self.pending = ""
+
+    def _state(self, chord: str):
+        sequence = f"{self.pending}, {chord}" if self.pending else chord
+        if sequence in self._bindings:
+            return "run", sequence
+        if sequence in self._prefixes:
+            return "wait", sequence
+        return "none", sequence
+
+    def wants(self, chord: str) -> bool:
+        """Whether `chord` would be used now (completing or continuing a sequence, or starting a
+        new one after a dead end), without consuming it."""
+        state, _ = self._state(chord)
+        if state == "none" and self.pending:
+            state = "run" if chord in self._bindings else "wait" if chord in self._prefixes else "none"
+        return state != "none"
+
+    def feed(self, chord: str):
+        """("run", command) when `chord` completes a sequence, ("wait", None) when it continues
+        one, ("none", None) when it is not a bound key. After a dead end the pending keys are
+        dropped and `chord` is tried on its own."""
+        state, sequence = self._state(chord)
+        if state == "none" and self.pending:
+            self.pending = ""
+            state, sequence = self._state(chord)
+        if state == "run":
+            self.pending = ""
+            return "run", self._bindings[sequence]
+        if state == "wait":
+            self.pending = sequence
+            return "wait", None
+        self.pending = ""
+        return "none", None
+
+    def reset(self) -> None:
+        self.pending = ""
+
+
 @dataclass(frozen=True)
 class Conflict:
     context: str
