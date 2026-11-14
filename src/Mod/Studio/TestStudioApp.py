@@ -10,3 +10,9 @@ from StudioTests.test_local_only import (  # noqa: F401
     StudioIsLocalOnlyTest,
 )
 from StudioTests.test_branding import BrandingTest  # noqa: F401
+from StudioTests.test_settings import (  # noqa: F401
+    Choices,
+    DefaultsAndOverrides,
+    Keys,
+    Types,
+)
