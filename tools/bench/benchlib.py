@@ -14,6 +14,40 @@ import time
 from pathlib import Path
 
 
+# A brand-new user.cfg except for one setting: the "Invalid OpenGL Version" warning counts as
+# dismissed ("don't show again"). Release builds show that modal warning at startup when only
+# OpenGL 1.x is available (src/Gui/StartupProcess.cpp, checkOpenGL), as on GitHub's GPU-less
+# Windows runners. It never shows on a machine with a real GPU, so this changes nothing there.
+_USER_CFG = """<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<FCParameters>
+  <FCParamGroup Name="Root">
+    <FCParamGroup Name="BaseApp">
+      <FCParamGroup Name="CheckMessages">
+        <FCBool Name="FreeCAD_-_Invalid_OpenGL_Version" Value="1"/>
+      </FCParamGroup>
+    </FCParamGroup>
+  </FCParamGroup>
+</FCParameters>
+"""
+
+
+def make_profile(root: Path) -> dict:
+    """Creates a throwaway FreeCAD profile under `root`; returns the environment variables for it.
+
+    Isolates home, data AND temp: FreeCAD keeps lock files in its temp cache, and sharing it with
+    another running FreeCAD (e.g. a test run) can make that process wait forever. FreeCAD silently
+    ignores these variables unless the folders already exist.
+    """
+    for sub in ("home", "data", "temp"):
+        (root / sub).mkdir()
+    (root / "home" / "user.cfg").write_text(_USER_CFG, encoding="utf-8")
+    return {
+        "FREECAD_USER_HOME": str(root / "home"),
+        "FREECAD_USER_DATA": str(root / "data"),
+        "FREECAD_USER_TEMP": str(root / "temp"),
+    }
+
+
 def run_probe(exe: Path, probe: Path, env: dict, timeout: float) -> dict:
     """Runs `exe probe` in a fresh throwaway FreeCAD profile and returns the JSON the probe wrote.
 
@@ -24,18 +58,7 @@ def run_probe(exe: Path, probe: Path, env: dict, timeout: float) -> dict:
         tmp = Path(tmp)
         out = tmp / "result.json"
         full_env = dict(os.environ)
-        # Isolate home, data AND temp: FreeCAD keeps lock files in its temp cache, and sharing it
-        # with another running FreeCAD (e.g. a test run) can make that process wait forever.
-        # FreeCAD silently ignores these variables unless the folders already exist.
-        for sub in ("home", "data", "temp"):
-            (tmp / sub).mkdir()
-        full_env.update(
-            STUDIO_BENCH_OUT=str(out),
-            FREECAD_USER_HOME=str(tmp / "home"),
-            FREECAD_USER_DATA=str(tmp / "data"),
-            FREECAD_USER_TEMP=str(tmp / "temp"),
-            **env,
-        )
+        full_env.update(make_profile(tmp), STUDIO_BENCH_OUT=str(out), **env)
         log = tmp / "freecad.log"
         launched = time.time()
         try:
