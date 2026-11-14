@@ -1,6 +1,6 @@
 # 0007 — One environment without loading every module: command catalog and on-demand loading
 
-- **Status:** proposed
+- **Status:** accepted (2026-11-14)
 - **Date:** 2026-11-14
 
 ## Context
