@@ -77,7 +77,12 @@ pixi run python tools/test/run_cam_batches.py
 pixi run python tools/test/run_gui_suites.py TestStudioGui
 pixi run python tools/test/startup_smoke.py
 pixi run python tools/test/compare_test_logs.py build/test-logs/<before>.log build/test-logs/merge-noCAM.log
+pixi run python tools/studio/generate_command_catalog.py --check --exe build/relWithDebInfo/bin/FreeCAD.exe
 ```
+
+If the catalog check reports differences, upstream renamed, removed or added commands: regenerate
+it (same command without `--check`), review the diff, and fix any Studio code that names a removed
+command.
 
 - **0 tests worse** is the bar. Upstream adding or removing tests is fine; `compare_test_logs.py`
   lists them.

@@ -101,6 +101,9 @@ class StudioCITest(unittest.TestCase):
         # One pass of the reference-file benchmark: it fails if any reference file opens
         # incompletely in the build we ship (the timings on a shared runner aren't used).
         self.assertRegex(commands, r"bench_open\.py .*--runs 1")
+        # The command catalog (ADR 0007) must match the build: an upstream merge that renames,
+        # removes or adds a command fails here instead of breaking a toolbar button silently.
+        self.assertRegex(commands, r"generate_command_catalog\.py .*--check")
 
     def test_these_repo_checks_run_in_ci(self):
         commands = "\n".join(run_commands(job) for job in self.jobs.values())

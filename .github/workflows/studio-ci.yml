@@ -127,6 +127,13 @@ jobs:
         timeout-minutes: 20
         run: pixi run python tools/bench/bench_open.py --runs 1 --exe build/slim-release/bin/FreeCAD.exe --label ci
 
+      # The command catalog (docs/adr/0007) must match what this build registers. After an upstream
+      # merge that renames or adds commands: regenerate it (same command without --check) and commit.
+      - name: Command catalog is up to date
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 15
+        run: pixi run python tools/studio/generate_command_catalog.py --check --exe build/slim-release/bin/FreeCAD.exe
+
       - name: All headless FreeCAD suites except CAM
         if: ${{ !cancelled() && steps.build.outcome == 'success' && env.FULL_SUITE == 'true' }}
         timeout-minutes: 60

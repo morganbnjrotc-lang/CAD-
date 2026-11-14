@@ -77,6 +77,8 @@ pixi run python tools/test/run_headless_suites.py --exclude TestCAMApp   # every
 pixi run python tools/test/run_gui_suites.py TestStudioGui
 # End-to-end: launch the real app on a brand-new profile and check what a new user sees:
 pixi run python tools/test/startup_smoke.py
+# Command catalog (ADR 0007): regenerate after an upstream merge changes commands; CI runs --check:
+pixi run python tools/studio/generate_command_catalog.py [--check]
 # Repo checks (CI workflow rules; no build needed):
 pixi run python -m unittest discover -s tools/repo_tests -v
 # Benchmarks (on a quiet machine: not during a build, a test run or other heavy apps).

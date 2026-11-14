@@ -62,5 +62,26 @@ class ThrowawayProfile(unittest.TestCase):
         )
 
 
+class ProfileWithSettings(unittest.TestCase):
+    def test_extra_settings_are_written_next_to_the_dismissed_warning(self):
+        # E.g. the command catalog is generated in English whatever the machine's language.
+        with tempfile.TemporaryDirectory() as tmp:
+            env = benchlib.make_profile(
+                Path(tmp), {"BaseApp/Preferences/General/Language": "English", "BaseApp/X/Flag": False}
+            )
+            self.assertEqual(
+                parameters(Path(env["FREECAD_USER_HOME"]) / "user.cfg"),
+                {
+                    "Root/BaseApp/CheckMessages/FreeCAD_-_Invalid_OpenGL_Version": ("FCBool", "1"),
+                    "Root/BaseApp/Preferences/General/Language": ("FCText", "English"),
+                    "Root/BaseApp/X/Flag": ("FCBool", "0"),
+                },
+            )
+
+    def test_only_text_and_true_false_settings(self):
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaises(TypeError):
+            benchlib.make_profile(Path(tmp), {"BaseApp/X/Count": 3})
+
+
 if __name__ == "__main__":
     unittest.main()
