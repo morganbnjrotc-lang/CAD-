@@ -70,6 +70,10 @@ press for it.
   dialogs and the main window in C++, and calls Python only for key events. A Python filter on the
   application cost ~2.5 µs on *every* event of the app; the C++ one costs nothing measurable (slim
   Release: 1.89 vs 1.88 µs per event; startup 1.915 s vs 1.918 s without the handler, alternated 8×).
+- **A key whose command is inactive is left to the widget**, as Qt does with a disabled action. A
+  command not loaded yet counts as active, since its first use loads it. Found by hand: FreeCAD binds
+  Esc to `Std_ToggleNavigation`, active only in a rare editing mode, and claiming Esc anyway stopped
+  it from cancelling tools and task panels.
 - With FreeCAD's defaults the keymap has 76 Global and 77 Sketcher bindings and reports 15 conflicts,
   all inside FreeCAD's own defaults (Sketcher dropdown groups sharing a member's key; prefix pairs
   such as `Z, P` / `Z, P, S`).

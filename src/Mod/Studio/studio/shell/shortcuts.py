@@ -63,12 +63,28 @@ def chord_from_event(event):
     return chord_from_key(event.key(), _value(event.modifiers()))
 
 
+def _live_is_active(command: str) -> bool:
+    """Whether FreeCAD's command is active now. A command whose module isn't loaded yet counts as
+    active: pressing its key loads it (docs/adr/0007)."""
+    live = FreeCADGui.Command.get(command)
+    if live is None:
+        return True
+    try:
+        return bool(live.isActive())
+    except Exception:
+        return False  # let the key through rather than guess
+
+
 class ShortcutHandler:
-    def __init__(self, keymap_factory, service):
-        """`keymap_factory()` builds the Keymap when the first key arrives (not during startup)."""
+    def __init__(self, keymap_factory, service, is_active=_live_is_active):
+        """`keymap_factory()` builds the Keymap when the first key arrives (not during startup).
+        `is_active(command)`: like Qt with a disabled action, a key whose command is inactive is
+        left to the widget. FreeCAD binds Esc to Std_ToggleNavigation, active only in a rare
+        editing mode; otherwise Esc must reach the tool or task panel, which cancel with it."""
         self._keymap_factory = keymap_factory
         self._keymap = None
         self._service = service
+        self._is_active = is_active
         self._contexts = []
         self._matcher = None
         self._filter = None
@@ -114,9 +130,12 @@ class ShortcutHandler:
         except Exception as exc:
             FreeCAD.Console.PrintError(f"Studio shortcuts: could not load the keymap: {exc}\n")
             return False
+        state, command = matcher.peek(chord)
+        if state == "run" and not self._is_active(command):
+            state = "none"
         if kind == _SHORTCUT_OVERRIDE:
-            return matcher.wants(chord)  # the C++ filter accepts it: the key press comes to us next
-        if not matcher.wants(chord):
+            return state != "none"  # the C++ filter accepts it: the key press comes to us next
+        if state == "none":
             matcher.reset()
             return False
         state, command = matcher.feed(chord)

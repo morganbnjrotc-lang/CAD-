@@ -222,6 +222,15 @@ class Matching(unittest.TestCase):
         self.assertTrue(self.matcher.wants("L"))
         self.assertEqual(self.matcher.pending, "G")
 
+    def test_peek_tells_what_a_key_would_do_without_consuming_it(self):
+        self.assertEqual(self.matcher.peek("E"), ("run", "PartDesign_Pad"))
+        self.assertEqual(self.matcher.peek("G"), ("wait", None))
+        self.assertEqual(self.matcher.peek("Q"), ("none", None))
+        self.matcher.feed("G")
+        self.assertEqual(self.matcher.peek("L"), ("run", "Sketcher_CreateLine"))
+        self.assertEqual(self.matcher.peek("E"), ("run", "PartDesign_Pad"))  # dead end, then E alone
+        self.assertEqual(self.matcher.pending, "G")
+
     def test_refuses_bindings_where_one_sequence_starts_another(self):
         with self.assertRaises(ValueError):
             SequenceMatcher({"V": "A", "V, F": "B"})

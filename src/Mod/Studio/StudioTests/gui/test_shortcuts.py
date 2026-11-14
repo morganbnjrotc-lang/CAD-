@@ -94,7 +94,9 @@ class Handler(unittest.TestCase):
         settings = Settings(root=f"{TEST_PARENT}/{name}")
         self.addCleanup(lambda: FreeCAD.ParamGet(TEST_PARENT).RemGroup(name))
         self.service = FakeService()
-        self.handler = ShortcutHandler(lambda: Keymap(self.service.catalog, settings), self.service)
+        self.inactive = set()
+        self.handler = ShortcutHandler(lambda: Keymap(self.service.catalog, settings), self.service,
+                                       is_active=lambda command: command not in self.inactive)
         self.handler.install()
         self.addCleanup(self.handler.remove)
         main_window = FreeCADGui.getMainWindow()
@@ -143,6 +145,23 @@ class Handler(unittest.TestCase):
         settle()
         self.assertEqual(self.service.ran, ["Std_ViewFitAll"])
 
+    def test_a_key_whose_command_is_inactive_goes_to_the_widget(self):
+        # Like Qt with a disabled action: FreeCAD binds Esc to Std_ToggleNavigation, active only in
+        # a rare editing mode; otherwise Esc must reach the tool or task panel, which cancel with it.
+        # (Found by hand in the app, 2026-11-14: Esc didn't cancel tools.)
+        self.inactive.add("PartDesign_Pad")
+        self.assertFalse(press(self.target, QtCore.Qt.Key_E, text="e"))
+        settle()
+        self.assertEqual(self.service.ran, [])
+
+    def test_the_last_key_of_a_sequence_is_not_claimed_for_an_inactive_command(self):
+        self.handler.set_contexts(["SketcherWorkbench"])
+        self.inactive.add("Sketcher_CreateLine")
+        self.assertTrue(press(self.target, QtCore.Qt.Key_G, text="g"))  # could still become G, ...
+        self.assertFalse(press(self.target, QtCore.Qt.Key_L, text="l"))
+        settle()
+        self.assertEqual(self.service.ran, [])
+
     def test_nothing_is_claimed_while_a_modal_dialog_is_open(self):
         dialog = QtWidgets.QDialog(FreeCADGui.getMainWindow())
         dialog.setModal(True)
@@ -181,6 +200,12 @@ class SessionShortcuts(unittest.TestCase):
         from studio.shell import app, shortcuts
 
         self.assertIsNotNone(shortcuts._handler, "not installed when Studio activated")
+        # Fit All is only active with a 3D view (keys of inactive commands go to the widget).
+        doc = FreeCAD.newDocument("StudioShortcutTest")
+        self.addCleanup(settle)
+        self.addCleanup(FreeCAD.closeDocument, doc.Name)
+        settle()
+        self.assertTrue(FreeCADGui.Command.get("Std_ViewFitAll").isActive(), "precondition")
         service = app.command_service()
         ran = []
         service.run = ran.append  # record instead of running
@@ -192,6 +217,24 @@ class SessionShortcuts(unittest.TestCase):
         settle()
 
         self.assertEqual(ran, ["Std_ViewFitAll"])
+
+    def test_esc_is_left_to_tools_and_task_panels(self):
+        # FreeCAD binds Esc to Std_ToggleNavigation, which is inactive outside a rare editing mode.
+        from studio.shell import app, shortcuts
+
+        self.assertIsNotNone(shortcuts._handler)
+        self.assertFalse(FreeCADGui.Command.get("Std_ToggleNavigation").isActive(), "precondition")
+        service = app.command_service()
+        ran = []
+        service.run = ran.append
+        self.addCleanup(delattr, service, "run")
+        target = QtWidgets.QWidget(FreeCADGui.getMainWindow())
+        self.addCleanup(target.deleteLater)
+
+        self.assertFalse(press(target, QtCore.Qt.Key_Escape))
+        settle()
+
+        self.assertEqual(ran, [])
 
 
 class EditContexts(unittest.TestCase):

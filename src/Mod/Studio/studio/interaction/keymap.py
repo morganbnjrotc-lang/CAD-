@@ -116,13 +116,18 @@ class SequenceMatcher:
             return "wait", sequence
         return "none", sequence
 
+    def peek(self, chord: str):
+        """What `feed(chord)` would return, without consuming the key."""
+        state, sequence = self._state(chord)
+        if state == "none" and self.pending:
+            sequence = chord  # a dead end: the key on its own
+            state = "run" if chord in self._bindings else "wait" if chord in self._prefixes else "none"
+        return (state, self._bindings[sequence]) if state == "run" else (state, None)
+
     def wants(self, chord: str) -> bool:
         """Whether `chord` would be used now (completing or continuing a sequence, or starting a
         new one after a dead end), without consuming it."""
-        state, _ = self._state(chord)
-        if state == "none" and self.pending:
-            state = "run" if chord in self._bindings else "wait" if chord in self._prefixes else "none"
-        return state != "none"
+        return self.peek(chord)[0] != "none"
 
     def feed(self, chord: str):
         """("run", command) when `chord` completes a sequence, ("wait", None) when it continues
