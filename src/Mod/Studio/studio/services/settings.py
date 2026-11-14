@@ -107,3 +107,15 @@ class Settings:
     def reset(self, setting: Setting) -> None:
         group, name = self._group_and_name(setting)
         getattr(group, "Rem" + _KINDS[setting.type][0])(name)
+
+    def names(self, group_path: str) -> list:
+        """Names of the user values stored directly in `group_path` ("Keymap/Global"), e.g. to
+        find which of many per-item settings the user changed. Creates no groups."""
+        if not all(_NAME.fullmatch(part) for part in group_path.split("/")):
+            raise ValueError(f"group path must be names joined by '/': {group_path!r}")
+        group = FreeCAD.ParamGet(self.root)
+        for part in group_path.split("/"):
+            if not group.HasGroup(part):
+                return []
+            group = group.GetGroup(part)
+        return [name for _, name, _ in group.GetContents() or []]

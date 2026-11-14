@@ -15,10 +15,18 @@ from StudioTests.test_commands import (  # noqa: F401
     Service,
     ShippedCatalog,
 )
+from StudioTests.test_keymap import (  # noqa: F401
+    Conflicts,
+    Defaults,
+    Normalize,
+    UserBindings,
+)
+from StudioTests.test_keymap import ShippedCatalog as KeymapShippedCatalog  # noqa: F401
 from StudioTests.test_warmup import WarmUpPlan  # noqa: F401
 from StudioTests.test_settings import (  # noqa: F401
     Choices,
     DefaultsAndOverrides,
     Keys,
+    Listing,
     Types,
 )

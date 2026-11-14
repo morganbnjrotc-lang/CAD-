@@ -172,6 +172,16 @@ class Choices(SettingsTestCase):
             Setting("T/Count", 1, choices=(1, 2))
 
 
+class Listing(SettingsTestCase):
+    def test_names_of_user_values_in_a_group(self):
+        # The keymap stores one setting per command; it has to find the ones the user changed.
+        self.settings.set(Setting("Keymap/Global/Std_Undo", ""), "Ctrl+Z")
+        self.settings.set(Setting("Keymap/Global/Std_Redo", ""), "")
+        self.settings.set(Setting("Keymap/SketcherWorkbench/Sketcher_Dimension", ""), "D")
+        self.assertEqual(sorted(self.settings.names("Keymap/Global")), ["Std_Redo", "Std_Undo"])
+        self.assertEqual(self.settings.names("Keymap/NeverUsed"), [])
+
+
 class Keys(SettingsTestCase):
     def test_key_is_a_path_of_plain_names(self):
         for key in ("", "/Lead", "Trail/", "Double//Slash", "Has Space/X", "Dot.Name/X", "Ümlaut/X"):
