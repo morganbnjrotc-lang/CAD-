@@ -23,6 +23,8 @@ from StudioTests.test_keymap import (  # noqa: F401
     UserBindings,
 )
 from StudioTests.test_keymap import ShippedCatalog as KeymapShippedCatalog  # noqa: F401
+from StudioTests.test_palette import Items, Ranking, Recent  # noqa: F401
+from StudioTests.test_palette import ShippedCatalog as PaletteShippedCatalog  # noqa: F401
 from StudioTests.test_warmup import WarmUpPlan  # noqa: F401
 from StudioTests.test_settings import (  # noqa: F401
     Choices,
