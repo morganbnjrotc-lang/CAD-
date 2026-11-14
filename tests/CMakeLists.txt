@@ -127,11 +127,21 @@ if(WIN32)
     elseif(EXISTS "${CMAKE_PREFIX_PATH}/bin")
         list(APPEND _test_env_mod "PATH=path_list_prepend:${CMAKE_PREFIX_PATH}/bin")
     endif()
-    file(GLOB _mod_dirs LIST_DIRECTORIES true "${CMAKE_BINARY_DIR}/Mod/*")
+    # Mod/<name> output folders are created at build time, so on a fresh build directory they don't
+    # exist yet when this runs. Take module names from the source tree too, or every test that
+    # loads a module DLL fails with STATUS_DLL_NOT_FOUND until CMake is re-run after a build.
+    file(GLOB _mod_dirs LIST_DIRECTORIES true "${CMAKE_SOURCE_DIR}/src/Mod/*" "${CMAKE_BINARY_DIR}/Mod/*")
+    set(_mod_names "")
     foreach(_mod_dir ${_mod_dirs})
         if(IS_DIRECTORY "${_mod_dir}")
-            list(APPEND _test_env_mod "PATH=path_list_prepend:${_mod_dir}")
+            cmake_path(GET _mod_dir FILENAME _mod_name)
+            list(APPEND _mod_names "${_mod_name}")
         endif()
+    endforeach()
+    list(REMOVE_DUPLICATES _mod_names)
+    list(SORT _mod_names)
+    foreach(_mod_name ${_mod_names})
+        list(APPEND _test_env_mod "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/Mod/${_mod_name}")
     endforeach()
 endif()
 
