@@ -17,10 +17,11 @@ GUI_MODULES = frozenset(
 )
 
 # For each headless layer: the studio layers it must NOT import (i.e. the ones above it).
+# `shell` (studio/shell) is the top layer: the Python side of the Qt shell, free to use FreeCADGui.
 LAYER_RULES = {
-    "services": {"interaction", "viewmodels"},
-    "interaction": {"viewmodels"},
-    "viewmodels": set(),
+    "services": {"interaction", "viewmodels", "shell"},
+    "interaction": {"viewmodels", "shell"},
+    "viewmodels": {"shell"},
 }
 
 
@@ -79,6 +80,13 @@ class ImportCheckerTest(unittest.TestCase):
         found = violations(imported_modules(source, "studio.services.example"), "services")
         self.assertIn("studio.viewmodels", found)
         self.assertIn("studio.interaction", found)
+
+    def test_detects_imports_of_the_shell_from_any_lower_layer(self):
+        for layer in LAYER_RULES:
+            with self.subTest(layer=layer):
+                source = "from studio.shell import backend\n"
+                found = violations(imported_modules(source, f"studio.{layer}.example"), layer)
+                self.assertIn("studio.shell", found)
 
     def test_allows_downward_and_kernel_imports(self):
         source = (

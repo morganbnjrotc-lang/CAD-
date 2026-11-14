@@ -24,6 +24,10 @@ endif(BUILD_GUI)
 
 set(Studio_All ${Studio_Scripts} ${Studio_Package_SRCS})
 
+if(BUILD_GUI)
+    add_subdirectory(Gui)  # StudioGui C++ helpers
+endif(BUILD_GUI)
+
 add_custom_target(StudioScripts ALL
     SOURCES ${Studio_All}
 )

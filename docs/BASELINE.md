@@ -49,6 +49,17 @@ inside the CAM tests, with 0% CPU.
 - **Workaround for testing:** `tools/test/run_cam_batches.py` runs CAM in batches and waits for
   `TIME_WAIT` to drain between them.
 
+### Known upstream issue: closing a document right after creating a spreadsheet crashes
+
+Creating a spreadsheet (`Spreadsheet_CreateSheet`, which opens its window) and closing the document
+before Qt has processed the window's pending events triggers an access violation. FreeCAD catches
+it ("Illegal storage access! … restart the application", "Unhandled Base::Exception caught in
+GUIApplication::notify"), but the app can be left unstable: a test run hung afterwards.
+Reproduced 3 of 3 times with FreeCAD's own `activateWorkbench` and no Studio code involved; letting
+events run before closing avoids it every time (2026-11-14, `StudioTests.gui.test_command_backend`).
+A user clicking through the UI is unlikely to hit it; scripts and macros can. Worth reporting
+upstream with a minimal script.
+
 ### Known upstream issue: C++ tests fail on a fresh build folder on Windows (fixed)
 
 `tests/CMakeLists.txt` put module DLL folders (`build/…/Mod/<name>`) on the test `PATH` by globbing
