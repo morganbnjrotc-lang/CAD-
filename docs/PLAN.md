@@ -4,7 +4,10 @@ How we turn FreeCAD into a fast, local, single-environment CAD/CAM app with a cl
 feature gap analysis lives in the [README](../README.md#feature-roadmap); this document says
 **how** and **in what order** we build it.
 
-> Working codename for our code: **Studio** (`src/Mod/Studio`). Rename once the product has a name.
+> Product name: **A&B CAD**, always shown with credit that it's *powered by FreeCAD* (decided
+> 2026-11-14). The visible rename waits until the app clearly differs from FreeCAD (Phase 10 at the
+> latest); until then it still says FreeCAD. Working codename for our code: **Studio**
+> (`src/Mod/Studio`).
 
 ---
 
@@ -197,19 +200,22 @@ our module with TDD and CI in place.
 
 **Goal:** the app *feels* different: sparse, viewport-first, one environment, laptop-friendly.
 
-- Unified main window: workbench switcher hidden, contextual toolbar driven by selection, one
-  properties panel, collapsible model tree.
-- Command palette (search every command by name).
-- Keymap service: `E` extrude, `F` focus selection, `Shift+F` fit all, plus user-editable bindings.
-- New default **navigation style**: trackpad pinch zoom and two-finger orbit, plus mouse (builds on FreeCAD's
-  existing gesture and pinch support and its tests).
-- **File browser** replacing the Start page: recent files with thumbnails; remove or hide entries.
-- Settings service with **right-click → Make default** on fields.
-- **Lazy module loading** to hit the startup budget.
+Foundations come first, then the visible changes built on them (order agreed 2026-11-14).
 
-*Tests first:* keymap resolution, palette search ranking, nav gesture → camera math, recent-files
-store, settings defaults (all headless); QTest smoke for the window; visual baselines of the
-main screens.
+| # | Task | Done when |
+|---|---|---|
+| 2.1 | **Startup profiler + lazy-loading design.** A tool showing where startup time goes (C++ init, Python imports, each module's `Init.py`/`InitGui.py`, first workbench activation). FreeCAD runs its embedded Python in isolated mode, so `PYTHON*` variables such as `PYTHONPROFILEIMPORTTIME` are ignored and the hook has to live inside the app. ADR: how the single environment offers every module's tools without loading those modules at startup | Profile recorded in `BASELINE.md`; ADR accepted |
+| 2.2 | **Settings service** (`studio/settings.py`): typed preferences on FreeCAD's parameter store, defaults, "Make default" | Headless tests green |
+| 2.3 | **Command catalog** (service): every command's name, icon, module and the context it applies to, readable *without* importing the module; commands load on first use | Headless tests green; startup not slower |
+| 2.4 | **Keymap service**: `E` extrude, `F` focus selection, `Shift+F` fit all, user-editable bindings, conflict detection | Headless resolution tests; shortcuts work in the app |
+| 2.5 | **Command palette**: search every command by name | Ranking tests (headless); QTest smoke |
+| 2.6 | **Unified main window**: workbench switcher hidden, contextual toolbar driven by selection, one properties panel, collapsible model tree, right-click → **Make default** on fields | View-model tests; QTest smoke; tried in the app |
+| 2.7 | **Navigation style** (new default): trackpad pinch zoom and two-finger orbit, plus mouse; builds on FreeCAD's gesture and pinch support and its tests (likely C++) | Gesture → camera math tests; tried on the laptop trackpad |
+| 2.8 | **File browser** replacing the Start page: recent files with thumbnails; remove or hide entries | Recent-files store tests; QTest smoke |
+| 2.9 | **Visual baselines** of the main screens (`tests/visual`); startup checked against the budget (≤ 1.5 s, stretch 1.0 s) | Baselines reviewed; budget met |
+
+**Exit:** a user can work in one environment without switching workbenches, find any command
+from the palette or keyboard, and start the app within the startup budget.
 
 ### Phase 3 — Modeling UX
 
@@ -279,6 +285,11 @@ simulation removed-volume matches reference; G-code golden files per post-proces
 
 ### Phase 10 — Distribution & interop
 
+- **Rename to A&B CAD** (if it hasn't happened earlier): app name, window titles, splash, About dialog,
+  icons and installer through `branding.xml` ([ADR 0004](adr/0004-branding-via-branding-xml.md)), with a
+  visible *Powered by FreeCAD* credit (splash and About) and FreeCAD's license notices kept. Check
+  FreeCAD's guidance on using its name and logo first. The `&` must be escaped in XML (`A&amp;B`) and is
+  awkward in shells and paths, so file, folder and executable names use a plain form (e.g. `ABCAD`).
 - Windows installer (then macOS/Linux); explicit "check for updates" (the only background network call, opt-in).
 - **Code signing** for release binaries, so Windows Smart App Control / SmartScreen don't block the app for users.
 - Optional, user-started **parts library** download with material detection (legal review of
