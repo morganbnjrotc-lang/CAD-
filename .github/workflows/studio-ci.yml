@@ -2,7 +2,7 @@
 #
 # Studio CI: builds this fork on Windows and runs our checks (docs/adr/0005-own-ci-workflow.md).
 #
-#   every push to main and every PR   Release build (ccache) + Studio app/GUI suites + startup smoke
+#   every push to main and every PR   slim Release build (ADR 0006, ccache) + Studio app/GUI suites + startup smoke
 #   nightly, or "Run workflow"        the above + every headless FreeCAD suite (CAM in batches)
 #
 # Repo checks (tools/repo_tests) need no build and report within a minute.
@@ -82,15 +82,15 @@ jobs:
             studio-ccache-windows-${{ github.ref }}-
             studio-ccache-windows-
 
-      - name: Configure (Release)
+      - name: Configure (slim Release)
         run: |
           pixi run ccache --zero-stats
-          pixi run configure-release
+          pixi run configure-slim-release
 
       - name: Build
         id: build
         timeout-minutes: 300
-        run: pixi run build-release
+        run: pixi run build-slim-release
 
       - name: Compiler cache statistics
         if: always()
@@ -108,27 +108,27 @@ jobs:
       - name: Studio app tests (headless)
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 20
-        run: pixi run python tools/test/run_headless_suites.py --exe build/release/bin/FreeCADCmd.exe TestStudioApp
+        run: pixi run python tools/test/run_headless_suites.py --exe build/slim-release/bin/FreeCADCmd.exe TestStudioApp
 
       - name: Studio GUI tests
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 20
-        run: pixi run python tools/test/run_gui_suites.py TestStudioGui --build-dir build/release
+        run: pixi run python tools/test/run_gui_suites.py TestStudioGui --build-dir build/slim-release
 
       - name: Startup smoke test (fresh profile)
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 10
-        run: pixi run python tools/test/startup_smoke.py --build-dir build/release
+        run: pixi run python tools/test/startup_smoke.py --build-dir build/slim-release
 
       - name: All headless FreeCAD suites except CAM
         if: ${{ !cancelled() && steps.build.outcome == 'success' && env.FULL_SUITE == 'true' }}
         timeout-minutes: 60
-        run: pixi run python tools/test/run_headless_suites.py --exe build/release/bin/FreeCADCmd.exe --exclude TestCAMApp
+        run: pixi run python tools/test/run_headless_suites.py --exe build/slim-release/bin/FreeCADCmd.exe --exclude TestCAMApp
 
       - name: CAM suite in batches
         if: ${{ !cancelled() && steps.build.outcome == 'success' && env.FULL_SUITE == 'true' }}
         timeout-minutes: 90
-        run: pixi run python tools/test/run_cam_batches.py --build-dir build/release
+        run: pixi run python tools/test/run_cam_batches.py --build-dir build/slim-release
 
       - name: Upload test logs
         if: always()

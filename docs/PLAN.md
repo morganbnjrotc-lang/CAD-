@@ -51,7 +51,7 @@ reference laptop (Ryzen AI 7 445, 16 GB RAM); each later phase must stay within 
 
 | Metric | Budget (set after baseline) |
 |---|---|
-| Cold start to usable window | baseline → target ≤ 50% of baseline by end of Phase 2 |
+| Cold start to usable window | ≤ **2.2 s** by end of Phase 2 (50% of the first 4.4 s baseline; kept as a fixed target after the 2026-11-13 re-measurement at 3.0 s, see [BASELINE.md](BASELINE.md)) |
 | Idle memory after start | baseline → must not grow phase-over-phase without sign-off |
 | Open reference model (STEP + native) | baseline |
 | Full CAM simulation of reference job | baseline (Phase 8) |
@@ -185,10 +185,10 @@ our module with TDD and CI in place.
 | 1.2 ✅ | Baseline build (RelWithDebInfo, parallelism capped for 16 GB RAM) | FreeCAD launches from our build |
 | 1.3 ✅ | Baseline tests: run `ctest` and the headless suites, record results in [`docs/BASELINE.md`](BASELINE.md). Added `tools/test/run_headless_suites.py` (isolated profile, per-test watchdog) | Known upstream failures listed, so they're never mistaken for ours |
 | 1.4 🟡 | Benchmark harness in `tools/bench`: cold start ✅, idle memory ✅, open reference files | Baseline numbers recorded; budgets set in §1.3 |
-| 1.5 | **Slim build** preset: turn off FEM, BIM, Robot, OpenSCAD, Points, ReverseEngineering, Inspection, Web, JtReader, AddonManager (verify dependencies one module at a time) | Slim build launches, tests no worse than baseline, startup and memory measured |
+| 1.5 ✅ | **Slim build** preset: turn off FEM, BIM, Robot, OpenSCAD, Points, ReverseEngineering, Inspection, Web, JtReader, AddonManager (verify dependencies one module at a time). `pixi run configure-slim` / `build-slim` → `build/slim` ([ADR 0006](adr/0006-slim-build.md)): all kept suites pass, 0 tests worse; startup unchanged (3.0 s), memory −2–3% | Slim build launches, tests no worse than baseline, startup and memory measured |
 | 1.6 ✅ | Scaffold `src/Mod/Studio` (layout from §2.3), registered with CMake and the test runner | `FreeCADCmd -t TestStudioApp` runs a real (initially failing → passing) test |
 | 1.7 ✅ | **Walking skeleton (TDD):** Studio workbench exists, is the default at startup (via [branding.xml](adr/0004-branding-via-branding-xml.md)), shows an empty shell; layer-rule tests; local-only socket guard test; end-to-end `tools/test/startup_smoke.py` | Tests written first; all green |
-| 1.8 🟡 | CI for our fork: replace upstream's heavy workflows (they trigger on our pushes) with a lean Windows build + Studio tests; full suite nightly or on demand. Upstream workflows + Dependabot removed, `studio-ci.yml` + `tools/repo_tests` added ([ADR 0005](adr/0005-own-ci-workflow.md)) ✅; first green run on GitHub pending | CI green on `main` |
+| 1.8 ✅ | CI for our fork: replace upstream's heavy workflows (they trigger on our pushes) with a lean Windows build + Studio tests; full suite nightly or on demand. Upstream workflows + Dependabot removed, `studio-ci.yml` + `tools/repo_tests` added ([ADR 0005](adr/0005-own-ci-workflow.md)). First run green on `main` 2026-11-13 (cold build, no compiler cache: 2 h 9 min) | CI green on `main` |
 | 1.9 🟡 | Repo docs: our own `AGENTS.md`/`CLAUDE.md` (TDD rules, layers, upstream rules) ✅, ADR template + first ADRs ✅, `CORE_PATCHES.md` ✅, upstream-merge procedure | Docs merged; a practice upstream merge has been done once |
 
 **Exit:** one-command build, baseline and budgets recorded, Studio module green in CI.

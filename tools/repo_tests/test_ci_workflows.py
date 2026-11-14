@@ -85,6 +85,13 @@ class StudioCITest(unittest.TestCase):
         windows = [job for job in self.jobs.values() if str(job.get("runs-on", "")).startswith("windows")]
         self.assertEqual(len(windows), 1, "expected exactly one Windows build job")
         commands = run_commands(windows[0])
+        # CI tests what we ship: the slim build (ADR 0006), not upstream's full module set.
+        self.assertIn("pixi run configure-slim-release", commands)
+        self.assertIn("pixi run build-slim-release", commands)
+        for line in commands.splitlines():
+            if "--build-dir" in line or "--exe" in line:
+                with self.subTest(line=line):
+                    self.assertIn("build/slim-release", line)
         self.assertRegex(commands, r"run_headless_suites\.py .*TestStudioApp")
         # Through the isolating runner: a bare `FreeCAD.exe -t` uses the real profile and can
         # stop at the first-run settings-migration dialog, hanging until the job times out.

@@ -68,6 +68,8 @@ pixi run configure            # CMake configure (RelWithDebInfo, Ninja) -> build
 pixi run build                # compile
 pixi run test                 # ctest (C++ suites)
 pixi run freecad              # install and launch
+# Slim build (only the modules we ship, ADR 0006) in build/slim; runs from the build tree:
+pixi run configure-slim; pixi run build-slim; pixi run freecad-slim
 # Headless suites in a throwaway profile with a per-test hang watchdog:
 pixi run python tools/test/run_headless_suites.py TestStudioApp
 pixi run python tools/test/run_headless_suites.py --exclude TestCAMApp   # everything but CAM (~3 min)
@@ -83,7 +85,8 @@ pixi run python tools/bench/bench_startup.py --runs 6
 
 The test tools take `--build-dir build/release` (or `--exe` for `run_headless_suites.py`) to test
 another build. CI ([`.github/workflows/studio-ci.yml`](.github/workflows/studio-ci.yml), [ADR 0005](docs/adr/0005-own-ci-workflow.md))
-builds Release on Windows and runs the same commands. Upstream FreeCAD's workflows were removed on purpose.
+builds the slim Release (`configure-slim-release`, `build/slim-release`) on Windows and runs the same
+commands. Upstream FreeCAD's workflows were removed on purpose.
 
 PowerShell 5.1 strips double quotes inside arguments passed to programs, so `FreeCADCmd -c "..."` code
 that contains quotes breaks. Put the code in a `.py` file and pass the file instead.

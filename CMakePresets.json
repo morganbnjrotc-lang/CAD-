@@ -365,6 +365,43 @@
         }
       },
       {
+        "name": "studio-slim",
+        "hidden": true,
+        "description": "Studio fork: modules the product doesn't ship are off (docs/adr/0006-slim-build.md)",
+        "cacheVariables": {
+          "BUILD_ADDONMGR": { "type": "BOOL", "value": "OFF" },
+          "BUILD_BIM": { "type": "BOOL", "value": "OFF" },
+          "BUILD_FEM": { "type": "BOOL", "value": "OFF" },
+          "BUILD_INSPECTION": { "type": "BOOL", "value": "OFF" },
+          "BUILD_JTREADER": { "type": "BOOL", "value": "OFF" },
+          "BUILD_OPENSCAD": { "type": "BOOL", "value": "OFF" },
+          "BUILD_POINTS": { "type": "BOOL", "value": "OFF" },
+          "BUILD_REVERSEENGINEERING": { "type": "BOOL", "value": "OFF" },
+          "BUILD_ROBOT": { "type": "BOOL", "value": "OFF" },
+          "BUILD_WEB": { "type": "BOOL", "value": "OFF" }
+        }
+      },
+      {
+        "name": "studio-slim-windows-rel-with-deb-info",
+        "displayName": "Studio slim RelWithDebInfo",
+        "description": "Studio slim build for development",
+        "inherits": [
+          "studio-slim",
+          "conda-windows-rel-with-deb-info"
+        ],
+        "binaryDir": "${sourceDir}/build/slim"
+      },
+      {
+        "name": "studio-slim-windows-release",
+        "displayName": "Studio slim Release",
+        "description": "Studio slim build, Release (CI)",
+        "inherits": [
+          "studio-slim",
+          "conda-windows-release"
+        ],
+        "binaryDir": "${sourceDir}/build/slim-release"
+      },
+      {
             "name": "rpm",
             "description": "Settings like rpm build",
             "displayName": "rpm",

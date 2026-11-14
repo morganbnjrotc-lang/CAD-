@@ -35,7 +35,7 @@ Options considered:
     `TestStudioApp`, `TestStudioGui` and the startup smoke test;
   - nightly and on manual runs: also every headless FreeCAD suite, CAM in batches;
   - a fast Ubuntu job runs `tools/repo_tests` (no build needed).
-- CI builds **Release**, not RelWithDebInfo: MSVC `/Z7` debug info (needed for ccache) makes objects
+- CI builds **Release** (the slim Release since [0006](0006-slim-build.md)), not RelWithDebInfo: MSVC `/Z7` debug info (needed for ccache) makes objects
   several times larger, which the 10 GB per-repo Actions cache can't usefully hold.
 - `tools/repo_tests/test_ci_workflows.py` enforces: only our workflow files exist, no Dependabot
   config, read-only default token, every job has a timeout, every action is pinned to a commit SHA,

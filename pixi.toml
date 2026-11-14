@@ -240,6 +240,13 @@ configure-release = { cmd = [ "cmake", "--preset", "conda-windows-release", "-DC
 freecad-rel-with-deb-info = { cmd = [ ".pixi/envs/default/Library/bin/FreeCAD.exe" ], depends-on = ["install-rel-with-deb-info"]}
 freecad-debug = { cmd = [ ".pixi/envs/default/Library/bin/FreeCAD.exe" ], depends-on = ["install-debug"]}
 freecad-release = { cmd = [ ".pixi/envs/default/Library/bin/FreeCAD.exe" ], depends-on = ["install-release"]}
+# Studio fork: slim build (docs/adr/0006-slim-build.md). Runs from the build tree: installing into the
+# pixi env would mix with a full install's modules.
+configure-slim = { cmd = [ "cmake", "--preset", "studio-slim-windows-rel-with-deb-info", "-DCMAKE_GENERATOR_PLATFORM=", "-DCMAKE_GENERATOR_TOOLSET=" ], depends-on = ["initialize"], env={ CFLAGS="", CXXFLAGS="", DEBUG_CFLAGS="", DEBUG_CXXFLAGS="" }}
+configure-slim-release = { cmd = [ "cmake", "--preset", "studio-slim-windows-release", "-DCMAKE_GENERATOR_PLATFORM=", "-DCMAKE_GENERATOR_TOOLSET=" ], depends-on = ["initialize"], env={ CFLAGS="", CXXFLAGS="", DEBUG_CFLAGS="", DEBUG_CXXFLAGS="" }}
+build-slim = { cmd = [ "cmake", "--build", "build/slim" ]}
+build-slim-release = { cmd = [ "cmake", "--build", "build/slim-release" ]}
+freecad-slim = { cmd = [ "build/slim/bin/FreeCAD.exe" ]}
 
 [tasks]
 initialize = { cmd = ["git", "submodule", "update", "--init", "--recursive"]}
