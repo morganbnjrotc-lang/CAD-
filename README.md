@@ -13,7 +13,7 @@ A fast, fully local, lightweight CAD/CAM application built on top of [FreeCAD](h
 2. **One environment.** No switching "workbenches" to go from modeling → assembly → drawings → CAM. Parts and assemblies live in the same document; CAM is a mode you toggle on a body.
 3. **Fully local.** No accounts, no cloud, no telemetry. The only network call is an explicit "check for updates" (and optional, user-triggered part downloads).
 4. **Fast and lightweight.** Instant startup, quick file loads, runs well on a laptop.
-5. **Laptop friendly.** First-class trackpad navigation (pinch zoom, two-finger orbit) plus mouse.
+5. **Laptop friendly.** Works well on a laptop screen with a mouse. Trackpad navigation (pinch zoom, two-finger orbit) is deferred and may come back later as a backup.
 6. **Sensible defaults, deep preferences.** Right-click any field → "Make default".
 
 ## Feature roadmap
