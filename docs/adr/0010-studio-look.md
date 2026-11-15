@@ -79,6 +79,24 @@ changes. Studio's `Init.py` runs before the GUI starts.
   machine (CPU ~15%, runs spread over ±0.3 s) can't resolve the rest: three sessions gave median
   differences of −10 to +140 ms and mean differences of −13 to +64 ms. Re-measured on a quiet machine in
   PLAN 2.10.
+- **Step 3 (stylesheets and FreeCAD's panels)**, 2026-11-15. Studio's widgets restyle themselves when the
+  look changes (`Appearance.follow`), each with a small stylesheet on its own widget, none app-wide: the
+  top bar (search drawn as a field), the toolbar (hover and pressed in the soft accent), the status hint,
+  Home (panel background, New Part as the accent button, file-type tiles redrawn in the mode's colors,
+  hover on cards). Home hides the Model panel while it shows (no document, so the panel would be empty)
+  and brings it back with the first document, also after the app was closed on Home: FreeCAD saves the
+  panel hidden then, so Studio records that it hid it (`Home/PanelHidden`).
+  FreeCAD's panels (`FreeCADPanels`): the property editor's group rows (FreeCAD reads their colors once,
+  when it builds the editor: grey with blue text, 1.3:1 in dark), its tab box drawn flat (Fusion fills it
+  a shade lighter than the panel), the panel title buttons' fixed dark icons tinted in the secondary text
+  color, and FreeCAD's message color (`OutputWindow/colorText`, black by default) written like the other
+  FreeCAD colors. The status bar and anything else under a FreeCAD stylesheet keep the old mode's colors
+  after a live switch; Studio sets the status bar's stylesheet again on a switch.
+- Not done in step 3: FreeCAD's Tasks panel stays an empty box over the 3D view between tasks, and after
+  a live switch its frame keeps the old colors until the next start. Every way of clearing it crashed
+  FreeCAD on a workbench change, and holding FreeCAD's overlay widgets made the app abort at exit
+  (`docs/BASELINE.md`). Lookups of FreeCAD widgets follow the rule written there: at startup, inside the
+  Model panel, and nothing kept that FreeCAD destroys late.
 
 ## Consequences
 

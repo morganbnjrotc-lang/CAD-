@@ -161,6 +161,13 @@ class FreeCADColorSettings(unittest.TestCase):
         active = tree.GetUnsigned("TreeActiveColor", 0)
         self.assertNotIn(active, (0, theme.rgba(theme.DARK.selection)))
 
+    def test_status_and_report_text_reads_in_both_modes(self):
+        # FreeCAD's message color (status bar, Report view) defaults to black: unreadable in dark.
+        output = FreeCAD.ParamGet(f"{self.root}/OutputWindow")
+        for p in (theme.DARK, theme.LIGHT):
+            self.colors.apply(p)
+            self.assertEqual(output.GetUnsigned("colorText", 0), theme.rgba(p.text), p.name)
+
     def test_switching_mode_rewrites_the_colors(self):
         self.colors.apply(theme.LIGHT)
         self.colors.apply(theme.DARK)

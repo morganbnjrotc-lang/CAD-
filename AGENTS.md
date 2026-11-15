@@ -107,6 +107,10 @@ Gotchas found the hard way (details in `docs/BASELINE.md` and ADRs 0004–0005):
 - Never run a benchmark and a test run at the same time: they compete for CPU and, without
   isolation, for FreeCAD's lock files. Check the machine is quiet first; a busy background app
   made startup measure 13 s instead of 3 s.
+- Python code that looks up FreeCAD's widgets (`findChild`) while a document is open, or keeps a
+  reference to FreeCAD widgets it destroys late (overlay panels, title-button actions, the status bar),
+  makes FreeCAD abort at exit. Look widgets up at startup, inside the Model panel where possible, and
+  keep only long-lived ones (`docs/BASELINE.md`).
 - A bare `FreeCAD.exe -t ...` uses the real profile. If the dev build's profile folder doesn't exist but an
   older FreeCAD's does, a modal "Welcome to FreeCAD" migration dialog appears and the tests hang
   behind it forever. Use `tools/test/run_gui_suites.py`.

@@ -51,6 +51,9 @@ class Chrome(unittest.TestCase):
         self.assertIn("Search", window.search_button.text())
 
     def test_the_panel_button_closes_and_opens_the_model_panel(self):
+        doc = FreeCAD.newDocument("StudioPanelButton")  # with no document Home shows, and hides the panel
+        self.addCleanup(lambda: FreeCAD.closeDocument(doc.Name))
+        settle()
         window = session_window()
         model = window.model_panel()
         self.assertIsNotNone(model)

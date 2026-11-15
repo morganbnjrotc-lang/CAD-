@@ -70,10 +70,13 @@ class StudioWindow:
         self._pending = False
         self.kind = None
         self.extra_menus = []  # Studio's own menus after FreeCAD's in ☰ (e.g. Appearance)
+        self._model_panel = None
 
     # -- setup -------------------------------------------------------------------------------
     def install(self):
         main = self._main
+        # Looked up once, now, before any document is open (see appearance.FreeCADPanels).
+        self._model_panel = main.findChild(QtWidgets.QDockWidget, MODEL_PANEL)
         self.top_bar = QtWidgets.QToolBar("Studio", main)
         self.top_bar.setObjectName("StudioTopBar")
         self.tools = QtWidgets.QToolBar("Tools", main)
@@ -104,6 +107,7 @@ class StudioWindow:
         spacer = QtWidgets.QWidget(self.top_bar)
         spacer.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
         self.search_button = QtWidgets.QPushButton("Search tools", self.top_bar)
+        self.search_button.setObjectName("StudioSearch")
         self.search_button.setToolTip("Search every tool by name (S or Ctrl+K)")
         self.search_button.setMinimumWidth(220)
         self.search_button.clicked.connect(lambda: self._open_palette and self._open_palette())
@@ -112,6 +116,7 @@ class StudioWindow:
             self.top_bar.addWidget(widget)
 
         self.hint = QtWidgets.QLabel(main.statusBar())
+        self.hint.setObjectName("StudioHint")
         main.statusBar().addPermanentWidget(self.hint)
 
         self._selection_observer = _SelectionObserver(self.schedule_refresh)
@@ -136,6 +141,14 @@ class StudioWindow:
         self._timer.start()
         self.refresh()
 
+    def restyle(self, p):
+        """Studio's look for the bars (studio.shell.appearance follows the mode); None: plain widgets."""
+        self.top_bar.setStyleSheet(_top_bar_style(p) if p else "")
+        self.tools.setStyleSheet(_toolbar_style(p) if p else "")
+        # Secondary text. A palette role wouldn't follow the mode here: FreeCAD gives the status bar a
+        # stylesheet (to color its messages), and under one, Qt keeps a child's palette as it was.
+        self.hint.setStyleSheet(f"QLabel#StudioHint {{ color: {p.muted}; padding: 0 8px; }}" if p else "")
+
     def hide(self):
         """Another workbench is active: give FreeCAD its own menu bar back."""
         self._main.menuBar().setVisible(True)
@@ -145,7 +158,7 @@ class StudioWindow:
 
     # -- parts -------------------------------------------------------------------------------
     def model_panel(self):
-        return self._main.findChild(QtWidgets.QDockWidget, MODEL_PANEL)
+        return self._model_panel
 
     def _show_panel(self, visible):
         model = self.model_panel()
@@ -234,6 +247,33 @@ class StudioWindow:
             self._service.run(command)
         except Exception as exc:
             FreeCAD.Console.PrintError(f"Studio toolbar: {command} failed: {exc}\n")
+
+
+def _top_bar_style(p):
+    return f"""
+QToolBar#StudioTopBar {{ background: {p.window}; border: none; border-bottom: 1px solid {p.border};
+    padding: 4px 8px; spacing: 6px; }}
+QToolBar#StudioTopBar QToolButton {{ color: {p.text}; background: transparent; border: none;
+    border-radius: 6px; padding: 4px 10px; }}
+QToolBar#StudioTopBar QToolButton:hover {{ background: {p.hover}; }}
+QToolBar#StudioTopBar QToolButton:checked {{ background: {p.selection}; }}
+QToolBar#StudioTopBar QToolButton::menu-indicator {{ image: none; width: 0; }}
+QPushButton#StudioSearch {{ background: {p.field}; color: {p.muted}; border: 1px solid {p.border};
+    border-radius: 6px; padding: 5px 12px; text-align: left; }}
+QPushButton#StudioSearch:hover {{ border-color: {p.accent}; color: {p.text}; }}
+"""
+
+
+def _toolbar_style(p):
+    return f"""
+QToolBar#StudioToolBar {{ background: {p.window}; border: none; border-bottom: 1px solid {p.border};
+    padding: 2px 6px; spacing: 2px; }}
+QToolBar#StudioToolBar QToolButton {{ color: {p.text}; background: transparent; border: none;
+    border-radius: 6px; padding: 3px 8px; }}
+QToolBar#StudioToolBar QToolButton:hover {{ background: {p.hover}; }}
+QToolBar#StudioToolBar QToolButton:pressed {{ background: {p.selection}; }}
+QToolBar#StudioToolBar QToolButton:disabled {{ color: {p.faint}; }}
+"""
 
 
 _window = None

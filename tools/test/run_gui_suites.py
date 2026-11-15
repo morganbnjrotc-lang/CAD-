@@ -15,7 +15,8 @@ Why not just `FreeCAD.exe -t TestStudioGui`?
   * Background warm-up off (docs/adr/0007): it would load workbenches while tests run, and tests
     that check their workbench isn't loaded yet would fail depending on timing.
 
-Output goes to stdout and to build/test-logs/<suites>.log. Exit code 0 only if every test passed.
+Output goes to stdout and to build/test-logs/<suites>.log. Exit code 0 only if every test passed
+and FreeCAD shut down without crashing (see `verdict`).
 """
 
 import argparse
@@ -31,6 +32,16 @@ sys.path.insert(0, str(REPO / "tools" / "bench"))
 from benchlib import make_profile  # noqa: E402  (shared throwaway profile)
 
 SETTINGS = {"BaseApp/Preferences/Mod/Studio/Commands/WarmUp": False}
+# What FreeCAD (Base/SystemHandler.cpp) and Python print when the process crashes.
+CRASH_MESSAGES = ("Abnormal program termination", "Illegal storage access", "Fatal Python error")
+
+
+def verdict(output: str, code: int) -> int:
+    """The run's exit code. A crash after the last test, while FreeCAD shuts down, sometimes left
+    exit code 0, so FreeCAD's own crash messages count too."""
+    if code == 0 and any(message in output for message in CRASH_MESSAGES):
+        return 134
+    return code
 
 
 def main() -> int:
@@ -74,8 +85,11 @@ def main() -> int:
 
     sys.stdout.write(output)
     log_path.write_text(output, encoding="utf-8", errors="replace")
-    print(f"\nlog: {log_path}\nexit code: {code}")
-    return code
+    result = verdict(output, code)
+    if result != code:
+        print("\nERROR: FreeCAD crashed (see the messages above), although its exit code was 0.")
+    print(f"\nlog: {log_path}\nexit code: {result}")
+    return result
 
 
 if __name__ == "__main__":

@@ -16,11 +16,13 @@ import FreeCAD
 import FreeCADGui
 from PySide import QtCore, QtWidgets  # FreeCAD's PySide shim
 
+from studio.services import theme
 from studio.services.recent_files import HOME_COUNT, LIMIT_RAISED, RecentFiles
 from studio.services.settings import Settings
-from studio.shell.home import HomePage
+from studio.shell.home import ICON, HomePage, _Cover
 from studio.viewmodels.home import Home
 
+from .test_appearance import pixel
 from .test_shortcuts import settle
 
 TEST_PARENT = "User parameter:BaseApp/Preferences/Mod/Studio/Tests"
@@ -60,6 +62,9 @@ class HomePageTest(unittest.TestCase):
         self.page = HomePage(Home(RecentFiles(f"{TEST_PARENT}/{name}")), self.service,
                              opener=self.opened.append)
         self.addCleanup(self.page.deleteLater)
+        # Runs first. A widget still carrying a stylesheet when it is destroyed late, as the app shuts
+        # down, makes FreeCAD abort.
+        self.addCleanup(self.page.restyle, None)
         self.page.refresh()
 
     def items(self):
@@ -108,6 +113,90 @@ class HomePageTest(unittest.TestCase):
         self.assertEqual(self.page.cards.count(), 0)
         self.assertTrue(self.page.empty_note.isVisibleTo(self.page))
 
+    # -- the look (ADR 0010) ---------------------------------------------------------------------
+    def test_file_type_tiles_follow_the_look(self):
+        for p in (theme.DARK, theme.LIGHT, theme.DARK):
+            self.page.restyle(p)
+            tile = self.items()[1].icon().pixmap(ICON).toImage()  # Housing.step: no stored preview
+            self.assertEqual(tile.pixelColor(4, 4).name().upper(), p.thumb, p.name)
+
+    def test_a_loaded_preview_stays_when_the_look_changes(self):
+        self.assertTrue(run_until(lambda: self.page.previews_loaded), "previews never finished")
+        preview = self.items()[0].icon().pixmap(ICON).cacheKey()
+        self.page.restyle(theme.DARK)
+        self.assertEqual(self.items()[0].icon().pixmap(ICON).cacheKey(), preview)
+
+    def test_new_part_is_the_accent_button(self):
+        button = self.page.new_part_button
+        for p in (theme.DARK, theme.LIGHT):
+            self.page.restyle(p)
+            self.assertEqual(pixel(button, 6, button.height() // 2), p.accent, p.name)
+            self.assertNotEqual(pixel(self.page.open_button, 6, self.page.open_button.height() // 2), p.accent)
+
+    def test_the_empty_list_note_is_secondary_text(self):
+        note = self.page.empty_note
+        for p in (theme.DARK, theme.LIGHT):
+            self.page.restyle(p)
+            note.ensurePolished()
+            self.assertEqual(note.palette().color(note.foregroundRole()).name().upper(), p.muted, p.name)
+
+    def test_the_page_uses_the_panel_color(self):
+        self.page.resize(600, 400)
+        for p in (theme.DARK, theme.LIGHT):
+            self.page.restyle(p)
+            self.assertEqual(pixel(self.page, 4, 4), p.panel, p.name)
+
+
+class _Page(QtWidgets.QWidget):
+    def refresh(self):
+        pass
+
+
+class HomeHidesTheEmptyPanel(unittest.TestCase):
+    """While Home shows, no document is open, so the Model panel (tree and properties) is empty: hidden.
+
+    Plain widgets stand in for the main area and the panel: a dock widget of the test's own would be
+    picked up by FreeCAD's panel manager, which then aborts when the app exits."""
+
+    def setUp(self):
+        name = "HomePanel" + uuid.uuid4().hex[:8]
+        self.addCleanup(lambda: FreeCAD.ParamGet(TEST_PARENT).RemGroup(name))
+        self.settings = Settings(f"{TEST_PARENT}/{name}")
+        self.window = QtWidgets.QWidget()
+        self.addCleanup(self.window.deleteLater)
+        self.area = QtWidgets.QWidget(self.window)
+        self.panel = QtWidgets.QWidget(self.window)
+        self.documents = []
+
+    def cover(self):
+        """The Home page's cover, as Studio sets it up at each start."""
+        return _Cover(_Page(self.area), self.area, panel=lambda: self.panel, settings=self.settings,
+                      documents=lambda: self.documents)
+
+    def test_hidden_while_home_shows_back_with_a_document(self):
+        cover = self.cover()
+        cover.update()
+        self.assertTrue(self.panel.isHidden())
+        self.documents.append("Part")
+        cover.update()
+        self.assertFalse(self.panel.isHidden())
+
+    def test_a_panel_the_user_closed_stays_closed(self):
+        self.panel.hide()
+        cover = self.cover()
+        cover.update()
+        self.documents.append("Part")
+        cover.update()
+        self.assertTrue(self.panel.isHidden())
+
+    def test_back_after_the_app_was_closed_on_home(self):
+        self.cover().update()  # FreeCAD saves the hidden panel when the app closes now...
+        restarted = self.cover()  # ...and restores it hidden on the next start
+        restarted.update()
+        self.documents.append("Part")
+        restarted.update()
+        self.assertFalse(self.panel.isHidden())
+
 
 class SessionHome(unittest.TestCase):
     def setUp(self):
@@ -132,6 +221,25 @@ class SessionHome(unittest.TestCase):
         FreeCAD.closeDocument(doc.Name)
         settle()
         self.assertTrue(self.home.isVisible())
+
+    def test_the_model_panel_hides_while_home_shows(self):
+        if FreeCAD.listDocuments():
+            self.skipTest("another test left a document open")
+        settle()
+        from studio.shell import window
+
+        panel = window.current().model_panel()
+        self.assertTrue(self.home.isVisible())
+        self.assertFalse(panel.isVisible())
+        doc = FreeCAD.newDocument("StudioHomePanel")
+        self.addCleanup(lambda: FreeCAD.closeDocument(doc.Name) if doc.Name in FreeCAD.listDocuments() else None)
+        settle()
+        self.assertTrue(panel.isVisible())
+
+    def test_the_session_page_follows_the_look(self):
+        from studio.shell import appearance
+
+        self.assertEqual(pixel(self.home, 4, 4), theme.palette(appearance.current().mode).panel)
 
     def test_freecad_remembers_enough_recent_files_to_fill_home(self):
         self.assertTrue(Settings().get(LIMIT_RAISED))

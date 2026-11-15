@@ -159,8 +159,11 @@ def freecad_settings(p: Palette) -> list:
     sketcher = [("GridLineColor", p.sketch_grid), ("GridDivLineColor", p.sketch_grid_major)]
     # Tree rows: the item being edited (e.g. a sketch) and the active body.
     tree = [("TreeEditColor", p.selection), ("TreeActiveColor", mix(p.accent, p.panel, 0.9))]
+    # Messages in the status bar and the Report view (FreeCAD's default is black). Warnings and errors
+    # keep FreeCAD's orange and red.
+    output = [("colorText", p.text)]
     return ([("View", n, v) for n, v in view] + [("Mod/Sketcher/General", n, v) for n, v in sketcher]
-            + [("TreeView", n, v) for n, v in tree])
+            + [("TreeView", n, v) for n, v in tree] + [("OutputWindow", n, v) for n, v in output])
 
 
 def _as_text(value) -> str:

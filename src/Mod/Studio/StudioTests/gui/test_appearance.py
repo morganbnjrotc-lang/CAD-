@@ -11,7 +11,7 @@ import unittest
 import uuid
 
 import FreeCAD
-from PySide import QtGui, QtWidgets  # FreeCAD's PySide shim
+from PySide import QtCore, QtGui, QtWidgets  # FreeCAD's PySide shim
 
 from studio.services import theme
 from studio.services.settings import Settings
@@ -25,6 +25,69 @@ def window_color():
     return QtWidgets.QApplication.palette().color(WINDOW).name().upper()
 
 
+def pixel(widget, x, y):
+    """The color the widget draws at (x, y), rendered off screen."""
+    image = widget.grab().toImage()
+    return image.pixelColor(x, y).name().upper()
+
+
+def ink(icon, size=32):
+    """The color of an icon's strokes: the average of its pixels, weighted by how opaque each is.
+    Thin strokes are anti-aliased (FreeCAD's 12 px title icons have hardly a fully opaque pixel), and
+    turning a premultiplied color back into a plain one rounds by a unit or two."""
+    image = icon.pixmap(size, size).toImage()
+    sums, weight = [0, 0, 0], 0
+    for y in range(image.height()):
+        for x in range(image.width()):
+            color = image.pixelColor(x, y)
+            a = color.alpha()
+            if a:
+                sums = [sums[0] + color.red() * a, sums[1] + color.green() * a, sums[2] + color.blue() * a]
+                weight += a
+    return "#" + "".join(f"{round(s / weight):02X}" for s in sums) if weight else None
+
+
+def near(a, b, units=3):
+    """Two "#RRGGBB" colors within `units` per channel (see ink)."""
+    if a is None or b is None:
+        return False
+    return all(abs(int(a[i:i + 2], 16) - int(b[i:i + 2], 16)) <= units for i in (1, 3, 5))
+
+
+def no_document_open(test):
+    """Tests that look widgets up skip while a document is open: see appearance.FreeCADPanels."""
+    if FreeCAD.listDocuments():
+        test.skipTest("a document is open; looking widgets up now makes FreeCAD abort at exit")
+
+
+def model_panel():
+    from studio.shell import window
+
+    return window.current().model_panel()
+
+
+def property_editors():
+    return [e for e in model_panel().findChildren(QtWidgets.QTreeView)
+            if e.metaObject().className() == "Gui::PropertyEditor::PropertyEditor"]
+
+
+def panel_title_buttons():
+    """The float, overlay and close buttons in the Model panel's title bar (FreeCAD's actions, shared
+    by every panel). Looked up inside the panel only: see appearance.FreeCADPanels."""
+    title = model_panel().titleBarWidget()
+    return [b for b in title.findChildren(QtWidgets.QToolButton)
+            if b.defaultAction() is not None and b.defaultAction().data() in ("OBTN Float", "OBTN Overlay", "OBTN Close")]
+
+
+def status_label_colors():
+    """(name, text color) of FreeCAD's labels in the status bar. Plain strings: a failing test keeps
+    its locals, and a kept wrapper of a FreeCAD widget makes FreeCAD abort when it exits."""
+    bar = model_panel().window().statusBar()
+    return [(label.objectName() or label.text(), label.palette().color(label.foregroundRole()).name().upper())
+            for label in bar.findChildren(QtWidgets.QLabel)
+            if label.objectName() != "StudioHint" and not label.styleSheet()]
+
+
 def restore_session_look():
     from studio.shell import appearance
 
@@ -32,7 +95,9 @@ def restore_session_look():
         appearance.current().apply()
 
 
-class AppearanceTest(unittest.TestCase):
+class _OwnAppearance(unittest.TestCase):
+    """An Appearance of the test's own: a stand-in for Windows' mode, a test copy of the color settings."""
+
     def setUp(self):
         name = "Appearance" + uuid.uuid4().hex[:8]
         self.root = f"{TEST_PARENT}/{name}"
@@ -49,6 +114,8 @@ class AppearanceTest(unittest.TestCase):
         )
         self.view = FreeCAD.ParamGet(f"{self.root}/Prefs/View")
 
+
+class AppearanceTest(_OwnAppearance):
     def test_follows_windows(self):
         self.windows_dark = True
         self.appearance.apply()
@@ -98,6 +165,71 @@ class AppearanceTest(unittest.TestCase):
         menu.aboutToShow.emit()
         self.assertEqual([a.text() for a in menu.actions() if a.isChecked()], ["Dark"])
 
+    def test_studios_widgets_follow_the_look(self):
+        seen = []
+        self.appearance.set_mode("dark")
+        self.appearance.follow(seen.append)
+        self.assertEqual(seen, [theme.DARK])  # right away
+        self.appearance.set_mode("light")
+        self.assertEqual(seen, [theme.DARK, theme.LIGHT])
+
+    def test_under_a_freecad_stylesheet_studios_widgets_keep_its_colors(self):
+        seen = []
+        self.freecad_stylesheet = True
+        self.appearance.apply()
+        self.appearance.follow(seen.append)
+        self.assertEqual(seen, [None])  # None: draw with the app's palette, no colors of Studio's
+
+    def test_a_deleted_widget_stops_following(self):
+        label = QtWidgets.QLabel()
+        self.appearance.apply()
+        self.appearance.follow(lambda p: label.setText(p.name))
+        label.deleteLater()
+        QtWidgets.QApplication.sendPostedEvents(None, QtCore.QEvent.DeferredDelete)
+        self.appearance.set_mode("dark")  # must not raise
+
+
+class FreeCADPanels(_OwnAppearance):
+    """FreeCAD's own panels, styled where the palette alone can't reach (the session's window)."""
+
+    def setUp(self):
+        super().setUp()
+        no_document_open(self)
+
+    def test_property_group_rows_stand_out_and_read(self):
+        self.assertTrue(property_editors())
+        for p in (theme.DARK, theme.LIGHT):
+            self.appearance.set_mode(p.name)
+            for editor in property_editors():
+                background = editor.property("groupBackground").color().name().upper()
+                text = editor.property("groupTextColor").name().upper()
+                self.assertNotIn(background, (p.panel, p.window), p.name)
+                ratio = theme.contrast(text, background)
+                self.assertGreaterEqual(ratio, 4.5, f"{p.name}: group text {text} on {background} is {ratio:.2f}:1")
+
+    def test_the_property_area_is_flat(self):
+        # Fusion draws a tab box's frame a shade lighter than the panel: a grey box in dark mode.
+        tabs = model_panel().findChild(QtWidgets.QTabWidget, "propertyTab")
+        self.appearance.apply()
+        self.assertTrue(tabs.documentMode())
+
+    def test_status_bar_text_follows_a_switch(self):
+        # FreeCAD gives its status bar a stylesheet (to color its messages); under one, Qt keeps each
+        # label's palette as it was, so after a switch the labels kept the old mode's text color.
+        for p in (theme.DARK, theme.LIGHT):
+            self.appearance.set_mode(p.name)
+            colors = status_label_colors()
+            self.assertTrue(colors)
+            self.assertEqual({name: color for name, color in colors if color != p.text}, {}, p.name)
+
+    def test_panel_title_buttons_are_drawn_in_the_secondary_text_color(self):
+        self.assertTrue(panel_title_buttons())
+        for p in (theme.DARK, theme.LIGHT):
+            self.appearance.set_mode(p.name)
+            for button in panel_title_buttons():
+                color = ink(button.icon())
+                self.assertTrue(near(color, p.muted), f"{p.name}: {button.defaultAction().data()} is {color}")
+
 
 class SessionAppearance(unittest.TestCase):
     def setUp(self):
@@ -124,3 +256,31 @@ class SessionAppearance(unittest.TestCase):
         window.current()._fill_menu(menu)
         titles = [a.text() for a in menu.actions() if a.menu() is not None]
         self.assertIn("Appearance", titles)
+
+
+class StudioWidgets(unittest.TestCase):
+    """Studio's own bars in the session's window, in each mode."""
+
+    def setUp(self):
+        from studio.shell import window
+
+        self.addCleanup(restore_session_look)
+        self.window = window.current()
+
+    def test_bars_use_the_palette(self):
+        for p in (theme.DARK, theme.LIGHT):
+            self.window.restyle(p)
+            for bar in (self.window.top_bar, self.window.tools):
+                self.assertEqual(pixel(bar, bar.width() // 2, 2), p.window, f"{p.name}: {bar.objectName()}")
+
+    def test_search_looks_like_a_field(self):
+        button = self.window.search_button
+        for p in (theme.DARK, theme.LIGHT):
+            self.window.restyle(p)
+            self.assertEqual(pixel(button, 8, button.height() // 2), p.field, p.name)
+
+    def test_the_hint_is_secondary_text(self):
+        hint = self.window.hint
+        for p in (theme.DARK, theme.LIGHT):
+            self.window.restyle(p)
+            self.assertEqual(hint.palette().color(hint.foregroundRole()).name().upper(), p.muted, p.name)

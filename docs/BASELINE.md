@@ -60,6 +60,46 @@ events run before closing avoids it every time (2026-11-14, `StudioTests.gui.tes
 A user clicking through the UI is unlikely to hit it; scripts and macros can. Worth reporting
 upstream with a minimal script.
 
+### Known issue: FreeCAD aborts at exit when Python holds some of its widgets
+
+Found while styling FreeCAD's panels (PLAN 2.9 step 3, 2026-11-15). After the last test, or when the
+app closes, FreeCAD aborts ("Abnormal program termination… Break signal occurred", from
+`Base/SystemHandler.cpp`; faulthandler shows a native access violation with no Python frame) when
+Python code did any of these:
+
+- looked up widgets (`findChild`/`findChildren`, even direct children only) on the main window while
+  a document was open: PySide makes a wrapper for each widget it passes, and FreeCAD deletes a
+  document's widgets when it closes;
+- kept a Python reference to FreeCAD's panel title-button actions, its floating-panel areas
+  (`OverlayLeft`… `OverlayBottom`) or the status bar across a workbench change. The overlay objects
+  belong to FreeCAD's panel manager, which is destroyed very late;
+- left a widget with a stylesheet to be destroyed late (`deleteLater` on a test's own widget, processed
+  only during shutdown).
+
+Studio's rule: look FreeCAD's widgets up at startup, before any document opens, inside the Model panel
+where possible; keep only the Model panel and its property editors; look the rest up each time and drop
+the reference (`studio/shell/appearance.py`, `FreeCADPanels`). Tests do the same, clear their widgets'
+stylesheets in cleanup and turn wrappers into plain strings before asserting (a failing test keeps its
+locals). The exit code was sometimes 0 after such an abort, so `tools/test/run_gui_suites.py` now fails
+a run whose output shows FreeCAD's crash messages.
+
+### Known issue: FreeCAD crashes on a workbench change when the Tasks panel isn't see-through
+
+FreeCAD's Tasks panel floats over the 3D view (its "overlay") and stays there between tasks. Without
+FreeCAD's stylesheet, which Studio doesn't load (ADR 0010), the empty panel is a box over the model.
+Four ways to clear it each made FreeCAD crash natively (access violation, no Python frame) when
+`StudioTests.gui.test_command_backend` activates the TechDraw workbench: the panel made solid with
+"Auto task" (`MainWindow/DockWindows/OverlayRight/Transparent=false`), "Auto show on edit" (`EditShow`),
+a stylesheet on the task view, or a transparent window color in its palette (2026-11-15). Each crash was
+gone with that one change undone. Needs a native stack (a debugger is not installed); left as is for now
+(PLAN 2.9).
+
+### GUI tests on a locked screen
+
+With Windows locked (LogonUI running), each round of Qt events in the GUI suite takes ~1.5 s (66 tests:
+~6 s unlocked, ~70 s locked) and `test_palette_window.Wiring` fails: the command palette is a popup,
+which can't take focus. The last commit fails it the same way; run the GUI suite unlocked.
+
 ### Known upstream issue: C++ tests fail on a fresh build folder on Windows (fixed)
 
 `tests/CMakeLists.txt` put module DLL folders (`build/…/Mod/<name>`) on the test `PATH` by globbing
