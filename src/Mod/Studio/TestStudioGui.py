@@ -6,6 +6,7 @@ from StudioTests.gui.test_command_backend import (  # noqa: F401
     DeclaredShortcutTest,
     WorkbenchLoadingTest,
 )
+from StudioTests.gui.test_home_page import HomePageTest, SessionHome  # noqa: F401
 from StudioTests.gui.test_main_window import Chrome, FollowsSelection, OneEnvironment  # noqa: F401
 from StudioTests.gui.test_palette_window import Icons, PaletteWindowTest, Wiring  # noqa: F401
 from StudioTests.gui.test_shortcuts import (  # noqa: F401
