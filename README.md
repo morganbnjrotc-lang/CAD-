@@ -2,10 +2,10 @@
 
 A fast, fully local, lightweight CAD/CAM application built on top of [FreeCAD](https://github.com/FreeCAD/FreeCAD) — with a radically cleaner interface.
 
-> **Status:** Phase 1 (foundation) is done. The app builds from source with one command, the
-> baseline and performance budgets are recorded, and CI is green. It still looks like FreeCAD;
-> Phase 2 (the clean, unified shell) is next. See [docs/PLAN.md](docs/PLAN.md). Nothing below is
-> implemented yet unless marked ✅.
+> **Status:** Phase 1 (foundation) is done. Phase 2 (the clean, unified shell) is in progress: one
+> environment with a toolbar that follows the selection, keyboard shortcuts by context, a command
+> palette and a Home page with recent files are in. It still wears FreeCAD's look; its own look is
+> next. See [docs/PLAN.md](docs/PLAN.md). Nothing below is implemented yet unless marked ✅.
 
 ## Principles
 
@@ -83,7 +83,7 @@ Inspiration: the feature set shown in [this FizCAD demo](https://www.youtube.com
 |---|---|---|
 | Instant startup, fast loads | Partial — notably slow startup (Python workbench init) | Lazy-load modules, profile startup |
 | Trackpad: pinch zoom, two-finger orbit; `F` focus selection, `Shift+F` fit all | Partial — Touchpad/Gesture nav styles; fit-selection is `V,S` | New default nav style + Blender-like hotkeys |
-| Recent files browser (remove/hide entries) | Partial — Start page recents | Cleaner browser with management |
+| Recent files browser (remove/hide entries) ✅ | Partial — Start page recents | Cleaner browser with management |
 | Import STEP/IGES/STL/etc. as solids | Has | — |
 | Import feature history from other CAD | Missing | Long-term |
 | Fully offline, no telemetry | Has | Keep it that way |
