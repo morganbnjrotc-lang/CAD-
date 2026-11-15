@@ -4,8 +4,9 @@ A fast, fully local, lightweight CAD/CAM application built on top of [FreeCAD](h
 
 > **Status:** Phase 1 (foundation) is done. Phase 2 (the clean, unified shell) is in progress: one
 > environment with a toolbar that follows the selection, keyboard shortcuts by context, a command
-> palette and a Home page with recent files are in. It still wears FreeCAD's look; its own look is
-> next. See [docs/PLAN.md](docs/PLAN.md). Nothing below is implemented yet unless marked ✅.
+> palette, a Home page with recent files and its own look (light and dark following Windows, line
+> icons) are in. Next: visual baselines and the startup budget check. See [docs/PLAN.md](docs/PLAN.md).
+> Nothing below is implemented yet unless marked ✅.
 
 ## Principles
 
