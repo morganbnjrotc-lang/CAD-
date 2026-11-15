@@ -16,7 +16,8 @@ from pathlib import Path
 
 import FreeCAD
 
-from studio.services.recent_files import RecentFiles
+from studio.services.recent_files import HOME_COUNT, RecentFiles, raise_limit_once
+from studio.services.settings import Settings
 from studio.services.thumbnails import thumbnail_png
 from studio.viewmodels.home import Home, saved_when
 
@@ -85,6 +86,48 @@ class RecentFilesStore(Files):
 
     def test_an_empty_list(self):
         self.assertEqual(RecentFiles(self.group_path).files(), [])
+
+    def test_the_same_file_written_two_ways_shows_once(self):
+        # FreeCAD writes "C:/dir/Part.FCStd"; a list from elsewhere may hold "C:\dir\part.fcstd".
+        a = self.make("Part.FCStd").replace("\\", "/")
+        b = self.make("b.FCStd")
+        same = a.replace("/", "\\").lower() if os.name == "nt" else a
+        recent = self.store(a, b, same)
+        self.assertEqual(recent.paths(), [a, b])  # the most recent spelling wins
+        recent.remove(a)
+        self.assertEqual(recent.paths(), [b])  # removing it removes every spelling
+
+
+class ListSize(Files):
+    """FreeCAD remembers 4 recent files: too few to fill the Home page, so Studio raises it."""
+
+    def setUp(self):
+        super().setUp()
+        name = "Settings" + uuid.uuid4().hex[:8]
+        self.settings = Settings(f"{TEST_PARENT}/{name}")
+        self.addCleanup(lambda: FreeCAD.ParamGet(TEST_PARENT).RemGroup(name))
+
+    def test_more_than_freecads_four(self):
+        recent = self.store(count=4)
+        raise_limit_once(recent, self.settings)
+        self.assertEqual(self.group.GetInt("RecentFiles"), HOME_COUNT)
+        self.assertGreaterEqual(HOME_COUNT, 10)
+
+    def test_a_new_profile_with_no_size_yet(self):
+        raise_limit_once(RecentFiles(self.group_path), self.settings)
+        self.assertEqual(self.group.GetInt("RecentFiles"), HOME_COUNT)
+
+    def test_a_larger_size_stays(self):
+        recent = self.store(count=30)
+        raise_limit_once(recent, self.settings)
+        self.assertEqual(self.group.GetInt("RecentFiles"), 30)
+
+    def test_only_once_so_a_smaller_size_picked_later_in_preferences_stays(self):
+        recent = self.store(count=4)
+        raise_limit_once(recent, self.settings)
+        self.group.SetInt("RecentFiles", 6)  # Preferences > General > Size of recent file list
+        raise_limit_once(recent, self.settings)
+        self.assertEqual(self.group.GetInt("RecentFiles"), 6)
 
 
 class Thumbnails(Files):

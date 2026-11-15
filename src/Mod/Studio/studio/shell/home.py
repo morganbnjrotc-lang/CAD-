@@ -207,12 +207,15 @@ def install_once():
     global _page
     FreeCAD.ParamGet(START_PREFERENCES).SetBool("ShowOnStartup", False)
     if _page is None:
-        from studio.services.recent_files import RecentFiles
+        from studio.services.recent_files import RecentFiles, raise_limit_once
+        from studio.services.settings import Settings
         from studio.shell.shortcuts import _SessionService
         from studio.viewmodels.home import Home
 
+        recent = RecentFiles()
+        raise_limit_once(recent, Settings())  # FreeCAD's 4 recent files are too few for Home
         area = FreeCADGui.getMainWindow().findChild(QtWidgets.QMdiArea)
-        _page = HomePage(Home(RecentFiles()), _SessionService(), parent=area)
+        _page = HomePage(Home(recent), _SessionService(), parent=area)
         cover = _Cover(_page, area)
         _page._cover = cover  # keep it alive with the page
         FreeCADGui.addDocumentObserver(cover)

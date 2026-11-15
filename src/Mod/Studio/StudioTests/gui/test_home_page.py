@@ -16,7 +16,8 @@ import FreeCAD
 import FreeCADGui
 from PySide import QtCore, QtWidgets  # FreeCAD's PySide shim
 
-from studio.services.recent_files import RecentFiles
+from studio.services.recent_files import HOME_COUNT, LIMIT_RAISED, RecentFiles
+from studio.services.settings import Settings
 from studio.shell.home import HomePage
 from studio.viewmodels.home import Home
 
@@ -131,3 +132,7 @@ class SessionHome(unittest.TestCase):
         FreeCAD.closeDocument(doc.Name)
         settle()
         self.assertTrue(self.home.isVisible())
+
+    def test_freecad_remembers_enough_recent_files_to_fill_home(self):
+        self.assertTrue(Settings().get(LIMIT_RAISED))
+        self.assertGreaterEqual(RecentFiles().limit(), HOME_COUNT)  # the test profile is brand new
