@@ -4,7 +4,8 @@
 A screenshot matches when no more than `MAX_MISMATCH_PCT` of its pixels differ from the baseline by
 more than `TOLERANCE` in any color channel, the same rule as FreeCAD's own snapshot tests
 (src/Mod/Test/TestCoinNodeSnapshots.py). Masked rectangles (the 3D view: OpenGL drawing differs between
-graphics cards) are left out. Pictures are numpy arrays, height x width x RGB, uint8.
+graphics cards) are left out, except kept rectangles inside them (the Tasks panel floating over it).
+Pictures are numpy arrays, height x width x RGB, uint8.
 """
 
 from dataclasses import dataclass
@@ -25,8 +26,10 @@ class Comparison:
     reason: str = ""
 
 
-def compare(actual, expected, masks=(), tolerance=TOLERANCE, max_mismatch_pct=MAX_MISMATCH_PCT) -> Comparison:
-    """`masks`: (x, y, width, height) rectangles to leave out."""
+def compare(actual, expected, masks=(), keep=(), tolerance=TOLERANCE,
+            max_mismatch_pct=MAX_MISMATCH_PCT) -> Comparison:
+    """`masks`: (x, y, width, height) rectangles to leave out; `keep`: rectangles compared even inside a
+    mask (the Tasks panel floating over the 3D view)."""
     if actual.shape != expected.shape:
         return Comparison(False, 100.0, reason=f"size {actual.shape[1]}x{actual.shape[0]} instead of "
                                                f"{expected.shape[1]}x{expected.shape[0]}")
@@ -34,6 +37,8 @@ def compare(actual, expected, masks=(), tolerance=TOLERANCE, max_mismatch_pct=MA
     considered = np.ones(differs.shape, dtype=bool)
     for x, y, width, height in masks:
         considered[max(y, 0):y + height, max(x, 0):x + width] = False
+    for x, y, width, height in keep:
+        considered[max(y, 0):y + height, max(x, 0):x + width] = True
     differs &= considered
     total = int(considered.sum())
     pct = 100.0 * int(differs.sum()) / total if total else 0.0

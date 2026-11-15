@@ -60,6 +60,14 @@ class Compare(unittest.TestCase):
         self.assertTrue(visual_compare.compare(actual, screen(), masks).ok)
         self.assertFalse(visual_compare.compare(actual, screen()).ok)
 
+    def test_a_kept_area_inside_a_mask_is_compared(self):
+        # The Tasks panel floats over the 3D view: the view is masked, the panel isn't.
+        actual = screen()
+        actual[20:40, 120:140] = (30, 30, 30)  # e.g. a different icon in the panel's list
+        masks, keep = [(50, 10, 120, 80)], [(110, 15, 50, 40)]
+        self.assertFalse(visual_compare.compare(actual, screen(), masks, keep).ok)
+        self.assertTrue(visual_compare.compare(actual, screen(), masks).ok)
+
     def test_a_different_size_fails(self):
         result = visual_compare.compare(screen(size=(100, 200)), screen(size=(100, 180)))
         self.assertFalse(result.ok)

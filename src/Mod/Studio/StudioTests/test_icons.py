@@ -65,6 +65,22 @@ class Names(unittest.TestCase):
                 "Std_Point", "Std_CoordinateSystem", "TreeItemVisible", "TreeItemInvisible", "Document"]
         self.assertEqual([name for name in tree if name not in names], [])
 
+    def test_the_sketch_panels_constraint_types_have_line_icons(self):
+        # The user, on the sketch screen: FreeCAD's colorful constraint icons stood out. (The Elements
+        # list keeps FreeCAD's icons: their colors say which part of an element a row is, and FreeCAD
+        # recolors them for construction and external geometry.)
+        names = {name for names in icons.freecad_registrations().values() for name in names}
+        constraints = ["Constraint_PointOnPoint", "Constraint_PointOnObject", "Constraint_Horizontal",
+                       "Constraint_Vertical", "Constraint_Parallel", "Constraint_Perpendicular", "Constraint_Tangent",
+                       "Constraint_EqualLength", "Constraint_Symmetric", "Constraint_Block", "Constraint_Lock",
+                       "Constraint_Length", "Constraint_Length_Driven", "Constraint_HorizontalDistance",
+                       "Constraint_HorizontalDistance_Driven", "Constraint_VerticalDistance",
+                       "Constraint_VerticalDistance_Driven", "Constraint_Radius", "Constraint_Radius_Driven",
+                       "Constraint_Diameter", "Constraint_Diameter_Driven", "Constraint_InternalAngle",
+                       "Constraint_InternalAngle_Driven", "Constraint_SnellsLaw", "Constraint_SnellsLaw_Driven",
+                       "Constraint_InternalAlignment", "Sketcher_CreateLineAngleLength"]  # the last: the panel's header
+        self.assertEqual([name for name in constraints if name not in names], [])
+
     def test_freecad_gets_each_name_with_and_without_svg(self):
         # Commands ask for "PartDesign_Pad", the model tree for "PartDesign_Pad.svg".
         registrations = icons.freecad_registrations()

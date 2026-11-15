@@ -9,7 +9,7 @@ Usage (from the repo root):
 
 Screens: Home, a model with a face selected, a sketch being edited; each in light and dark (a fresh
 profile per mode). The 3D view is masked (OpenGL drawing differs between graphics cards; its colors
-are checked by the theme tests). To keep pictures the same across machines: a fixed 1280 x 800 window
+are checked by the theme tests), except the Tasks panel floating over it. To keep pictures the same across machines: a fixed 1280 x 800 window
 off the screen (no hover), the vendored Noto Sans drawn by FreeType instead of the system font, no high-DPI scaling, the example files
 copied with fixed "saved 3 days ago" dates, status messages cleared. On a mismatch the actual picture
 and a diff (differing pixels in magenta) go to build/test-logs/visual. Exit code 0 only if all match.
@@ -86,7 +86,9 @@ def main() -> int:
                     failures.append(f"{name}: no baseline (run with --update and review it)")
                     continue
                 actual = visual_compare.load(actual_path)
-                result = visual_compare.compare(actual, visual_compare.load(baseline), masks.get(screen, []))
+                areas = masks.get(screen, {})
+                result = visual_compare.compare(actual, visual_compare.load(baseline), areas.get("mask", []),
+                                                areas.get("keep", []))
                 print(f"  {name}: {'ok' if result.ok else 'DIFFERS'} ({result.mismatch_pct:.3f} % of pixels)")
                 if not result.ok:
                     LOGS.mkdir(parents=True, exist_ok=True)

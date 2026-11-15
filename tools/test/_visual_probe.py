@@ -2,8 +2,9 @@
 """Runs inside FreeCAD.exe for run_visual.py. Do not run directly.
 
 Captures Studio's main screens in the mode the profile starts in: Home, a model with a face selected,
-a sketch being edited. Writes <screen>.png files and masks.json (the 3D view's rectangle per screen) to
-STUDIO_VISUAL_OUT, then reports to STUDIO_BENCH_OUT and exits without saving preferences.
+a sketch being edited. Writes <screen>.png files and masks.json (per screen: the 3D view's rectangle to
+leave out, and the Tasks panel's rectangle inside it to compare all the same) to STUDIO_VISUAL_OUT, then
+reports to STUDIO_BENCH_OUT and exits without saving preferences.
 
 The window is a fixed 1280 x 800 placed off the screen, so the mouse can't hover anything in it, and the
 app's font is the vendored Noto Sans.
@@ -44,7 +45,7 @@ def capture(name, mask=None):
     settle()
     picture = mw.grab()
     picture.save(os.path.join(OUT, f"{name}.png"))
-    masks[name] = [mask] if mask else []
+    masks[name] = {"mask": [mask] if mask else [], "keep": [tasks_rect()] if mask and tasks_rect() else []}
     report["screens"].append(name)
 
 
@@ -57,6 +58,16 @@ def steady_panel():
     if splitter is not None:
         total = sum(splitter.sizes())
         splitter.setSizes([total * 9 // 20, total - total * 9 // 20])
+
+
+def tasks_rect():
+    """The Tasks panel floating at the right of the 3D view (FreeCAD's "OverlayRight"), if shown. A probe
+    may look FreeCAD's widgets up with a document open: it ends with os._exit (docs/BASELINE.md)."""
+    overlay = mw.findChild(QtWidgets.QTabWidget, "OverlayRight")
+    if overlay is None or not overlay.isVisible():
+        return None
+    corner = overlay.mapTo(mw, QtCore.QPoint(0, 0))
+    return [corner.x(), corner.y(), overlay.width(), overlay.height()]
 
 
 def view_rect():

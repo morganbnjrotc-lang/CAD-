@@ -23,7 +23,8 @@ def freecad_icon_ink(name):
 
 class FreeCADPlaces(unittest.TestCase):
     def test_freecad_finds_studios_drawings_under_its_own_names(self):
-        for name in ("PartDesign_Pad", "PartDesign_Pad.svg", "Sketcher_Sketch", "TreeItemVisible", "document-new"):
+        for name in ("PartDesign_Pad", "PartDesign_Pad.svg", "Sketcher_Sketch", "TreeItemVisible", "document-new",
+                     "Constraint_PointOnPoint"):
             color = freecad_icon_ink(name)
             self.assertTrue(near(color, theme.ICON_NEUTRAL), f"{name}: {color}")
 
