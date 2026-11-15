@@ -26,8 +26,8 @@ changes. Studio's `Init.py` runs before the GUI starts.
 
 1. **Two palettes, one design.** Light and dark sets of named colors in `studio/services/theme.py`: window
    and panels, text, borders, the 3D background (a soft vertical gradient), model faces and edges, sketch
-   lines, highlights. The accent is **teal `#0B877D` in light** and **orange `#F28D47` in dark** (the
-   user's choice). The setting `Appearance/Mode` is `system` (default, follows Windows), `light` or `dark`.
+   lines, highlights. The accent is **teal in light** and **orange `#F28D47` in dark** (the user's
+   choice; the teal is `#0A7D73`, see the notes). The setting `Appearance/Mode` is `system` (default, follows Windows), `light` or `dark`.
    In `system` mode the app follows Windows while running (Qt's color-scheme change signal). The ☰ menu
    offers the three modes.
 2. **Qt's Fusion style with a palette made from those colors** styles every widget, FreeCAD's dialogs
@@ -58,6 +58,17 @@ changes. Studio's `Init.py` runs before the GUI starts.
 3. Studio's stylesheet: its own widgets, property rows and tool panels; Home hides the empty panel.
 4. Line icons for Studio's surfaces and FreeCAD's icon folder.
 5. Startup A/B, all suites, the user's try.
+
+## Implementation notes
+
+- **Step 1 (theme service)** `studio/services/theme.py`, tested headless (`StudioTests/test_theme.py`).
+  Contrast is checked by the tests: text and secondary text ≥ 4.5:1 on window and panel in both modes,
+  the accent ≥ 3:1, button text on the accent ≥ 4.5:1, the neutral icon grey `#7F8996` ≥ 3:1 on all four
+  backgrounds (3.3–4.8:1). The light accent is one shade deeper than the swatch the user picked
+  (`#0A7D73` instead of `#0B877D`): white text on the swatch was 4.4:1, now 5.0:1. Dark mode's orange
+  button carries dark text (7.0:1); white on it would be 2.4:1.
+- A document stores its own colors, so the model color applies to parts created from now on; files saved
+  earlier keep theirs.
 
 ## Consequences
 
