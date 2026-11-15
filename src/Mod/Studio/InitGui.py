@@ -81,6 +81,15 @@ class _CommandPalette:
 
 
 FreeCADGui.addCommand("Studio_CommandPalette", _CommandPalette())
+
+# Studio's line icons under FreeCAD's icon names (docs/adr/0010), before FreeCAD builds its menus and
+# model tree with them.
+try:
+    from studio.shell import icons as _studio_icons
+
+    _studio_icons.register_once()
+except Exception as exc:  # never stop FreeCAD from starting over the look
+    FreeCAD.Console.PrintWarning(f"Studio: could not add its icons: {exc}\n")
 FreeCADGui.addWorkbench(StudioWorkbench())
 
 FreeCAD.__unit_test__ += ["TestStudioGui"]

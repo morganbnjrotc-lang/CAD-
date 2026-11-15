@@ -43,10 +43,11 @@ changes. Studio's `Init.py` runs before the GUI starts.
    tree's feature types. Two ways to draw them:
    - Surfaces Studio draws (toolbar, top bar, Home, palette) render them in the mode's text color, so
      they switch with the mode.
-   - Places FreeCAD draws (model tree, ☰ menus, FreeCAD's dialogs) get them through FreeCAD's icon folder,
-     set by `Init.py` before the GUI starts. They use one neutral grey that keeps at least 3:1 contrast on
+   - Places FreeCAD draws (model tree, ☰ menus, FreeCAD's dialogs) get them under FreeCAD's own icon names,
+     before FreeCAD builds those places. They use one neutral grey that keeps at least 3:1 contrast on
      both the light and the dark panel, because those icons can't change with the mode. Tools without a
-     Studio icon keep FreeCAD's.
+     Studio icon keep FreeCAD's. (Planned through FreeCAD's external icon folder; changed in step 4, see
+     the notes.)
 5. **Home hides the empty Model panel** while no document is open (shown in the mock-up the user approved).
 6. **Startup:** applying the look adds at most 30 ms, checked with the startup profiler and an A/B run
    before it lands.
@@ -56,7 +57,7 @@ changes. Studio's `Init.py` runs before the GUI starts.
 1. Theme service, headless: palettes, mode resolution, FreeCAD color settings with user changes kept.
 2. In the app: Fusion, palette, 3D and sketch colors; follow Windows; Appearance in the ☰ menu.
 3. Studio's stylesheet: its own widgets, property rows and tool panels; Home hides the empty panel.
-4. Line icons for Studio's surfaces and FreeCAD's icon folder.
+4. Line icons for Studio's surfaces and FreeCAD's places.
 5. Startup A/B, all suites, the user's try.
 
 ## Implementation notes
@@ -95,6 +96,19 @@ changes. Studio's `Init.py` runs before the GUI starts.
   (`StudioGui.style_panels`; `panel_style` reads it back for the tests): done from Python, the wrappers
   it made (FreeCAD's model tree's above all) made FreeCAD abort at exit in up to half the runs after a
   workbench change (`docs/BASELINE.md`).
+- **Step 4 (line icons)**, 2026-11-15. 48 drawings in `Resources/icons/line` (24 px grid, stroke 1.75, no
+  fills, the neutral grey; tests check the style), mapped to FreeCAD's icon names in
+  `studio/services/icons.py`: Studio's tools, Part Design's and Sketcher's features as the model tree shows
+  them, datums and origin, the tree's eye icons, File and Edit commands. Subtractive features are their
+  additive drawing with a minus. Studio's toolbar and palette draw them in the mode's text color
+  (`studio/shell/icons.py`). For FreeCAD's places, Studio puts them into FreeCAD's icon cache under each
+  name, with and without ".svg" (commands ask for "PartDesign_Pad", the model tree for "PartDesign_Pad.svg"),
+  from `InitGui.py` (`StudioGui.add_icons`, C++: FreeCAD's Python `addIcon` refuses cached names and decodes
+  each name separately). Not FreeCAD's external icon folder: with "prefer external" on, FreeCAD searches the
+  folder, including a scan of every file in it, for each icon it loads, Studio's or not. The registration
+  takes 9–13 ms at startup on a busy machine (logged: "Studio: 47 line icons in … ms"); FreeCAD's own SVG
+  loader was slower, so Studio draws them with Qt directly at 32 px times the screen scale. The document
+  icon at the top of the tree stays FreeCAD's: FreeCAD loads it before `InitGui.py` runs.
 - Not done in step 3: FreeCAD's Tasks panel stays an empty box over the 3D view between tasks, and after
   a live switch its frame keeps the old colors until the next start. Every way of clearing it crashed
   FreeCAD on a workbench change, and holding FreeCAD's overlay widgets made the app abort at exit

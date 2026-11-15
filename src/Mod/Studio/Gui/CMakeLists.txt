@@ -13,8 +13,9 @@ target_include_directories(
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_BINARY_DIR}/src
     ${CMAKE_CURRENT_BINARY_DIR}
+    ${QtSvg_INCLUDE_DIRS}
 )
-target_link_libraries(StudioGui FreeCADGui)
+target_link_libraries(StudioGui FreeCADGui ${QtSvg_LIBRARIES})
 if(MSVC)
     target_compile_options(StudioGui PRIVATE /wd4251 /wd4273)
 endif()

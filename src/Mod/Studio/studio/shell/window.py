@@ -15,6 +15,7 @@ import FreeCAD
 import FreeCADGui
 from PySide import QtCore, QtGui, QtWidgets  # FreeCAD's PySide shim
 
+from studio.shell import icons
 from studio.shell.palette import icon_file
 from studio.shell.shortcuts import _live_is_active
 from studio.viewmodels.context_toolbar import Selected, selection_kind
@@ -67,6 +68,7 @@ class StudioWindow:
         self._open_palette = open_palette
         self._is_active = is_active
         self._icons = {}
+        self._look = None  # Studio's palette once the look applies (restyle)
         self._pending = False
         self.kind = None
         self.extra_menus = []  # Studio's own menus after FreeCAD's in ☰ (e.g. Appearance)
@@ -148,6 +150,9 @@ class StudioWindow:
         # Secondary text. A palette role wouldn't follow the mode here: FreeCAD gives the status bar a
         # stylesheet (to color its messages), and under one, Qt keeps a child's palette as it was.
         self.hint.setStyleSheet(f"QLabel#StudioHint {{ color: {p.muted}; padding: 0 8px; }}" if p else "")
+        self._look = p
+        if self.tools.isVisible():
+            self.refresh()  # the tools' line icons in the new text color
 
     def hide(self):
         """Another workbench is active: give FreeCAD its own menu bar back."""
@@ -186,6 +191,9 @@ class StudioWindow:
                 menu.addMenu(extra)
 
     def _icon(self, icon):
+        line = icons.line_icon(icon, self._look)  # Studio's drawing in the text color
+        if line is not None:
+            return line
         path = icon_file(icon)
         if path not in self._icons:
             self._icons[path] = QtGui.QIcon(path) if path else QtGui.QIcon()

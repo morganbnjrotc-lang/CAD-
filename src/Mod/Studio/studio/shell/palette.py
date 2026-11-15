@@ -13,6 +13,7 @@ import FreeCAD
 import FreeCADGui
 from PySide import QtCore, QtGui, QtWidgets  # FreeCAD's PySide shim
 
+from studio.shell import icons
 from studio.viewmodels.palette import Palette
 
 Qt = QtCore.Qt
@@ -35,6 +36,7 @@ class PaletteWindow(QtWidgets.QFrame):
         super().__init__(parent, Qt.Popup)
         self._palette, self._service, self._contexts = palette, service, contexts
         self._icons = {}
+        self._look = None  # Studio's palette once the look applies (restyle)
         self.setFrameShape(QtWidgets.QFrame.StyledPanel)
         self.search = QtWidgets.QLineEdit(self)
         self.search.setPlaceholderText("Search tools")
@@ -74,7 +76,16 @@ class PaletteWindow(QtWidgets.QFrame):
         self.activateWindow()
         self.search.setFocus()
 
+    def restyle(self, p):
+        """Studio's look (studio.shell.appearance follows the mode): line icons in the text color."""
+        self._look = p
+        if self.isVisible():
+            self._refresh(self.search.text())
+
     def _icon(self, icon):
+        line = icons.line_icon(icon, self._look)  # Studio's drawing in the text color
+        if line is not None:
+            return line
         path = icon_file(icon)
         if path is None or not os.path.isfile(path):
             return None
@@ -151,6 +162,10 @@ def open_palette():
             return shortcuts._handler.contexts if shortcuts._handler is not None else []
 
         _window = PaletteWindow(palette, service, FreeCADGui.getMainWindow(), contexts)
+        from studio.shell import appearance
+
+        if appearance.current() is not None:
+            appearance.current().follow(_window.restyle)
     _window.open()
     return _window
 

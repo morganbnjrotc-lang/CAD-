@@ -86,6 +86,25 @@ class PaletteWindowTest(unittest.TestCase):
         row = self.window.results.topLevelItem(0)
         self.assertEqual([row.text(c) for c in range(3)], ["Fit All", "General", "Shift+F"])
 
+    def test_tools_with_a_studio_drawing_show_it_in_the_text_color(self):
+        from studio.services import theme
+
+        from .test_appearance import ink, near
+
+        catalog = CommandCatalog.load()  # the shipped one: the test catalog's commands have no icons
+        window = PaletteWindow(Palette(catalog, Keymap(catalog, self.settings), self.settings), self.service,
+                               FreeCADGui.getMainWindow())
+        self.addCleanup(window.deleteLater)
+        self.addCleanup(window.close)
+        for p in (theme.DARK, theme.LIGHT):
+            window.restyle(p)
+            window.open()
+            window.search.setText("pad")
+            row = window.results.topLevelItem(0)
+            self.assertEqual(row.data(0, QtCore.Qt.UserRole), "PartDesign_Pad")
+            color = ink(row.icon(0).pixmap(32, 32).toImage())
+            self.assertTrue(near(color, p.text), f"{p.name}: {color}")
+
     def test_reopening_starts_empty_with_recently_used_first(self):
         self.window.open()
         self.window.search.setText("pocket")

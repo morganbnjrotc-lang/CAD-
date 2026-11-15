@@ -19,6 +19,7 @@
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QStatusBar>
+#include <QSvgRenderer>
 #include <QTabWidget>
 #include <QTextEdit>
 #include <QToolButton>
@@ -31,6 +32,7 @@
 #include <Base/PyObjectBase.h>  // PyMOD_INIT_FUNC
 #include <Base/Type.h>
 #include <Gui/Application.h>
+#include <Gui/BitmapFactory.h>
 #include <Gui/Command.h>
 #include <Gui/MainWindow.h>
 #include <Gui/Workbench.h>
@@ -96,6 +98,25 @@ QIcon tinted(const QIcon& icon, const QColor& color)
     painter.fillRect(pixmap.rect(), color);
     painter.end();
     return QIcon(pixmap);
+}
+
+/// An SVG drawn at `size` logical pixels for the screen's scale. Qt's renderer directly: FreeCAD's
+/// pixmapFromSvg costs ~0.45 ms a drawing at startup (file checks, string round trips, log blocking).
+QPixmap drawing(const QString& path, int size)
+{
+    QSvgRenderer renderer(path);
+    if (!renderer.isValid()) {
+        return {};
+    }
+    const qreal scale = qApp->devicePixelRatio();
+    QImage image(QSize(size, size) * scale, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    QPainter painter(&image);
+    renderer.render(&painter);
+    painter.end();
+    QPixmap pixmap = QPixmap::fromImage(image);
+    pixmap.setDevicePixelRatio(scale);
+    return pixmap;
 }
 
 Py::String colorName(const QColor& color)
@@ -192,6 +213,14 @@ public:
             "reports a command's shortcut only through its button. KeyError for an unknown command."
         );
         add_varargs_method(
+            "add_icons",
+            &Module::addIcons,
+            "add_icons({svg_path: [icon names]}) -> int\n\n"
+            "Puts each drawing into FreeCAD's icon cache under each of the names, replacing what is\n"
+            "cached (docs/adr/0010): FreeCAD's commands, menus and model tree look icons up there by\n"
+            "name first. Each SVG is drawn once, at 32 px (times the screen scale). Returns the number of drawings added."
+        );
+        add_varargs_method(
             "style_panels",
             &Module::stylePanels,
             "style_panels(group_background, group_text, icon_color, status_text)\n\n"
@@ -259,6 +288,31 @@ private:
             gates.erase(found);
         }
         return Py::None();
+    }
+
+    Py::Object addIcons(const Py::Tuple& args)
+    {
+        PyObject* mapping = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "O!", &PyDict_Type, &mapping)) {
+            throw Py::Exception();
+        }
+        Py::Dict drawings(mapping);
+        Py::List paths = drawings.keys();
+        long added = 0;
+        for (Py::List::size_type i = 0; i < paths.length(); ++i) {
+            const std::string path = Py::String(paths[i]).as_std_string("utf-8");
+            const QPixmap pixmap = drawing(QString::fromStdString(path), 32);
+            if (pixmap.isNull()) {
+                throw Py::ValueError("not a drawing: " + path);
+            }
+            Py::Sequence names(drawings.getItem(paths[i]));
+            for (Py::Sequence::size_type j = 0; j < names.length(); ++j) {
+                const std::string name = Py::String(names[j]).as_std_string("utf-8");
+                Gui::BitmapFactory().addPixmapToCache(name.c_str(), pixmap);
+            }
+            ++added;
+        }
+        return Py::Long(added);
     }
 
     Py::Object stylePanels(const Py::Tuple& args)
