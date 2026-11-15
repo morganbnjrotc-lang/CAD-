@@ -51,6 +51,17 @@ class Toolbar(unittest.TestCase):
         self.addCleanup(restore_session_look)
         self.window = window.current()
 
+    def test_a_new_look_redraws_the_tools_even_before_the_window_shows(self):
+        # At startup the look applies before the window shows: Home's tools kept FreeCAD's icons.
+        self.window.show_tools_for([], None)
+        self.window.tools.setVisible(False)
+        self.addCleanup(self.window.tools.setVisible, True)
+        for p in (theme.DARK, theme.LIGHT):
+            self.window.restyle(p)
+            colors = {a.text(): ink(a.icon().pixmap(32, 32).toImage()) for a in self.window.tools.actions()}
+            self.assertTrue(colors)
+            self.assertEqual({label: c for label, c in colors.items() if not near(c, p.text)}, {}, p.name)
+
     def test_tools_are_drawn_in_the_text_color(self):
         for p in (theme.DARK, theme.LIGHT):
             self.window.restyle(p)

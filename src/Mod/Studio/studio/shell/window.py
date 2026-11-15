@@ -151,8 +151,9 @@ class StudioWindow:
         # stylesheet (to color its messages), and under one, Qt keeps a child's palette as it was.
         self.hint.setStyleSheet(f"QLabel#StudioHint {{ color: {p.muted}; padding: 0 8px; }}" if p else "")
         self._look = p
-        if self.tools.isVisible():
-            self.refresh()  # the tools' line icons in the new text color
+        # The tools' line icons in the new text color; also before the window shows (at startup the
+        # look applies first).
+        self.refresh()
 
     def hide(self):
         """Another workbench is active: give FreeCAD its own menu bar back."""
