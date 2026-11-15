@@ -7,6 +7,7 @@ the benchmarks on CI machines without a FreeCAD build.
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -66,14 +67,15 @@ def make_profile(root: Path, settings: dict | None = None) -> dict:
 
 
 def run_probe(exe: Path, probe: Path, env: dict, timeout: float, tail: bool = False,
-              settings: dict | None = None) -> dict:
+              settings: dict | None = None, keep_log: Path | None = None) -> dict:
     """Runs `exe probe` in a fresh throwaway FreeCAD profile and returns the JSON the probe wrote.
 
     The probe writes its result to the file named in STUDIO_BENCH_OUT. The returned dict also
     has "launched": the wall-clock time just before the process started. With `tail`, it also
     has "log": FreeCAD's log as [seconds since launch, line] pairs, stamped as written (see
     tail_log). Watching the log costs a little CPU, so the benchmarks leave it off. `settings`
-    go into the profile before startup (see make_profile).
+    go into the profile before startup (see make_profile). `keep_log`: where to copy FreeCAD's log
+    when the run ends, whether or not the probe reported.
     """
     with tempfile.TemporaryDirectory(prefix="studio-bench-") as tmp:
         tmp = Path(tmp)
@@ -106,6 +108,9 @@ def run_probe(exe: Path, probe: Path, env: dict, timeout: float, tail: bool = Fa
                 # setup); that copy outlives the one we started, so close anything still running
                 # our probe.
                 kill_leftover(probe.name)
+                if keep_log is not None and log.exists():
+                    Path(keep_log).parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy(log, keep_log)
         if not out.exists():
             output = console.read_text(encoding="utf-8", errors="replace")
             log_tail = log.read_text(encoding="utf-8", errors="replace")[-3000:] if log.exists() else ""

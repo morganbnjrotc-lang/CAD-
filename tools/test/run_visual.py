@@ -10,7 +10,7 @@ Usage (from the repo root):
 Screens: Home, a model with a face selected, a sketch being edited; each in light and dark (a fresh
 profile per mode). The 3D view is masked (OpenGL drawing differs between graphics cards; its colors
 are checked by the theme tests), except the Tasks panel floating over it. To keep pictures the same across machines: a fixed 1280 x 800 window
-off the screen (no hover), the vendored Noto Sans drawn by FreeType instead of the system font, no high-DPI scaling, the example files
+at the screen's top left with the mouse pointer moved off it (no hover), the vendored Noto Sans drawn by FreeType instead of the system font, no high-DPI scaling, the example files
 copied with fixed "saved 3 days ago" dates, status messages cleared. On a mismatch the actual picture
 and a diff (differing pixels in magenta) go to build/test-logs/visual. Exit code 0 only if all match.
 """
@@ -45,6 +45,7 @@ ENV = {
 
 
 def capture(exe: Path, mode: str, out: Path) -> dict:
+    """Runs the probe on a fresh profile in `mode`; FreeCAD's log goes to build/test-logs/visual."""
     with tempfile.TemporaryDirectory(prefix="studio-visual-files-") as files:
         files = Path(files)
         saved = time.time() - 3 * 86400  # Home says "Saved 3 days ago"
@@ -56,7 +57,8 @@ def capture(exe: Path, mode: str, out: Path) -> dict:
         settings["BaseApp/Preferences/Mod/Studio/Commands/WarmUp"] = False  # no background loading meanwhile
         env = dict(ENV, STUDIO_VISUAL_OUT=str(out), STUDIO_VISUAL_MODEL=str(files / RECENT[0]),
                    STUDIO_VISUAL_FONT=str(FONT))
-        return run_probe(exe, REPO / "tools" / "test" / "_visual_probe.py", env, 180, settings=settings)
+        return run_probe(exe, REPO / "tools" / "test" / "_visual_probe.py", env, 180, settings=settings,
+                         keep_log=LOGS / f"{mode}-freecad.log")
 
 
 def main() -> int:
@@ -70,7 +72,12 @@ def main() -> int:
     for mode in MODES:
         with tempfile.TemporaryDirectory(prefix="studio-visual-") as out:
             out = Path(out)
-            report = capture(exe, mode, out)
+            try:
+                report = capture(exe, mode, out)
+            except RuntimeError as problem:  # FreeCAD crashed or hung; its log is in LOGS
+                failures.append(f"{mode}: the capture failed: {str(problem).splitlines()[0]}")
+                print(f"{mode}: capture failed\n{problem}")
+                continue
             masks = json.loads((out / "masks.json").read_text(encoding="utf-8"))
             print(f"{mode}: window {report.get('geometry')}, screens {report['screens']}")
             for screen in SCREENS:

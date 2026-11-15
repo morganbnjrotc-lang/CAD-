@@ -10,6 +10,7 @@ small tolerance (FreeCAD's own snapshot tests use 8 per channel and 0.2 %), igno
 (the 3D view, whose OpenGL drawing differs between graphics cards).
 """
 
+import importlib.util
 import sys
 import unittest
 from pathlib import Path
@@ -74,6 +75,7 @@ class Compare(unittest.TestCase):
         self.assertIn("size", result.reason)
 
 
+@unittest.skipUnless(importlib.util.find_spec("PySide6"), "needs PySide6 (the Windows job's visual check uses it)")
 class Files(unittest.TestCase):
     def test_png_round_trip(self):
         import tempfile

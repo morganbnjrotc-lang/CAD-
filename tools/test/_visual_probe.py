@@ -6,8 +6,10 @@ a sketch being edited. Writes <screen>.png files and masks.json (per screen: the
 leave out, and the Tasks panel's rectangle inside it to compare all the same) to STUDIO_VISUAL_OUT, then
 reports to STUDIO_BENCH_OUT and exits without saving preferences.
 
-The window is a fixed 1280 x 800 placed off the screen, so the mouse can't hover anything in it, and the
-app's font is the vendored Noto Sans.
+The window is a fixed 1280 x 800 at the screen's top left, with the mouse pointer moved to the screen's
+bottom right so it hovers nothing that changes, and the app's font is the vendored Noto Sans. (Placed
+off the screen instead, FreeCAD crashed drawing it on GitHub's runner, which has no graphics card.)
+Each step is written to FreeCAD's log ("Visual probe: ..."), which run_visual.py keeps.
 """
 
 import json
@@ -23,6 +25,10 @@ FONT = os.environ["STUDIO_VISUAL_FONT"]
 SIZE = (1280, 800)
 mw = FreeCADGui.getMainWindow()
 masks, report = {}, {"screens": []}
+
+
+def note(text):
+    FreeCAD.Console.PrintLog(f"Visual probe: {text}\n")
 
 
 def later(ms, step):
@@ -43,8 +49,10 @@ def capture(name, mask=None):
         steady_panel()
     mw.statusBar().clearMessage()  # e.g. "Preselected: …" depends on the mouse
     settle()
+    note(f"capturing {name}")
     picture = mw.grab()
     picture.save(os.path.join(OUT, f"{name}.png"))
+    note(f"captured {name}")
     masks[name] = {"mask": [mask] if mask else [], "keep": [tasks_rect()] if mask and tasks_rect() else []}
     report["screens"].append(name)
 
@@ -93,10 +101,17 @@ def use_test_font():
 
 
 def start():
+    from PySide import QtGui
+
+    note("start")
     use_test_font()
     mw.showNormal()
-    mw.setGeometry(-4000, 100, *SIZE)  # off the screen: no hover from wherever the mouse is
+    screen = QtWidgets.QApplication.primaryScreen().geometry()
+    mw.setGeometry(screen.x(), screen.y(), *SIZE)
+    QtGui.QCursor.setPos(screen.right(), screen.bottom())  # off the window, or over the status text
     report["geometry"] = [mw.x(), mw.y(), mw.width(), mw.height()]
+    report["screen"] = [screen.width(), screen.height()]
+    note(f"window {report['geometry']} on a {report['screen']} screen")
     wait_for_home(0)
 
 
@@ -112,6 +127,7 @@ def wait_for_home(tries):
 
 def home_screen():
     capture("home")
+    note("opening the model")
     doc = FreeCAD.openDocument(MODEL)
     FreeCADGui.SendMsgToActiveView("ViewFit")
     later(1500, lambda: model_screen(doc))
@@ -127,6 +143,7 @@ def model_screen(doc):
 def sketch_screen(doc):
     sketch = next(o for o in doc.Objects if o.TypeId == "Sketcher::SketchObject")
     FreeCADGui.Selection.clearSelection()
+    note("editing the sketch")
     FreeCADGui.activeDocument().setEdit(sketch.Name)
     later(2500, lambda: (capture("sketch", view_rect()), finish()))
 
