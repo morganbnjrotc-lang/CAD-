@@ -1,18 +1,28 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 //
-// StudioGui: Studio's C++ helpers for the shell, where FreeCAD offers no Python API.
-// See docs/adr/0007-lazy-loading-command-catalog.md.
+// StudioGui: Studio's C++ helpers for the shell, where FreeCAD offers no Python API, or where Python
+// can't safely reach (see style_panels). See docs/adr/0007-lazy-loading-command-catalog.md.
 
 #include <map>
+#include <set>
 #include <string>
 
 #include <QAbstractSpinBox>
+#include <QAction>
 #include <QApplication>
+#include <QBuffer>
 #include <QComboBox>
+#include <QIcon>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QLineEdit>
+#include <QPainter>
 #include <QPlainTextEdit>
+#include <QStatusBar>
+#include <QTabWidget>
 #include <QTextEdit>
+#include <QToolButton>
+#include <QTreeView>
 
 #include <CXX/Extensions.hxx>
 
@@ -39,6 +49,58 @@ bool isTextInput(QWidget* widget)
     }
     auto* combo = qobject_cast<QComboBox*>(widget);
     return combo && combo->isEditable();
+}
+
+// FreeCAD's panels as Studio styles them (docs/adr/0010, studio/shell/appearance.py).
+const char* const PropertyEditorClass = "Gui::PropertyEditor::PropertyEditor";
+const char* const OriginalIcon = "studioOriginalIcon";
+
+QList<QTreeView*> propertyEditors(QWidget* main)
+{
+    QList<QTreeView*> editors;
+    for (auto* view : main->findChildren<QTreeView*>()) {
+        if (view->inherits(PropertyEditorClass)) {
+            editors.append(view);
+        }
+    }
+    return editors;
+}
+
+/// The actions behind the float, overlay and close buttons in panel title bars. FreeCAD's panel
+/// manager owns them; one action serves every panel.
+std::set<QAction*> titleActions(QWidget* main)
+{
+    static const QStringList names {
+        QStringLiteral("OBTN Float"),
+        QStringLiteral("OBTN Overlay"),
+        QStringLiteral("OBTN Close"),
+    };
+    std::set<QAction*> actions;
+    for (auto* button : main->findChildren<QToolButton*>()) {
+        QAction* action = button->defaultAction();
+        if (action && names.contains(action->data().toString())) {
+            actions.insert(action);
+        }
+    }
+    return actions;
+}
+
+QIcon tinted(const QIcon& icon, const QColor& color)
+{
+    QPixmap pixmap = icon.pixmap(32, 32);
+    if (pixmap.isNull()) {
+        return icon;
+    }
+    QPainter painter(&pixmap);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.fillRect(pixmap.rect(), color);
+    painter.end();
+    return QIcon(pixmap);
+}
+
+Py::String colorName(const QColor& color)
+{
+    return Py::String(color.name().toUpper().toStdString());
 }
 }  // namespace
 
@@ -129,7 +191,25 @@ public:
             "a menu or toolbar shows the command; '' if it declares none. FreeCAD's own Python API\n"
             "reports a command's shortcut only through its button. KeyError for an unknown command."
         );
-        initialize("Studio's C++ helpers for the shell (docs/adr/0007, 0008).");
+        add_varargs_method(
+            "style_panels",
+            &Module::stylePanels,
+            "style_panels(group_background, group_text, icon_color, status_text)\n\n"
+            "Styles FreeCAD's panels where Qt's palette doesn't reach (docs/adr/0010): the property\n"
+            "editors' group rows, their tab box drawn flat, the panel title buttons' icons tinted, the\n"
+            "status bar's text color (set again, which re-polishes its labels after a mode switch).\n"
+            "Colors are '#RRGGBB'. In C++ because Python wrappers of some of these widgets (FreeCAD's\n"
+            "model tree, its panel manager's) make FreeCAD abort when it exits (docs/BASELINE.md)."
+        );
+        add_varargs_method(
+            "panel_style",
+            &Module::panelStyle,
+            "panel_style() -> dict\n\n"
+            "What style_panels set, read back for checks: 'group_rows' [(background, text)] per\n"
+            "property editor, 'flat_property_area' [bool], 'title_icons' {action name: PNG bytes},\n"
+            "'status_labels' [(name, text color)] for the status bar's plain labels. Colors '#RRGGBB'."
+        );
+        initialize("Studio's C++ helpers for the shell (docs/adr/0007, 0008, 0010).");
     }
 
 private:
@@ -179,6 +259,91 @@ private:
             gates.erase(found);
         }
         return Py::None();
+    }
+
+    Py::Object stylePanels(const Py::Tuple& args)
+    {
+        char* groupBackground = nullptr;
+        char* groupText = nullptr;
+        char* iconColor = nullptr;
+        char* statusText = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "ssss", &groupBackground, &groupText, &iconColor, &statusText)) {
+            throw Py::Exception();
+        }
+        Gui::MainWindow* main = Gui::getMainWindow();
+        if (!main) {
+            return Py::None();
+        }
+        for (auto* editor : propertyEditors(main)) {
+            editor->setProperty("groupBackground", QBrush(QColor(QString::fromUtf8(groupBackground))));
+            editor->setProperty("groupTextColor", QColor(QString::fromUtf8(groupText)));
+            editor->viewport()->update();
+        }
+        for (auto* tabs : main->findChildren<QTabWidget*>(QStringLiteral("propertyTab"))) {
+            tabs->setDocumentMode(true);  // no frame: the area matches the model tree above it
+        }
+        const QColor ink(QString::fromUtf8(iconColor));
+        for (QAction* action : titleActions(main)) {
+            if (!action->property(OriginalIcon).isValid()) {  // tint FreeCAD's icon, not a tinted copy
+                action->setProperty(OriginalIcon, QVariant::fromValue(action->icon()));
+            }
+            action->setIcon(tinted(action->property(OriginalIcon).value<QIcon>(), ink));
+        }
+        // FreeCAD's own normal-message style (Gui::StatusBarObserver), with the new color.
+        main->statusBar()->setStyleSheet(
+            QStringLiteral("#statusBar{color: %1}").arg(QString::fromUtf8(statusText))
+        );
+        return Py::None();
+    }
+
+    Py::Object panelStyle(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        Py::Dict result;
+        Gui::MainWindow* main = Gui::getMainWindow();
+        if (!main) {
+            return result;
+        }
+        Py::List rows;
+        for (auto* editor : propertyEditors(main)) {
+            Py::Tuple row(2);
+            row.setItem(0, colorName(editor->property("groupBackground").value<QBrush>().color()));
+            row.setItem(1, colorName(editor->property("groupTextColor").value<QColor>()));
+            rows.append(row);
+        }
+        result.setItem("group_rows", rows);
+        Py::List flat;
+        for (auto* tabs : main->findChildren<QTabWidget*>(QStringLiteral("propertyTab"))) {
+            flat.append(Py::Boolean(tabs->documentMode()));
+        }
+        result.setItem("flat_property_area", flat);
+        Py::Dict icons;
+        for (QAction* action : titleActions(main)) {
+            QByteArray png;
+            QBuffer buffer(&png);
+            buffer.open(QIODevice::WriteOnly);
+            action->icon().pixmap(32, 32).save(&buffer, "PNG");
+            icons.setItem(
+                action->data().toString().toStdString(),
+                Py::Object(PyBytes_FromStringAndSize(png.constData(), png.size()), true)
+            );
+        }
+        result.setItem("title_icons", icons);
+        Py::List labels;
+        for (auto* label : main->statusBar()->findChildren<QLabel*>()) {
+            if (label->objectName() == QLatin1String("StudioHint") || !label->styleSheet().isEmpty()) {
+                continue;
+            }
+            Py::Tuple entry(2);
+            const QString name = label->objectName().isEmpty() ? label->text() : label->objectName();
+            entry.setItem(0, Py::String(name.toStdString()));
+            entry.setItem(1, colorName(label->palette().color(label->foregroundRole())));
+            labels.append(entry);
+        }
+        result.setItem("status_labels", labels);
+        return result;
     }
 
     Py::Object initializeWorkbench(const Py::Tuple& args)

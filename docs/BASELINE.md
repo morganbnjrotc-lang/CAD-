@@ -76,12 +76,17 @@ Python code did any of these:
 - left a widget with a stylesheet to be destroyed late (`deleteLater` on a test's own widget, processed
   only during shutdown).
 
-Studio's rule: look FreeCAD's widgets up at startup, before any document opens, inside the Model panel
-where possible; keep only the Model panel and its property editors; look the rest up each time and drop
-the reference (`studio/shell/appearance.py`, `FreeCADPanels`). Tests do the same, clear their widgets'
-stylesheets in cleanup and turn wrappers into plain strings before asserting (a failing test keeps its
-locals). The exit code was sometimes 0 after such an abort, so `tools/test/run_gui_suites.py` now fails
-a run whose output shows FreeCAD's crash messages.
+- had a wrapper of FreeCAD's model tree (`Gui::TreeWidget`) at all, even briefly: a lookup of the Model
+  panel's tree views returns it. Measured with `test_command_backend.WorkbenchLoadingTest` alone (it
+  ends with a workbench change), 8 s a run: 0 of 16 runs crashed before step 3; 9–11 of 16 with that
+  lookup; 2 of 16 with the property editors reached through their tab box instead; 0 of 24 with all of
+  it done in C++.
+
+The crash is random (freed memory touched at exit), so one clean run proves nothing: count crashes over
+16+ runs. Studio's rule: Python keeps only the main window and the Model panel; FreeCAD's other widgets
+are styled and read in C++ (`StudioGui.style_panels`, `panel_style`), which makes no wrappers. Tests
+clear their own widgets' stylesheets in cleanup. The exit code was sometimes 0 after such an abort, so
+`tools/test/run_gui_suites.py` now fails a run whose output shows FreeCAD's crash messages.
 
 ### Known issue: FreeCAD crashes on a workbench change when the Tasks panel isn't see-through
 

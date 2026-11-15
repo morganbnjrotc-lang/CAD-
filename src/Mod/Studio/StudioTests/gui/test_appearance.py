@@ -31,11 +31,10 @@ def pixel(widget, x, y):
     return image.pixelColor(x, y).name().upper()
 
 
-def ink(icon, size=32):
-    """The color of an icon's strokes: the average of its pixels, weighted by how opaque each is.
-    Thin strokes are anti-aliased (FreeCAD's 12 px title icons have hardly a fully opaque pixel), and
-    turning a premultiplied color back into a plain one rounds by a unit or two."""
-    image = icon.pixmap(size, size).toImage()
+def ink(image):
+    """The color of an icon's strokes (a QImage): the average of its pixels, weighted by how opaque
+    each is. Thin strokes are anti-aliased (FreeCAD's 12 px title icons have hardly a fully opaque
+    pixel), and turning a premultiplied color back into a plain one rounds by a unit or two."""
     sums, weight = [0, 0, 0], 0
     for y in range(image.height()):
         for x in range(image.width()):
@@ -54,38 +53,12 @@ def near(a, b, units=3):
     return all(abs(int(a[i:i + 2], 16) - int(b[i:i + 2], 16)) <= units for i in (1, 3, 5))
 
 
-def no_document_open(test):
-    """Tests that look widgets up skip while a document is open: see appearance.FreeCADPanels."""
-    if FreeCAD.listDocuments():
-        test.skipTest("a document is open; looking widgets up now makes FreeCAD abort at exit")
+def panel_style():
+    """What FreeCAD's panels show, read in C++ (StudioGui): Python wrappers of some FreeCAD widgets
+    make FreeCAD abort when it exits (docs/BASELINE.md), so the tests don't look them up either."""
+    import StudioGui
 
-
-def model_panel():
-    from studio.shell import window
-
-    return window.current().model_panel()
-
-
-def property_editors():
-    return [e for e in model_panel().findChildren(QtWidgets.QTreeView)
-            if e.metaObject().className() == "Gui::PropertyEditor::PropertyEditor"]
-
-
-def panel_title_buttons():
-    """The float, overlay and close buttons in the Model panel's title bar (FreeCAD's actions, shared
-    by every panel). Looked up inside the panel only: see appearance.FreeCADPanels."""
-    title = model_panel().titleBarWidget()
-    return [b for b in title.findChildren(QtWidgets.QToolButton)
-            if b.defaultAction() is not None and b.defaultAction().data() in ("OBTN Float", "OBTN Overlay", "OBTN Close")]
-
-
-def status_label_colors():
-    """(name, text color) of FreeCAD's labels in the status bar. Plain strings: a failing test keeps
-    its locals, and a kept wrapper of a FreeCAD widget makes FreeCAD abort when it exits."""
-    bar = model_panel().window().statusBar()
-    return [(label.objectName() or label.text(), label.palette().color(label.foregroundRole()).name().upper())
-            for label in bar.findChildren(QtWidgets.QLabel)
-            if label.objectName() != "StudioHint" and not label.styleSheet()]
+    return StudioGui.panel_style()
 
 
 def restore_session_look():
@@ -192,43 +165,40 @@ class AppearanceTest(_OwnAppearance):
 class FreeCADPanels(_OwnAppearance):
     """FreeCAD's own panels, styled where the palette alone can't reach (the session's window)."""
 
-    def setUp(self):
-        super().setUp()
-        no_document_open(self)
-
     def test_property_group_rows_stand_out_and_read(self):
-        self.assertTrue(property_editors())
         for p in (theme.DARK, theme.LIGHT):
             self.appearance.set_mode(p.name)
-            for editor in property_editors():
-                background = editor.property("groupBackground").color().name().upper()
-                text = editor.property("groupTextColor").name().upper()
+            rows = panel_style()["group_rows"]
+            self.assertTrue(rows)
+            for background, text in rows:
                 self.assertNotIn(background, (p.panel, p.window), p.name)
                 ratio = theme.contrast(text, background)
                 self.assertGreaterEqual(ratio, 4.5, f"{p.name}: group text {text} on {background} is {ratio:.2f}:1")
 
     def test_the_property_area_is_flat(self):
         # Fusion draws a tab box's frame a shade lighter than the panel: a grey box in dark mode.
-        tabs = model_panel().findChild(QtWidgets.QTabWidget, "propertyTab")
         self.appearance.apply()
-        self.assertTrue(tabs.documentMode())
+        flat = panel_style()["flat_property_area"]
+        self.assertTrue(flat)
+        self.assertTrue(all(flat))
 
     def test_status_bar_text_follows_a_switch(self):
         # FreeCAD gives its status bar a stylesheet (to color its messages); under one, Qt keeps each
         # label's palette as it was, so after a switch the labels kept the old mode's text color.
         for p in (theme.DARK, theme.LIGHT):
             self.appearance.set_mode(p.name)
-            colors = status_label_colors()
-            self.assertTrue(colors)
-            self.assertEqual({name: color for name, color in colors if color != p.text}, {}, p.name)
+            labels = panel_style()["status_labels"]
+            self.assertTrue(labels)
+            self.assertEqual({name: color for name, color in labels if color != p.text}, {}, p.name)
 
     def test_panel_title_buttons_are_drawn_in_the_secondary_text_color(self):
-        self.assertTrue(panel_title_buttons())
         for p in (theme.DARK, theme.LIGHT):
             self.appearance.set_mode(p.name)
-            for button in panel_title_buttons():
-                color = ink(button.icon())
-                self.assertTrue(near(color, p.muted), f"{p.name}: {button.defaultAction().data()} is {color}")
+            icons = panel_style()["title_icons"]
+            self.assertEqual(set(icons), {"OBTN Float", "OBTN Overlay", "OBTN Close"})
+            for name, png in icons.items():
+                color = ink(QtGui.QImage.fromData(png))
+                self.assertTrue(near(color, p.muted), f"{p.name}: {name} is {color}")
 
 
 class SessionAppearance(unittest.TestCase):

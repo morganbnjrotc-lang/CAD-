@@ -91,7 +91,10 @@ changes. Studio's `Init.py` runs before the GUI starts.
   a shade lighter than the panel), the panel title buttons' fixed dark icons tinted in the secondary text
   color, and FreeCAD's message color (`OutputWindow/colorText`, black by default) written like the other
   FreeCAD colors. The status bar and anything else under a FreeCAD stylesheet keep the old mode's colors
-  after a live switch; Studio sets the status bar's stylesheet again on a switch.
+  after a live switch; Studio sets the status bar's stylesheet again on a switch. This part is in C++
+  (`StudioGui.style_panels`; `panel_style` reads it back for the tests): done from Python, the wrappers
+  it made (FreeCAD's model tree's above all) made FreeCAD abort at exit in up to half the runs after a
+  workbench change (`docs/BASELINE.md`).
 - Not done in step 3: FreeCAD's Tasks panel stays an empty box over the 3D view between tasks, and after
   a live switch its frame keeps the old colors until the next start. Every way of clearing it crashed
   FreeCAD on a workbench change, and holding FreeCAD's overlay widgets made the app abort at exit

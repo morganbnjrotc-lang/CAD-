@@ -12,7 +12,7 @@ Where the palette doesn't reach:
 - FreeCAD's panels: the property editor keeps the group-row colors it read when it was built, its
   tab box is drawn a shade lighter than the panel, the panels' title buttons have fixed dark icons
   (FreeCAD's stylesheet handles these), and the status bar keeps the old mode's colors after a
-  switch, under a stylesheet of FreeCAD's own. `FreeCADPanels` fixes them.
+  switch, under a stylesheet of FreeCAD's own. `FreeCADPanels` fixes them, in C++.
 - Not yet: FreeCAD's Tasks panel floats over the 3D view and, without FreeCAD's stylesheet, is an
   empty box there between tasks. Every way tried to clear it (solid with "Auto task", "Auto show on
   edit", a stylesheet or a transparent palette on the task view) makes FreeCAD crash natively when the
@@ -62,80 +62,34 @@ def qpalette(p: theme.Palette) -> QPalette:
     return pal
 
 
-def tinted(icon: QtGui.QIcon, color: str, size: int = 32) -> QtGui.QIcon:
-    """The icon's shape drawn in one color (keeps its transparency, replaces its colors)."""
-    pixmap = icon.pixmap(size, size)
-    if pixmap.isNull():
-        return icon
-    painter = QtGui.QPainter(pixmap)
-    painter.setCompositionMode(QtGui.QPainter.CompositionMode_SourceIn)
-    painter.fillRect(pixmap.rect(), QtGui.QColor(color))
-    painter.end()
-    return QtGui.QIcon(pixmap)
-
-
-PROPERTY_EDITOR = "Gui::PropertyEditor::PropertyEditor"
-TITLE_BUTTONS = ("OBTN Float", "OBTN Overlay", "OBTN Close")  # FreeCAD's actions in panel title bars
-
-
 class FreeCADPanels:
-    """The FreeCAD widgets Studio styles beyond the palette (see the module notes): the Model panel's
-    property editors and tab box, and the actions behind every panel's title buttons.
+    """FreeCAD's panels where the palette doesn't reach (see the module notes): the property editors'
+    group rows and their tab box, the panels' title buttons, the status bar's text after a switch.
 
-    Found once, at startup, inside the Model panel only, and kept. A lookup (findChild) gives each
-    widget it passes a PySide wrapper. FreeCAD deletes some widgets later (a document's, or toolbar
-    buttons when a workbench changes), and stale wrappers of them make FreeCAD abort when it exits.
-    The Model panel lives as long as the app. The status bar and the title-button actions are looked
-    up each time and not kept: holding them made FreeCAD abort at exit after a workbench change.
+    Done in C++ (StudioGui.style_panels). A Python wrapper of some FreeCAD widgets, for example the one
+    a lookup of the Model panel's tree views returns for FreeCAD's model tree, made FreeCAD abort when
+    it exits, in a quarter to half of the runs after a workbench change (docs/BASELINE.md).
     """
 
-    def __init__(self, model_panel):
-        self.property_editors = [e for e in model_panel.findChildren(QtWidgets.QTreeView)
-                                 if e.metaObject().className() == PROPERTY_EDITOR]
-        self.property_tabs = model_panel.findChildren(QtWidgets.QTabWidget, "propertyTab")
-        self._model_panel = model_panel
-        self._title_icons = {}  # FreeCAD's icon per title action ("OBTN Float"...), kept to tint afresh
+    def __init__(self, helpers):
+        self._helpers = helpers
 
     def style(self, p: theme.Palette):
-        for editor in self.property_editors:
-            editor.setProperty("groupBackground", QtGui.QBrush(QtGui.QColor(p.hover)))
-            editor.setProperty("groupTextColor", QtGui.QColor(p.text))
-            editor.viewport().update()
-        for tabs in self.property_tabs:
-            tabs.setDocumentMode(True)  # no frame: the area matches the tree above it
-        # FreeCAD styles its status bar ("#statusBar{color: ...}", from OutputWindow/colorText) and
-        # sets it again with each message. Under a stylesheet, Qt keeps the labels' palette as it was,
-        # so set FreeCAD's normal-message style with the new color now: that re-polishes them.
-        self._model_panel.window().statusBar().setStyleSheet(f"#statusBar{{color: {p.text}}}")  # not kept
-        for action in self._title_actions():  # one action serves every panel's title bar
-            original = self._title_icons.setdefault(action.data(), action.icon())
-            action.setIcon(tinted(original, p.muted))
-
-    def _title_actions(self):
-        """Looked up each time and not kept: they belong to FreeCAD's panel manager, and a kept
-        reference made FreeCAD abort at exit after a workbench change."""
-        title = self._model_panel.titleBarWidget()
-        actions = {}
-        for button in title.findChildren(QtWidgets.QToolButton) if title is not None else ():
-            action = button.defaultAction()
-            if action is not None and action.data() in TITLE_BUTTONS:
-                actions[action.data()] = action
-        return list(actions.values())
+        self._helpers.style_panels(p.hover, p.text, p.muted, p.text)
 
 
 _panels = None
 
 
 def freecad_panels():
-    """The session's FreeCADPanels, found the first time Studio applies its look (at startup)."""
+    """The session's FreeCADPanels (None without Studio's C++ helpers)."""
     global _panels
     if _panels is None:
-        from studio.shell import window
-
-        panel = window.current().model_panel() if window.current() is not None else None
-        if panel is None:
+        try:
+            import StudioGui
+        except ImportError:
             return None
-        _panels = FreeCADPanels(panel)
+        _panels = FreeCADPanels(StudioGui)
     return _panels
 
 
