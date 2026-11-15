@@ -98,6 +98,10 @@ class StudioCITest(unittest.TestCase):
         self.assertRegex(commands, r"run_gui_suites\.py .*TestStudioGui")
         self.assertNotRegex(commands, r"FreeCAD\.exe.* -t ")
         self.assertIn("startup_smoke.py", commands)
+        # Studio's screens against their reviewed pictures (PLAN 2.10): an upstream merge or a
+        # change that alters the look fails here.
+        self.assertRegex(commands, r"run_visual\.py .*--build-dir build/slim-release")
+        self.assertNotRegex(commands, r"run_visual\.py .*--update")
         # One pass of the reference-file benchmark: it fails if any reference file opens
         # incompletely in the build we ship (the timings on a shared runner aren't used).
         self.assertRegex(commands, r"bench_open\.py .*--runs 1")

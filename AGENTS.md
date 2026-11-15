@@ -75,6 +75,9 @@ pixi run python tools/test/run_headless_suites.py TestStudioApp
 pixi run python tools/test/run_headless_suites.py --exclude TestCAMApp   # everything but CAM (~3 min)
 # GUI suite, same isolation (never run a bare `FreeCAD.exe -t`: see below):
 pixi run python tools/test/run_gui_suites.py TestStudioGui
+# Studio's screens against their reviewed pictures (tests/visual/baselines/studio); --update after an
+# intended change, then review every changed picture:
+pixi run python tools/test/run_visual.py [--update]
 # End-to-end: launch the real app on a brand-new profile and check what a new user sees:
 pixi run python tools/test/startup_smoke.py
 # Command catalog (ADR 0007): regenerate after an upstream merge changes commands; CI runs --check:
