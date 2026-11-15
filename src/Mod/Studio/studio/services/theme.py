@@ -17,6 +17,7 @@ from studio.services.settings import Setting
 
 MODE = Setting("Appearance/Mode", "system", choices=("system", "light", "dark"))
 FREECAD_PREFERENCES = "User parameter:BaseApp/Preferences"
+MAIN_WINDOW = FREECAD_PREFERENCES + "/MainWindow"
 # Icons FreeCAD draws (tree, menus) are cached and can't follow the mode: one grey that reads on both.
 ICON_NEUTRAL = "#7F8996"
 
@@ -51,6 +52,11 @@ class Palette:
         """The 3D highlight under the mouse: a lighter accent, so it differs from the selection."""
         return mix(self.accent, "#FFFFFF", 0.35)
 
+    @property
+    def selection(self) -> str:
+        """Selected rows, hovered menu items, the item being edited: the accent softened into the panel."""
+        return mix(self.accent, self.panel, 0.82 if self.name == "light" else 0.70)
+
 
 LIGHT = Palette(
     name="light",
@@ -81,6 +87,19 @@ def current_mode(settings, system_is_dark: bool) -> str:
     if chosen == "system":
         return "dark" if system_is_dark else "light"
     return chosen
+
+
+def default_to_fusion(main_window: str = MAIN_WINDOW) -> bool:
+    """Picks Qt's Fusion style unless the user picked a style or a FreeCAD stylesheet.
+
+    Called from Init.py, before the GUI starts, so FreeCAD builds its window in Fusion instead of
+    restyling it later (measured: a live switch costs ~0.2 s on the first start).
+    """
+    group = FreeCAD.ParamGet(main_window)
+    if group.GetString("QtStyle", "") or group.GetString("StyleSheet", ""):
+        return False
+    group.SetString("QtStyle", "Fusion")
+    return True
 
 
 def palette(mode: str) -> Palette:
@@ -138,7 +157,10 @@ def freecad_settings(p: Palette) -> list:
         ("CursorTextColor", p.text), ("CursorCrosshairColor", p.text), ("CreateLineColor", p.text),
     ]
     sketcher = [("GridLineColor", p.sketch_grid), ("GridDivLineColor", p.sketch_grid_major)]
-    return [("View", n, v) for n, v in view] + [("Mod/Sketcher/General", n, v) for n, v in sketcher]
+    # Tree rows: the item being edited (e.g. a sketch) and the active body.
+    tree = [("TreeEditColor", p.selection), ("TreeActiveColor", mix(p.accent, p.panel, 0.9))]
+    return ([("View", n, v) for n, v in view] + [("Mod/Sketcher/General", n, v) for n, v in sketcher]
+            + [("TreeView", n, v) for n, v in tree])
 
 
 def _as_text(value) -> str:

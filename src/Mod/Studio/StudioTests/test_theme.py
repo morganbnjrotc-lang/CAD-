@@ -65,6 +65,11 @@ class Palettes(unittest.TestCase):
             ratio = theme.contrast(p.on_accent, p.accent)
             self.assertGreaterEqual(ratio, 4.5, f"{p.name}: {ratio:.2f}:1")
 
+    def test_selected_rows_are_a_soft_accent_with_readable_text(self):
+        for p in (theme.LIGHT, theme.DARK):
+            self.assertNotEqual(p.selection, p.accent)
+            self.assertGreaterEqual(theme.contrast(p.text, p.selection), 4.5, p.name)
+
     def test_the_accent_stands_out_from_the_panels(self):  # WCAG AA for UI parts: 3:1
         for p in (theme.LIGHT, theme.DARK):
             for surface in self.PANELS:
@@ -90,6 +95,30 @@ class Colors(unittest.TestCase):
     def test_mix(self):
         self.assertEqual(theme.mix("#000000", "#FFFFFF", 0.5), "#808080")
         self.assertEqual(theme.mix("#102030", "#102030", 0.3), "#102030")
+
+
+class QtStyle(unittest.TestCase):
+    """Fusion is set before the GUI starts (Init.py), so FreeCAD builds its window in it."""
+
+    def setUp(self):
+        name = "MainWindow" + uuid.uuid4().hex[:8]
+        self.path = f"{TEST_PARENT}/{name}"
+        self.addCleanup(lambda: FreeCAD.ParamGet(TEST_PARENT).RemGroup(name))
+        self.group = FreeCAD.ParamGet(self.path)
+
+    def test_fusion_when_nothing_was_picked(self):
+        self.assertTrue(theme.default_to_fusion(self.path))
+        self.assertEqual(self.group.GetString("QtStyle", ""), "Fusion")
+
+    def test_a_style_the_user_picked_stays(self):
+        self.group.SetString("QtStyle", "Windows")
+        self.assertFalse(theme.default_to_fusion(self.path))
+        self.assertEqual(self.group.GetString("QtStyle", ""), "Windows")
+
+    def test_a_freecad_stylesheet_keeps_its_own_style(self):
+        self.group.SetString("StyleSheet", "FreeCAD.qss")
+        self.assertFalse(theme.default_to_fusion(self.path))
+        self.assertEqual(self.group.GetString("QtStyle", ""), "")
 
 
 class FreeCADColorSettings(unittest.TestCase):
@@ -124,6 +153,13 @@ class FreeCADColorSettings(unittest.TestCase):
         self.assertEqual(self.view.GetUnsigned("ConstructionColor", 0), theme.rgba(theme.LIGHT.sketch_construction))
         grid = FreeCAD.ParamGet(f"{self.root}/Mod/Sketcher/General")
         self.assertEqual(grid.GetUnsigned("GridLineColor", 0), theme.rgba(theme.LIGHT.sketch_grid))
+
+    def test_the_tree_marks_edited_and_active_items_with_the_accent(self):
+        self.colors.apply(theme.DARK)
+        tree = FreeCAD.ParamGet(f"{self.root}/TreeView")
+        self.assertEqual(tree.GetUnsigned("TreeEditColor", 0), theme.rgba(theme.DARK.selection))
+        active = tree.GetUnsigned("TreeActiveColor", 0)
+        self.assertNotIn(active, (0, theme.rgba(theme.DARK.selection)))
 
     def test_switching_mode_rewrites_the_colors(self):
         self.colors.apply(theme.LIGHT)

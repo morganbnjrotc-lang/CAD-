@@ -69,6 +69,16 @@ changes. Studio's `Init.py` runs before the GUI starts.
   button carries dark text (7.0:1); white on it would be 2.4:1.
 - A document stores its own colors, so the model color applies to parts created from now on; files saved
   earlier keep theirs.
+- **Step 2 (in the app)** `studio/shell/appearance.py`: the palette and FreeCAD's colors are applied when
+  Studio activates; the app follows Windows through Qt's `colorSchemeChanged` signal; ☰ › Appearance offers
+  Follow Windows, Light and Dark. The tree's edited and active rows take the soft accent too
+  (`TreeView/TreeEditColor`, `TreeActiveColor`). Fusion is picked in `Init.py` (`theme.default_to_fusion`):
+  set later, from Studio's activation, Qt restyled the finished window and the first start took ~0.2 s
+  longer.
+- Startup cost of step 2: Studio's call takes ~3 ms, timed inside the app. End-to-end A/B runs on a busy
+  machine (CPU ~15%, runs spread over ±0.3 s) can't resolve the rest: three sessions gave median
+  differences of −10 to +140 ms and mean differences of −13 to +64 ms. Re-measured on a quiet machine in
+  PLAN 2.10.
 
 ## Consequences
 

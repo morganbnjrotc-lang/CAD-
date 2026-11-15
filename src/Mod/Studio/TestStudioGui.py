@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 """GUI Studio test suite. Run: FreeCAD -t TestStudioGui"""
 
+from StudioTests.gui.test_appearance import AppearanceTest, SessionAppearance  # noqa: F401
 from StudioTests.gui.test_command_backend import (  # noqa: F401
     CommandServiceInTheAppTest,
     DeclaredShortcutTest,

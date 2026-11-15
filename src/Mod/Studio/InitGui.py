@@ -26,7 +26,7 @@ class StudioWorkbench(FreeCADGui.Workbench):
                 self.removeMenu(name)
 
     def Activated(self):
-        from studio.shell import environment, home, shortcuts, warmup, window
+        from studio.shell import appearance, environment, home, shortcuts, warmup, window
 
         # One environment (docs/adr/0009): editing a sketch no longer switches workbench.
         environment.install_once()
@@ -34,6 +34,8 @@ class StudioWorkbench(FreeCADGui.Workbench):
         shortcuts.install_once()
         # Top bar, toolbar that follows the selection, status-bar hint (docs/adr/0009).
         window.install_once()
+        # Studio's look: Fusion, its light or dark palette, 3D colors; follows Windows (docs/adr/0010).
+        appearance.install_once()
         # The Home page replaces FreeCAD's Start page while no document is open (PLAN 2.8).
         home.install_once()
         # Load the cheap workbenches in the background once startup is done (docs/adr/0007).

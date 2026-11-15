@@ -69,6 +69,7 @@ class StudioWindow:
         self._icons = {}
         self._pending = False
         self.kind = None
+        self.extra_menus = []  # Studio's own menus after FreeCAD's in ☰ (e.g. Appearance)
 
     # -- setup -------------------------------------------------------------------------------
     def install(self):
@@ -166,6 +167,10 @@ class StudioWindow:
         menu.clear()
         for action in self._menus():
             menu.addMenu(action.menu())
+        if self.extra_menus:
+            menu.addSeparator()
+            for extra in self.extra_menus:
+                menu.addMenu(extra)
 
     def _icon(self, icon):
         path = icon_file(icon)
