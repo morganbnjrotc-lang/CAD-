@@ -6,9 +6,11 @@ a sketch being edited. Writes <screen>.png files and masks.json (per screen: the
 leave out, and the Tasks panel's rectangle inside it to compare all the same) to STUDIO_VISUAL_OUT, then
 reports to STUDIO_BENCH_OUT and exits without saving preferences.
 
-The window is a fixed 1280 x 800 at the screen's top left, with the mouse pointer moved to the screen's
-bottom right so it hovers nothing that changes, and the app's font is the vendored Noto Sans. (Placed
-off the screen instead, FreeCAD crashed drawing it on GitHub's runner, which has no graphics card.)
+The window is a fixed 1280 x 800, a little in from the screen's top left, with the mouse pointer in that
+corner, outside the window, so it hovers nothing that changes; the app's font is the vendored Noto Sans.
+The size is fixed (minimum = maximum), not just set: Windows keeps a window within the screen unless the
+app gives a maximum, and GitHub's runner has a 1024 x 768 screen (the window came out 1028 x 749).
+(Placed off the screen instead, FreeCAD crashed drawing it on that runner, which has no graphics card.)
 Each step is written to FreeCAD's log ("Visual probe: ..."), which run_visual.py keeps.
 """
 
@@ -23,6 +25,7 @@ OUT = os.environ["STUDIO_VISUAL_OUT"]
 MODEL = os.environ["STUDIO_VISUAL_MODEL"]
 FONT = os.environ["STUDIO_VISUAL_FONT"]
 SIZE = (1280, 800)
+OFFSET = 64  # from the screen's top left: room for the mouse pointer outside the window (and its frame)
 mw = FreeCADGui.getMainWindow()
 masks, report = {}, {"screens": []}
 
@@ -107,8 +110,9 @@ def start():
     use_test_font()
     mw.showNormal()
     screen = QtWidgets.QApplication.primaryScreen().geometry()
-    mw.setGeometry(screen.x(), screen.y(), *SIZE)
-    QtGui.QCursor.setPos(screen.right(), screen.bottom())  # off the window, or over the status text
+    mw.setFixedSize(*SIZE)  # may then be bigger than the screen (see the top)
+    mw.setGeometry(screen.x() + OFFSET, screen.y() + OFFSET, *SIZE)
+    QtGui.QCursor.setPos(screen.x() + 2, screen.y() + 2)  # off the window on any screen size
     report["geometry"] = [mw.x(), mw.y(), mw.width(), mw.height()]
     report["screen"] = [screen.width(), screen.height()]
     note(f"window {report['geometry']} on a {report['screen']} screen")
