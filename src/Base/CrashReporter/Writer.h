@@ -24,6 +24,7 @@
 
 #include <FCConfig.h>
 #include <FCGlobal.h>
+#include <chrono>
 #include <string>
 
 #ifdef _MSC_VER
@@ -42,6 +43,27 @@ public:
      * installed this is a no-op.
      */
     static void prewarm();
+
+    /**
+     * prewarm() without making the caller wait, where that is safe: on Windows it runs on a worker
+     * thread after `delay` (it loads the debug-help library, ~0.25 s, which would otherwise compete
+     * with startup); elsewhere it runs right away, because it sets up what the signal handler reads.
+     * (Fork patch, docs/CORE_PATCHES.md.)
+     */
+    static void prewarmInBackground(std::chrono::milliseconds delay = std::chrono::milliseconds(0));
+
+    /**
+     * Wait until a prewarmInBackground() has finished or been stopped, at most `timeout`. True if
+     * nothing is left to wait for.
+     */
+    static bool waitForPrewarm(std::chrono::milliseconds timeout);
+
+    /**
+     * For a crash: cancel a background prewarm that hasn't started yet, or wait (at most `timeout`)
+     * for one that has, so the debug-help library (not thread-safe) is used by one thread at a time.
+     * True if no prewarm is running any more.
+     */
+    static bool stopPrewarm(std::chrono::milliseconds timeout);
 
     /**
      * Install the signal handlers to capture crashes.

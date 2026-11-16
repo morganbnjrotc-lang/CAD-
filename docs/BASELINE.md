@@ -256,6 +256,30 @@ is very likely the crash reporter's prewarm loading debug symbols. **From now on
 about 0.25 s and the 1.0 s stretch goal about 0.75 s. RelWithDebInfo numbers stay useful for comparing
 two builds of the same kind.
 
+### End of Phase 2 (2026-11-15): 1.41 s
+
+Slim Release, quiet machine (CPU 5–12 %), `bench_startup.py --runs 8` twice: **median 1.41 / 1.41 s**,
+first start 1.48 s, working set at ready 322 MB. Before the change below, the same day: 1.74 / 1.67 s,
+376 MB. Phase 2's shell (window, Home, palette, keymap, the look) didn't make startup slower than on
+2026-11-14 (1.72–1.75 s).
+
+The change: the crash reporter's prewarm (~266 ms, loading dbghelp) runs on a thread 5 s after startup
+([CORE_PATCHES.md](CORE_PATCHES.md), approved by the user). Profiler batches alternated with the unpatched
+DLLs: run on a thread right away, the prewarm competed with startup (the Qt, GUI-init and activation
+phases each got 10–45 ms slower; ready 1617/1608 vs 1654/1797 ms); delayed, ready was 1488/1467 vs
+1924/1730 ms. The lower memory at ready is partly that same library loading 5 s later.
+
+Tried and not kept: FreeCAD's OpenGL check (`StartupPostProcess::checkOpenGL`) moved 5 s later. The
+earlier phases lost ~160 ms but "show main window" gained ~135 ms: OpenGL is set up when the window
+shows anyway. Ready 1426/1446 vs 1437/1444 ms.
+
+Where the 1.41 s goes now (profile, median): process start to first log 100 ms, App init script
+110 ms, Qt application + OpenGL check ~330 ms, main window 50 ms, GUI init scripts ~270 ms (Draft 97,
+Studio 68: 58 of them the first PySide import, which someone pays; Help 40, Measure 33), Studio's
+workbench activation ~410–450 ms (of it ~290 ms Qt's first styling and layout of the window, moved
+there from the first events in 2.6), showing the window ~90 ms. The 1.0 s stretch goal would need
+cuts in Qt's startup or FreeCAD's module loading.
+
 ## Tools
 
 - `tools/test/run_headless_suites.py`: runs suites in a throwaway profile (fails if the profile

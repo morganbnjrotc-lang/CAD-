@@ -3034,7 +3034,9 @@ void Application::initCrashReporter()
     // Make sure anything that escapes doesn't abort startup: this is non-fatal
     try {
         const std::string crashReportsDirectory {getUserAppDataDir() + "CrashReports"};
-        Base::CrashReporter::Writer::prewarm();
+        // Fork patch (docs/CORE_PATCHES.md): where that's safe (Windows), after startup instead of
+        // during it; a crash before then captures without it, as it did before prewarm existed.
+        Base::CrashReporter::Writer::prewarmInBackground(std::chrono::seconds(5));
         Base::CrashReporter::Writer::install(crashReportsDirectory);
         Base::CrashReporter::Manager::scan(
             crashReportsDirectory,

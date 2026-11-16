@@ -235,6 +235,31 @@ void overwriteAtOffset(std::vector<char>& buffer, std::size_t offset, const t& v
     std::memcpy(buffer.data() + offset, &value, sizeof(value));
 }
 
+// Fork patch (docs/CORE_PATCHES.md): startup no longer waits for the prewarm on Windows, so it has to
+// finish by itself, and a crash meanwhile waits for it instead of using dbghelp at the same time.
+TEST_F(CrashReporterTests, prewarmInBackgroundFinishes)  // NOLINT
+{
+    Base::CrashReporter::Writer::prewarmInBackground();
+    EXPECT_TRUE(Base::CrashReporter::Writer::waitForPrewarm(std::chrono::seconds(30)));
+}
+
+TEST_F(CrashReporterTests, waitingWithNoPrewarmRunningReturnsAtOnce)  // NOLINT
+{
+    EXPECT_TRUE(Base::CrashReporter::Writer::waitForPrewarm(std::chrono::milliseconds(0)));
+}
+
+// Startup schedules the prewarm a few seconds later, so it doesn't compete with startup itself. A
+// crash before then must not wait for it: it cancels it and captures the way it did without one.
+TEST_F(CrashReporterTests, aDelayedPrewarmIsStoppedBeforeItStarts)  // NOLINT
+{
+    using namespace std::chrono_literals;
+    Base::CrashReporter::Writer::prewarmInBackground(10s);
+    const auto start = std::chrono::steady_clock::now();
+    EXPECT_TRUE(Base::CrashReporter::Writer::stopPrewarm(2s));
+    EXPECT_LT(std::chrono::steady_clock::now() - start, 1s);
+    EXPECT_TRUE(Base::CrashReporter::Writer::waitForPrewarm(0ms));  // nothing left to wait for
+}
+
 TEST_F(CrashReporterTests, parseMissingFileThrows)  // NOLINT
 {
     // NOLINTNEXTLINE

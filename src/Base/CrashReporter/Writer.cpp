@@ -47,6 +47,7 @@
 #include <fstream>
 #include <string>
 #include <string_view>
+#include <thread>
 
 
 #include <Base/Version.h>
@@ -74,6 +75,9 @@ static std::atomic_flag writing;
 static std::string resolvedCrashFilePath;  // Stored in UTF-8 (so on Windows, convert first)
 #ifdef FC_HAVE_CPPTRACE
 static bool canCaptureSignalSafely = false;  // Determined during the prewarm phase
+// prewarmInBackground(): Idle (none, or done), Scheduled (waiting for its delay), Running, Cancelled
+enum PrewarmState : int { PrewarmIdle, PrewarmScheduled, PrewarmRunning, PrewarmCancelled };
+static std::atomic<int> prewarmState {PrewarmIdle};
 #endif
 
 // Cygwin is a POSIX layer, so it uses the signal handlers rather than the Windows path.
@@ -330,6 +334,8 @@ void Writer::handleException(_EXCEPTION_POINTERS* exceptionInfo)
 # ifdef FC_HAVE_CPPTRACE
     // Windows SEH is NOT async-signal-safe anyway, so no need to take the long path we do on POSIX:
     constexpr std::size_t skip {0};  // Don't skip any frames at this stage
+    // A crash early in startup: dbghelp (not thread-safe) must be used by one thread at a time.
+    stopPrewarm(std::chrono::seconds(2));
     auto trace = cpptrace::generate_object_trace(skip);
     for (const auto& objectFrame : trace) {
         Frame extractedFrame;
@@ -395,6 +401,54 @@ void Writer::prewarm()
     }
 # endif
 #endif
+}
+
+void Writer::prewarmInBackground(std::chrono::milliseconds delay)
+{
+#ifdef FC_CRASHREPORTER_WINDOWS
+    prewarmState = PrewarmScheduled;
+    std::thread([delay] {
+        std::this_thread::sleep_for(delay);
+        int expected = PrewarmScheduled;
+        if (!prewarmState.compare_exchange_strong(expected, PrewarmRunning)) {
+            return;  // stopped by a crash, or replaced by a later call
+        }
+        try {
+            prewarm();
+        }
+        catch (...) {  // non-fatal, like a failed prewarm at startup
+        }
+        expected = PrewarmRunning;
+        prewarmState.compare_exchange_strong(expected, PrewarmIdle);
+    }).detach();
+#else
+    (void)delay;
+    prewarm();
+#endif
+}
+
+static bool waitWhile(int busy, std::chrono::milliseconds timeout)
+{
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (prewarmState == busy || (busy == PrewarmScheduled && prewarmState == PrewarmRunning)) {
+        if (std::chrono::steady_clock::now() >= deadline) {
+            return false;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    return true;
+}
+
+bool Writer::waitForPrewarm(std::chrono::milliseconds timeout)
+{
+    return waitWhile(PrewarmScheduled, timeout);  // scheduled or running
+}
+
+bool Writer::stopPrewarm(std::chrono::milliseconds timeout)
+{
+    int expected = PrewarmScheduled;
+    prewarmState.compare_exchange_strong(expected, PrewarmCancelled);  // not started yet: never start
+    return waitWhile(PrewarmRunning, timeout);
 }
 
 void Writer::install(const std::string& crashReportDirectory)
