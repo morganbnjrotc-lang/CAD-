@@ -98,6 +98,11 @@ class StudioCITest(unittest.TestCase):
         self.assertRegex(commands, r"run_gui_suites\.py .*TestStudioGui")
         self.assertNotRegex(commands, r"FreeCAD\.exe.* -t ")
         self.assertIn("startup_smoke.py", commands)
+        # The runner has no graphics card, only Windows' OpenGL 1.1, with which FreeCAD's 3D view
+        # crashes drawing: Qt's Mesa renderer goes next to FreeCAD.exe as opengl32.dll (found first)
+        # before any GUI step. (FreeCAD's own "UseSoftwareOpenGL" preference has no effect on Windows.)
+        self.assertIn("opengl32sw.dll build/slim-release/bin/opengl32.dll", commands)
+        self.assertLess(commands.index("opengl32.dll"), commands.index("run_gui_suites.py"))
         # Studio's screens against their reviewed pictures (PLAN 2.10): an upstream merge or a
         # change that alters the look fails here.
         self.assertRegex(commands, r"run_visual\.py .*--build-dir build/slim-release")

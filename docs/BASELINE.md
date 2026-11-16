@@ -99,6 +99,18 @@ a stylesheet on the task view, or a transparent window color in its palette (202
 gone with that one change undone. Needs a native stack (a debugger is not installed); left as is for now
 (PLAN 2.9).
 
+### Known upstream issue: "Use software OpenGL" has no effect on Windows
+
+`StartupProcess::setupApplication` always sets `Qt::AA_UseDesktopOpenGL`, and sets
+`Qt::AA_UseSoftwareOpenGL` as well when `Preferences/OpenGL/UseSoftwareOpenGL` is on. Qt's Windows
+plugin checks the desktop attribute first, so the preference (and `QT_OPENGL=software`) changes nothing:
+checked 2026-11-15, the log still reported the graphics card's OpenGL 4.6. It matters on machines
+without a graphics card, such as GitHub's Windows runner: there FreeCAD gets Windows' OpenGL 1.1, and
+its 3D view crashes drawing (access violations caught in `GUIApplication::notify`, in a loop). The GUI
+tests open documents there without noticing; the visual check hung. CI puts Qt's Mesa renderer next to
+`FreeCAD.exe` as `opengl32.dll`, which Windows finds first (OpenGL 3.0, Mesa). The fix (clearing the
+desktop attribute when the preference is on) is a one-line core patch, not made: worth sending upstream.
+
 ### GUI tests on a locked screen
 
 With Windows locked (LogonUI running), each round of Qt events in the GUI suite takes ~1.5 s (66 tests:

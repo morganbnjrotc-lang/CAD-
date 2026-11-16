@@ -110,6 +110,14 @@ jobs:
         timeout-minutes: 20
         run: pixi run python tools/test/run_headless_suites.py --exe build/slim-release/bin/FreeCADCmd.exe TestStudioApp
 
+      # The runner has no graphics card, only Windows' OpenGL 1.1, with which FreeCAD's 3D view
+      # crashes drawing (seen in the visual check). Qt's Mesa software renderer, put next to
+      # FreeCAD.exe as opengl32.dll, is found before Windows' own. FreeCAD's "UseSoftwareOpenGL"
+      # preference would be the way, but it has no effect on Windows (docs/BASELINE.md).
+      - name: Software OpenGL for the runner (no graphics card)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: Copy-Item .pixi/envs/default/Library/bin/opengl32sw.dll build/slim-release/bin/opengl32.dll
+
       - name: Studio GUI tests
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 20
