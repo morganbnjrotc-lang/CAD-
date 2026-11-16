@@ -9,6 +9,7 @@ FreeCAD keeps the 3D view's and the sketch editor's colors in its own settings (
 it wrote, so a color the user later changes in Preferences is left alone.
 """
 
+import os
 from dataclasses import dataclass
 
 import FreeCAD
@@ -89,17 +90,27 @@ def current_mode(settings, system_is_dark: bool) -> str:
     return chosen
 
 
-def default_to_fusion(main_window: str = MAIN_WINDOW) -> bool:
-    """Picks Qt's Fusion style unless the user picked a style or a FreeCAD stylesheet.
+def default_to_fusion(main_window: str = MAIN_WINDOW, environ=None) -> bool:
+    """Picks Qt's Fusion style unless the user picked a style or a FreeCAD stylesheet, and has Qt start
+    in it whenever Fusion is the style FreeCAD will apply. Returns whether Studio picked it.
 
     Called from Init.py, before the GUI starts, so FreeCAD builds its window in Fusion instead of
-    restyling it later (measured: a live switch costs ~0.2 s on the first start).
+    restyling it later (measured: a live switch costs ~0.2 s on the first start). FreeCAD builds its
+    main window first and applies the style in its preferences after, so the preference alone doesn't
+    do that: Qt starts in its own default style, on Windows 11 "windows11", and the switch to Fusion
+    leaves the model tree's and the property editor's backgrounds unpainted (they showed the window
+    color behind them, on Windows 11 only). Qt starts in the style QT_STYLE_OVERRIDE names
+    (`environ`, the process's environment by default), read when FreeCAD creates its application,
+    which is after Init.py. One given from outside stays.
     """
+    environ = os.environ if environ is None else environ
     group = FreeCAD.ParamGet(main_window)
-    if group.GetString("QtStyle", "") or group.GetString("StyleSheet", ""):
-        return False
-    group.SetString("QtStyle", "Fusion")
-    return True
+    picked = not group.GetString("QtStyle", "") and not group.GetString("StyleSheet", "")
+    if picked:
+        group.SetString("QtStyle", "Fusion")
+    if group.GetString("QtStyle", "") == "Fusion":
+        environ.setdefault("QT_STYLE_OVERRIDE", "Fusion")
+    return picked
 
 
 def palette(mode: str) -> Palette:

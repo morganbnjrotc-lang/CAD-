@@ -107,18 +107,42 @@ class QtStyle(unittest.TestCase):
         self.group = FreeCAD.ParamGet(self.path)
 
     def test_fusion_when_nothing_was_picked(self):
-        self.assertTrue(theme.default_to_fusion(self.path))
+        self.assertTrue(theme.default_to_fusion(self.path, environ={}))
         self.assertEqual(self.group.GetString("QtStyle", ""), "Fusion")
 
     def test_a_style_the_user_picked_stays(self):
         self.group.SetString("QtStyle", "Windows")
-        self.assertFalse(theme.default_to_fusion(self.path))
+        environ = {}
+        self.assertFalse(theme.default_to_fusion(self.path, environ))
         self.assertEqual(self.group.GetString("QtStyle", ""), "Windows")
+        self.assertNotIn("QT_STYLE_OVERRIDE", environ)
 
     def test_a_freecad_stylesheet_keeps_its_own_style(self):
         self.group.SetString("StyleSheet", "FreeCAD.qss")
-        self.assertFalse(theme.default_to_fusion(self.path))
+        environ = {}
+        self.assertFalse(theme.default_to_fusion(self.path, environ))
         self.assertEqual(self.group.GetString("QtStyle", ""), "")
+        self.assertNotIn("QT_STYLE_OVERRIDE", environ)
+
+    # FreeCAD builds its window first and applies the style in its preferences after. Built in
+    # Windows 11's own style and then switched to Fusion, Qt leaves the model tree's and the property
+    # editor's backgrounds unpainted. Qt starts in the style QT_STYLE_OVERRIDE names, read when FreeCAD
+    # creates its application, which is after Init.py.
+    def test_qt_starts_in_fusion(self):
+        environ = {}
+        theme.default_to_fusion(self.path, environ)
+        self.assertEqual(environ.get("QT_STYLE_OVERRIDE"), "Fusion")
+
+    def test_qt_starts_in_fusion_on_later_starts_too(self):
+        self.group.SetString("QtStyle", "Fusion")  # what the first start wrote
+        environ = {}
+        theme.default_to_fusion(self.path, environ)
+        self.assertEqual(environ.get("QT_STYLE_OVERRIDE"), "Fusion")
+
+    def test_a_style_override_already_given_stays(self):
+        environ = {"QT_STYLE_OVERRIDE": "windowsvista"}
+        theme.default_to_fusion(self.path, environ)
+        self.assertEqual(environ["QT_STYLE_OVERRIDE"], "windowsvista")
 
 
 class FreeCADColorSettings(unittest.TestCase):

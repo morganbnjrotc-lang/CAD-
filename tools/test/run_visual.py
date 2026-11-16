@@ -10,7 +10,9 @@ Usage (from the repo root):
 Screens: Home, a model with a face selected, a sketch being edited; each in light and dark (a fresh
 profile per mode). The 3D view is masked (OpenGL drawing differs between graphics cards; its colors
 are checked by the theme tests), except the Tasks panel floating over it. To keep pictures the same across machines: a fixed 1280 x 800 window
-at the screen's top left with the mouse pointer moved off it (no hover), the vendored Noto Sans drawn by FreeType instead of the system font, no high-DPI scaling, the example files
+with the mouse pointer off it (no hover), the vendored Noto Sans drawn by FreeType instead of the system font, no
+high-DPI scaling and text and Qt's sizes at 96 DPI (100 %) whatever the display's scaling (checked: a 125 % display
+pinned at 96 DPI draws Home pixel for pixel as GitHub's runner, which is at 100 %), the example files
 copied with fixed "saved 3 days ago" dates, status messages cleared. On a mismatch the actual picture
 and a diff (differing pixels in magenta) go to build/test-logs/visual. Exit code 0 only if all match.
 """
@@ -41,6 +43,7 @@ MODES = ("light", "dark")
 ENV = {
     "QT_QPA_PLATFORM": "windows:fontengine=freetype",  # the same text on every Windows machine
     "QT_ENABLE_HIGHDPI_SCALING": "0",
+    "QT_FONT_DPI": "96",  # the same text and sizes at any display scaling (see the top)
 }
 
 

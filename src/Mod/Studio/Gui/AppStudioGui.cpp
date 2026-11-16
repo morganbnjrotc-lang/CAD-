@@ -236,7 +236,9 @@ public:
             "panel_style() -> dict\n\n"
             "What style_panels set, read back for checks: 'group_rows' [(background, text)] per\n"
             "property editor, 'flat_property_area' [bool], 'title_icons' {action name: PNG bytes},\n"
-            "'status_labels' [(name, text color)] for the status bar's plain labels. Colors '#RRGGBB'."
+            "'status_labels' [(name, text color)] for the status bar's plain labels, 'views'\n"
+            "[(class name, paints its background)] for the model trees and property editors.\n"
+            "Colors '#RRGGBB'."
         );
         initialize("Studio's C++ helpers for the shell (docs/adr/0007, 0008, 0010).");
     }
@@ -397,6 +399,16 @@ private:
             labels.append(entry);
         }
         result.setItem("status_labels", labels);
+        Py::List views;
+        for (auto* view : main->findChildren<QAbstractItemView*>()) {
+            if (view->inherits("Gui::TreeWidget") || view->inherits("Gui::PropertyEditor::PropertyEditor")) {
+                Py::Tuple entry(2);
+                entry.setItem(0, Py::String(view->metaObject()->className()));
+                entry.setItem(1, Py::Boolean(view->viewport()->autoFillBackground()));
+                views.append(entry);
+            }
+        }
+        result.setItem("views", views);
         return result;
     }
 

@@ -75,7 +75,13 @@ changes. Studio's `Init.py` runs before the GUI starts.
   Follow Windows, Light and Dark. The tree's edited and active rows take the soft accent too
   (`TreeView/TreeEditColor`, `TreeActiveColor`). Fusion is picked in `Init.py` (`theme.default_to_fusion`):
   set later, from Studio's activation, Qt restyled the finished window and the first start took ~0.2 s
-  longer.
+  longer. FreeCAD still builds its main window before it applies the preference, so Qt also starts in
+  Fusion (`QT_STYLE_OVERRIDE`, set by the same call; Qt reads it when FreeCAD creates its application,
+  after `Init.py`). Found in 2.10 through the visual baselines: built in Windows 11's own style
+  ("windows11") and then switched to Fusion, Qt left the model tree's and the property editor's
+  backgrounds unpainted, so on Windows 11 they showed the bars' grey behind them, and on Windows 10 and
+  Server ("windowsvista") they were white. Now white everywhere, the palette's list color like the Tasks
+  panel's lists. Startup unchanged (median 1.39 s).
 - Startup cost of step 2: Studio's call takes ~3 ms, timed inside the app. End-to-end A/B runs on a busy
   machine (CPU ~15%, runs spread over ±0.3 s) can't resolve the rest: three sessions gave median
   differences of −10 to +140 ms and mean differences of −13 to +64 ms. Re-measured on a quiet machine in

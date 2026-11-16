@@ -212,6 +212,14 @@ class SessionAppearance(unittest.TestCase):
         self.assertEqual(QtWidgets.QApplication.style().name().lower(), "fusion")
         self.assertEqual(window_color(), theme.palette(self.appearance.mode).window)
 
+    def test_freecads_lists_paint_their_background(self):
+        # The model tree and the property editors on the palette's list color. Built in Windows 11's
+        # own style and then switched to Fusion, Qt left them unpainted: on Windows 11 only, they
+        # showed the window color behind them (caught by the visual baselines on CI's Windows Server).
+        views = panel_style()["views"]
+        self.assertTrue(views)
+        self.assertEqual([name for name, painted in views if not painted], [])
+
     def test_the_3d_view_uses_the_palette(self):
         view = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/View")
         p = theme.palette(self.appearance.mode)
