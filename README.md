@@ -2,10 +2,10 @@
 
 A fast, fully local, lightweight CAD/CAM application built on top of [FreeCAD](https://github.com/FreeCAD/FreeCAD) — with a radically cleaner interface.
 
-> **Status:** Phase 1 (foundation) is done. Phase 2 (the clean, unified shell) is in progress: one
-> environment with a toolbar that follows the selection, keyboard shortcuts by context, a command
-> palette, a Home page with recent files and its own look (light and dark following Windows, line
-> icons) are in. Next: visual baselines and the startup budget check. See [docs/PLAN.md](docs/PLAN.md).
+> **Status:** Phases 1 (foundation) and 2 (the clean, unified shell) are done: one environment with a
+> toolbar that follows the selection, keyboard shortcuts by context, a command palette, a Home page
+> with recent files and its own look (light and dark following Windows, line icons), checked against
+> reviewed screenshots in CI, and a 1.41 s startup. Next: Phase 3 (modeling UX). See [docs/PLAN.md](docs/PLAN.md).
 > Nothing below is implemented yet unless marked ✅.
 
 ## Principles
