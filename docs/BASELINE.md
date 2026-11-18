@@ -115,7 +115,9 @@ desktop attribute when the preference is on) is a one-line core patch, not made:
 
 With Windows locked (LogonUI running), each round of Qt events in the GUI suite takes ~1.5 s (66 tests:
 ~6 s unlocked, ~70 s locked) and `test_palette_window.Wiring` fails: the command palette is a popup,
-which can't take focus. The last commit fails it the same way; run the GUI suite unlocked.
+which can't take focus. The last commit fails it the same way; run the GUI suite unlocked. Seen again
+2026-11-17 (100 tests, 76 s locked): also `test_warmup_runner.WarmUpRunnerTest.test_a_failed_load_is_reported_and_the_rest_still_load`
+times out waiting for the background loads; both fail the same way without that day's changes.
 
 ### Known upstream issue: C++ tests fail on a fresh build folder on Windows (fixed)
 

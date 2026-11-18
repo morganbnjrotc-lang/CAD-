@@ -12,7 +12,8 @@ profile per mode). The 3D view is masked (OpenGL drawing differs between graphic
 are checked by the theme tests), except the Tasks panel floating over it. To keep pictures the same across machines: a fixed 1280 x 800 window
 with the mouse pointer off it (no hover), the vendored Noto Sans drawn by FreeType instead of the system font, no
 high-DPI scaling and text and Qt's sizes at 96 DPI (100 %) whatever the display's scaling (checked: a 125 % display
-pinned at 96 DPI draws Home pixel for pixel as GitHub's runner, which is at 100 %), the example files
+pinned at 96 DPI draws Home pixel for pixel as GitHub's runner, which is at 100 %), sizes in inches (Studio's Units
+setting, not the machine's region), the example files
 copied with fixed "saved 3 days ago" dates, status messages cleared. On a mismatch the actual picture
 and a diff (differing pixels in magenta) go to build/test-logs/visual. Exit code 0 only if all match.
 """
@@ -57,6 +58,7 @@ def capture(exe: Path, mode: str, out: Path) -> dict:
             os.utime(files / name, (saved, saved))
         settings = {f"BaseApp/Preferences/RecentFiles/MRU{i}": (files / n).as_posix() for i, n in enumerate(RECENT)}
         settings["BaseApp/Preferences/Mod/Studio/Appearance/Mode"] = mode
+        settings["BaseApp/Preferences/Mod/Studio/Units/System"] = "inches"  # not the machine's region
         settings["BaseApp/Preferences/Mod/Studio/Commands/WarmUp"] = False  # no background loading meanwhile
         env = dict(ENV, STUDIO_VISUAL_OUT=str(out), STUDIO_VISUAL_MODEL=str(files / RECENT[0]),
                    STUDIO_VISUAL_FONT=str(FONT))

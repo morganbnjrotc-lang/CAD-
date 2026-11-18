@@ -240,6 +240,14 @@ public:
             "[(class name, paints its background)] for the model trees and property editors.\n"
             "Colors '#RRGGBB'."
         );
+        add_varargs_method(
+            "units_changed",
+            &Module::unitsChanged,
+            "units_changed()\n\n"
+            "Shows sizes in the unit schema just set (PLAN 3.1), as FreeCAD's own unit menu in the status\n"
+            "bar does: updates the documents' views and repaints the property editors, whose rows format\n"
+            "their sizes when drawn. In C++ for the same reason as style_panels."
+        );
         initialize("Studio's C++ helpers for the shell (docs/adr/0007, 0008, 0010).");
     }
 
@@ -410,6 +418,20 @@ private:
         }
         result.setItem("views", views);
         return result;
+    }
+
+    Py::Object unitsChanged(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        Gui::Application::Instance->onUpdate();
+        if (Gui::MainWindow* main = Gui::getMainWindow()) {
+            for (auto* editor : propertyEditors(main)) {
+                editor->viewport()->update();
+            }
+        }
+        return Py::None();
     }
 
     Py::Object initializeWorkbench(const Py::Tuple& args)

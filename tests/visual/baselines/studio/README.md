@@ -13,7 +13,8 @@ graphics cards, and the 3D colors are checked by the theme tests), except the Ta
 it, which is compared like the rest. To get the same pictures on any machine, the run uses a fixed
 1280 x 800 window (fixed, so it can be bigger than a small screen such as CI's 1024 x 768) with the mouse
 pointer outside it, the vendored Noto Sans (`tests/visual/fonts`) drawn by FreeType, no high-DPI scaling,
-text and Qt's sizes at 96 DPI (100 %) whatever the display's scaling, copies of the example files dated
+text and Qt's sizes at 96 DPI (100 %) whatever the display's scaling, sizes in inches (Studio's Units
+setting, not the machine's region), copies of the example files dated
 three days back, and status messages cleared. A screen matches when at most 0.2 % of its pixels differ by
 more than 8 in a color channel (FreeCAD's own snapshot rule).
 

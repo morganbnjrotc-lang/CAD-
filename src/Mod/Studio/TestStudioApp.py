@@ -29,6 +29,7 @@ from StudioTests.test_icons import Drawings  # noqa: F401
 from StudioTests.test_icons import Names as IconNames  # noqa: F401
 from StudioTests.test_theme import Colors, FreeCADColorSettings, Mode, Palettes, QtStyle  # noqa: F401
 from StudioTests.test_palette import Items, Ranking, Recent  # noqa: F401
+from StudioTests.test_units import Choice, FreeCADUnitSettings, Schemas  # noqa: F401
 from StudioTests.test_palette import ShippedCatalog as PaletteShippedCatalog  # noqa: F401
 from StudioTests.test_warmup import WarmUpPlan  # noqa: F401
 from StudioTests.test_settings import (  # noqa: F401
