@@ -16,6 +16,8 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMap>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QStatusBar>
@@ -31,10 +33,15 @@
 #include <Base/Interpreter.h>
 #include <Base/PyObjectBase.h>  // PyMOD_INIT_FUNC
 #include <Base/Type.h>
+#include <Inventor/SbViewportRegion.h>
+#include <Inventor/SoRenderManager.h>
+
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
 #include <Gui/Command.h>
 #include <Gui/MainWindow.h>
+#include <Gui/View3DInventor.h>
+#include <Gui/View3DInventorViewer.h>
 #include <Gui/Workbench.h>
 #include <Gui/WorkbenchManager.h>
 
@@ -52,6 +59,104 @@ bool isTextInput(QWidget* widget)
     auto* combo = qobject_cast<QComboBox*>(widget);
     return combo && combo->isEditable();
 }
+
+// Synthetic input for tests (PLAN 3.2): the active 3D view's viewer, and keys by character.
+Gui::View3DInventorViewer* activeViewer()
+{
+    Gui::MainWindow* main = Gui::getMainWindow();
+    auto* view = main ? dynamic_cast<Gui::View3DInventor*>(main->activeWindow()) : nullptr;
+    if (!view) {
+        throw Py::RuntimeError("no 3D view is active");
+    }
+    return view->getViewer();
+}
+
+int keyForCharacter(QChar c)
+{
+    if (c >= QLatin1Char('0') && c <= QLatin1Char('9')) {
+        return Qt::Key_0 + (c.unicode() - '0');
+    }
+    if (c.isLetter() && c.toUpper() >= QLatin1Char('A') && c.toUpper() <= QLatin1Char('Z')) {
+        return Qt::Key_A + (c.toUpper().unicode() - 'A');
+    }
+    switch (c.unicode()) {
+        case '.':
+            return Qt::Key_Period;
+        case ',':
+            return Qt::Key_Comma;
+        case ' ':
+            return Qt::Key_Space;
+        case '-':
+            return Qt::Key_Minus;
+        case '"':
+            return Qt::Key_QuoteDbl;
+        default:
+            return 0;
+    }
+}
+
+int keyForName(const QString& name)
+{
+    static const QMap<QString, int> keys {
+        {QStringLiteral("Tab"), Qt::Key_Tab},
+        {QStringLiteral("Return"), Qt::Key_Return},
+        {QStringLiteral("Escape"), Qt::Key_Escape},
+        {QStringLiteral("Backspace"), Qt::Key_Backspace},
+    };
+    return keys.value(name, 0);
+}
+
+// Where keys go: the main window's focus widget (set even while the window isn't active, as when the
+// screen is locked). A spin box's inner line edit forwards to the spin box, which FreeCAD's on-view
+// size boxes watch.
+QWidget* keyTarget()
+{
+    Gui::MainWindow* main = Gui::getMainWindow();
+    QWidget* target = main ? main->focusWidget() : nullptr;
+    if (target && qobject_cast<QLineEdit*>(target)
+        && qobject_cast<QAbstractSpinBox*>(target->parentWidget())) {
+        target = target->parentWidget();
+    }
+    return target;
+}
+
+bool inA3DView(QWidget* widget)
+{
+    for (QWidget* parent = widget; parent; parent = parent->parentWidget()) {
+        if (dynamic_cast<Gui::View3DInventor*>(parent)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Typing into a size box in the 3D view replaces its whole text, unit included, as in Fusion (PLAN
+// 3.2). FreeCAD selects only the number ("1.52| in|"), and re-selects it as the box follows the mouse,
+// so "50 mm" typed became "50 mm in", which the box read as 50 in. On the first key typed while the
+// number is selected, everything is selected instead; the key then replaces it.
+class SizeBoxTyping: public QObject
+{
+public:
+    bool eventFilter(QObject* watched, QEvent* event) override
+    {
+        if (event->type() != QEvent::KeyPress || !watched->inherits("Gui::QuantitySpinBox")) {
+            return false;
+        }
+        auto* key = static_cast<QKeyEvent*>(event);
+        const QString text = key->text();
+        if (text.isEmpty() || !text.at(0).isPrint()
+            || (key->modifiers() & (Qt::ControlModifier | Qt::AltModifier))) {
+            return false;
+        }
+        auto* box = static_cast<QWidget*>(watched);
+        auto* edit = box->findChild<QLineEdit*>();
+        if (!edit || !edit->hasSelectedText() || edit->selectedText() == edit->text() || !inA3DView(box)) {
+            return false;
+        }
+        edit->selectAll();
+        return false;  // the key goes on and replaces the selection
+    }
+};
 
 // FreeCAD's panels as Studio styles them (docs/adr/0010, studio/shell/appearance.py).
 const char* const PropertyEditorClass = "Gui::PropertyEditor::PropertyEditor";
@@ -248,12 +353,46 @@ public:
             "bar does: updates the documents' views and repaints the property editors, whose rows format\n"
             "their sizes when drawn. In C++ for the same reason as style_panels."
         );
+        add_varargs_method(
+            "install_size_box_typing",
+            &Module::installSizeBoxTyping,
+            "install_size_box_typing()\n\n"
+            "From now on, typing into a size box in the 3D view (the boxes sketch tools show while\n"
+            "drawing) replaces its whole text, unit included, as in Fusion (PLAN 3.2). Once per session."
+        );
+        add_varargs_method(
+            "view_point",
+            &Module::viewPoint,
+            "view_point(x, y, z) -> (px, py)\n\n"
+            "For tests: where a point (document coordinates, mm) shows in the active 3D view, in the view\n"
+            "widget's pixels from its top left."
+        );
+        add_varargs_method(
+            "view_mouse",
+            &Module::viewMouse,
+            "view_mouse(action, px, py)\n\n"
+            "For tests: 'move', 'press', 'release' or 'click' (left button) at a pixel of the active 3D view."
+        );
+        add_varargs_method(
+            "type_keys",
+            &Module::typeKeys,
+            "type_keys(text)\n\n"
+            "For tests: types `text` into the main window's focus widget; keys by name in braces: {Tab},\n"
+            "{Return}, {Escape}, {Backspace}. Raises RuntimeError if nothing has the focus."
+        );
+        add_varargs_method(
+            "focus_widget",
+            &Module::focusWidget,
+            "focus_widget() -> (class name, is a size box in the 3D view, its text) or None\n\n"
+            "For tests: what keys typed now would go to."
+        );
         initialize("Studio's C++ helpers for the shell (docs/adr/0007, 0008, 0010).");
     }
 
 private:
     std::map<long, KeyEventGate*> gates;
     long nextGateId = 1;
+    SizeBoxTyping* sizeBoxTyping = nullptr;
 
     Py::Object addKeyFilter(const Py::Tuple& args)
     {
@@ -432,6 +571,137 @@ private:
             }
         }
         return Py::None();
+    }
+
+    Py::Object installSizeBoxTyping(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        if (!sizeBoxTyping) {
+            sizeBoxTyping = new SizeBoxTyping();
+            qApp->installEventFilter(sizeBoxTyping);
+        }
+        return Py::None();
+    }
+
+    Py::Object viewPoint(const Py::Tuple& args)
+    {
+        double x = 0;
+        double y = 0;
+        double z = 0;
+        if (!PyArg_ParseTuple(args.ptr(), "ddd", &x, &y, &z)) {
+            throw Py::Exception();
+        }
+        Gui::View3DInventorViewer* viewer = activeViewer();
+        const SbVec2s point = viewer->getPointOnViewport(SbVec3f(float(x), float(y), float(z)));
+        const SbVec2s size = viewer->getSoRenderManager()->getViewportRegion().getViewportSizePixels();
+        const double ratio = viewer->getGLWidget()->devicePixelRatioF();
+        Py::Tuple result(2);
+        result.setItem(0, Py::Float(point[0] / ratio));
+        result.setItem(1, Py::Float((size[1] - point[1] - 1) / ratio));
+        return result;
+    }
+
+    Py::Object viewMouse(const Py::Tuple& args)
+    {
+        char* action = nullptr;
+        double px = 0;
+        double py = 0;
+        if (!PyArg_ParseTuple(args.ptr(), "sdd", &action, &px, &py)) {
+            throw Py::Exception();
+        }
+        QWidget* widget = activeViewer()->getGLWidget();
+        const QPointF local(px, py);
+        const QPointF global = widget->mapToGlobal(local);
+        auto send = [&](QEvent::Type type, Qt::MouseButton button, Qt::MouseButtons buttons) {
+            QMouseEvent event(type, local, global, button, buttons, Qt::NoModifier);
+            QApplication::sendEvent(widget, &event);
+        };
+        const std::string what(action);
+        if (what == "move") {
+            send(QEvent::MouseMove, Qt::NoButton, Qt::NoButton);
+        }
+        else if (what == "press" || what == "click") {
+            send(QEvent::MouseMove, Qt::NoButton, Qt::NoButton);
+            send(QEvent::MouseButtonPress, Qt::LeftButton, Qt::LeftButton);
+            if (what == "click") {
+                send(QEvent::MouseButtonRelease, Qt::LeftButton, Qt::NoButton);
+            }
+        }
+        else if (what == "release") {
+            send(QEvent::MouseButtonRelease, Qt::LeftButton, Qt::NoButton);
+        }
+        else {
+            throw Py::ValueError("action is 'move', 'press', 'release' or 'click'");
+        }
+        return Py::None();
+    }
+
+    Py::Object typeKeys(const Py::Tuple& args)
+    {
+        char* utf8 = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "s", &utf8)) {
+            throw Py::Exception();
+        }
+        const QString text = QString::fromUtf8(utf8);
+        for (qsizetype i = 0; i < text.size(); ++i) {
+            int key = 0;
+            QString typed;
+            if (text[i] == QLatin1Char('{')) {
+                const qsizetype end = text.indexOf(QLatin1Char('}'), i);
+                if (end < 0) {
+                    throw Py::ValueError("unclosed { in keys");
+                }
+                key = keyForName(text.mid(i + 1, end - i - 1));
+                if (key == Qt::Key_Tab) {
+                    typed = QStringLiteral("\t");
+                }
+                else if (key == Qt::Key_Return) {
+                    typed = QStringLiteral("\r");
+                }
+                i = end;
+            }
+            else {
+                key = keyForCharacter(text[i]);
+                typed = text[i];
+            }
+            if (key == 0) {
+                throw Py::ValueError("no key for " + text.mid(i, 1).toStdString());
+            }
+            QWidget* target = keyTarget();  // may change after each key, e.g. after Tab
+            if (!target) {
+                throw Py::RuntimeError("nothing has the keyboard focus");
+            }
+            QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier, typed);
+            QApplication::sendEvent(target, &press);
+            if ((target = keyTarget())) {
+                QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier, typed);
+                QApplication::sendEvent(target, &release);
+            }
+            QApplication::processEvents();
+        }
+        return Py::None();
+    }
+
+    Py::Object focusWidget(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        QWidget* target = keyTarget();
+        if (!target) {
+            return Py::None();
+        }
+        auto* spinBox = qobject_cast<QAbstractSpinBox*>(target);
+        QWidget* view = Gui::getMainWindow()->activeWindow();
+        const bool inView = spinBox && view && dynamic_cast<Gui::View3DInventor*>(view)
+            && view->isAncestorOf(target);
+        Py::Tuple result(3);
+        result.setItem(0, Py::String(target->metaObject()->className()));
+        result.setItem(1, Py::Boolean(inView));
+        result.setItem(2, Py::String(spinBox ? spinBox->text().toStdString() : std::string()));
+        return result;
     }
 
     Py::Object initializeWorkbench(const Py::Tuple& args)
