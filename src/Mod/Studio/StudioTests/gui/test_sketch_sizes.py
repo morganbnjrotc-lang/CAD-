@@ -3,95 +3,15 @@
 next to the cursor, Tab to the next box, Return; the typed sizes become dimensions.
 
 FreeCAD's sketch tools already do this ("on-view parameters"); these tests check them in Studio (its own
-environment, its single-key shortcuts, the user's units) with synthetic mouse and key input. The input
-goes through StudioGui's C++ helpers: Python wrappers of FreeCAD's 3D view widgets make FreeCAD abort at
-exit (docs/BASELINE.md).
+environment, its single-key shortcuts, the user's units) with synthetic mouse and key input
+(StudioTests/gui/sketch_input.py).
 """
 
-import unittest
-import uuid
-
-import FreeCAD
-import FreeCADGui
-from PySide import QtCore, QtWidgets  # FreeCAD's PySide shim
-
 import StudioGui
-from studio.services import units as unit_service
-from studio.services.settings import Settings
-from studio.shell import units
-
-INCH = 25.4
+from StudioTests.gui.sketch_input import INCH, SketchInput
 
 
-def settle(ms=60):
-    loop = QtCore.QEventLoop()
-    QtCore.QTimer.singleShot(ms, loop.quit)
-    loop.exec_()
-    QtWidgets.QApplication.processEvents()
-
-
-class TypedSizes(unittest.TestCase):
-    def setUp(self):
-        original = Settings().get(unit_service.UNITS)
-        self.addCleanup(units.current().set_choice, original)
-        units.current().set_choice("inches")
-        self.doc = FreeCAD.newDocument("Sizes" + uuid.uuid4().hex[:8])
-        self.addCleanup(self.close)
-        self.sketch = self.doc.addObject("Sketcher::SketchObject", "Sketch")
-        self.doc.recompute()
-        FreeCADGui.ActiveDocument.setEdit(self.sketch.Name)
-        settle(200)
-        view = FreeCADGui.ActiveDocument.ActiveView
-        view.setCameraType("Orthographic")
-        view.getCameraNode().height.setValue(8 * INCH)  # the view shows about 8 in from top to bottom
-        settle(100)
-
-    def close(self):
-        if FreeCAD.ActiveDocument is not None:
-            gui = FreeCADGui.getDocument(self.doc.Name)
-            if gui.getInEdit() is not None:
-                StudioGui.type_keys("{Escape}") if StudioGui.focus_widget() else None
-                gui.resetEdit()
-        settle(100)
-        FreeCAD.closeDocument(self.doc.Name)
-        settle(50)
-
-    # -- input, in the sketch's own coordinates (inches) ---------------------------------------
-    def at(self, x, y):
-        point = self.sketch.getGlobalPlacement().multVec(FreeCAD.Vector(x * INCH, y * INCH, 0))
-        return StudioGui.view_point(point.x, point.y, point.z)
-
-    def move(self, x, y):
-        StudioGui.view_mouse("move", *self.at(x, y))
-        settle()
-
-    def click(self, x, y):
-        StudioGui.view_mouse("click", *self.at(x, y))
-        settle(120)
-
-    def type(self, keys):
-        StudioGui.type_keys(keys)
-        settle(120)
-
-    def tool(self, command):
-        FreeCADGui.runCommand(command, 0)
-        settle(150)
-
-    def finish(self):
-        """Leaves the tool (FreeCAD's tools keep drawing until Escape)."""
-        if StudioGui.focus_widget() is not None:
-            self.type("{Escape}")
-        FreeCADGui.ActiveDocument.ActiveView.getViewer()  # nothing: keeps the view alive
-        settle(100)
-
-    def dimensions(self):
-        return sorted((c.Type, round(c.Value, 4)) for c in self.sketch.Constraints
-                      if c.Type in ("Distance", "DistanceX", "DistanceY", "Diameter", "Radius"))
-
-    def kinds(self):
-        return sorted(c.Type for c in self.sketch.Constraints)
-
-    # -- the tests -----------------------------------------------------------------------------
+class TypedSizes(SketchInput):
     def test_the_size_box_takes_typing_once_a_line_is_started(self):
         self.tool("Sketcher_CreateLine")
         self.click(1, 1)
