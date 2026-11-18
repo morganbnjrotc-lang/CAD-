@@ -5,7 +5,7 @@ A fast, fully local, lightweight CAD/CAM application built on top of [FreeCAD](h
 > **Status:** Phases 1 (foundation) and 2 (the clean, unified shell) are done: one environment with a
 > toolbar that follows the selection, keyboard shortcuts by context, a command palette, a Home page
 > with recent files and its own look (light and dark following Windows, line icons), checked against
-> reviewed screenshots in CI, and a 1.41 s startup. Next: Phase 3 (modeling UX). See [docs/PLAN.md](docs/PLAN.md).
+> reviewed screenshots in CI, and a 1.41 s startup. Now: Phase 3 (modeling UX), starting with sketching like Fusion. See [docs/PLAN.md](docs/PLAN.md).
 > Nothing below is implemented yet unless marked ✅.
 
 ## Principles
@@ -27,6 +27,7 @@ Inspiration: the feature set shown in [this FizCAD demo](https://www.youtube.com
 
 | Feature | FreeCAD today | What we need to do |
 |---|---|---|
+| Sketching like Fusion: sizes typed while drawing, automatic constraints, one-click Fully Constrain | Partial — sizes typed while drawing and most automatic constraints exist; no one-click way to fully define a sketch | Fusion-like defaults and look; new Fully Constrain tool (Phase 3) |
 | Sketch → extrude, single-key shortcuts (`E` extrude) | Partial — Sketcher + PartDesign Pad, but multi-step, workbench-bound | Unified sketch/feature tools, hotkey-driven, in-viewport drag handles |
 | Section view | Has — Std ClippingPlane / Part Section | Single clean toggle with draggable plane |
 | Sketch on curved surfaces (wraps around) | Missing — sketches are planar; wrap only via Curves addon | New: surface-mapped sketches |

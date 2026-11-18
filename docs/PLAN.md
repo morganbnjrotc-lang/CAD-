@@ -218,18 +218,34 @@ Foundations come first, then the visible changes built on them (order agreed 202
 **Exit:** a user can work in one environment without switching workbenches, find any command
 from the palette or keyboard, and start the app within the startup budget.
 
-### Phase 3 — Modeling UX *(next)*
+### Phase 3 — Modeling UX *(current, started 2026-11-17)*
 
-- Direct-manipulation tools: sketch → `E` → drag handle to extrude (wrapping PartDesign Pad/Pocket).
-- Right-click → **Make default** on the tools' fields (moved here from 2.6, [ADR 0009](adr/0009-unified-main-window.md)),
-  stored through the settings service.
-- One-click **section view** with a draggable plane.
-- **Display presets:** pretty (shadows), gray box, realistic, hidden line; perspective/ortho toggle.
-- **Threads:** cosmetic by default, "model all threads on export", **allowance scrubber**
-  (works on cosmetic and modeled), one-click hole chamfer.
+**Goal:** making a part is quick and obvious: sketch the way Fusion does, pull it into 3D, look at it
+the way you need.
 
-*Tests first:* extrude tool state machine (start/preview/commit/cancel/undo); thread service
-(cosmetic ↔ modeled volume checks, allowance changes diameter); export-with-modeled-threads round trip.
+Sketching comes first (moved in at the user's request, 2026-11-17: "auto dimensioning and auto
+constraints, like how Fusion would operate"). FreeCAD's sketcher already has part of it: while drawing,
+boxes show sizes and a typed value becomes a dimension ("on-view parameters"), and it adds horizontal,
+vertical, coincident, midpoint, tangent, parallel and perpendicular constraints as you draw. What it
+lacks is a one-click way to finish defining a sketch (Fusion's AutoConstrain).
+
+**Test project:** a yarn holder (spindle stand: a round base with an upright peg) the user is making for
+a friend, modeled by the user from start to finish after 3.5, in inches: sketches with sizes, extrude, a sketch on a
+face, rounded edges. Whatever gets in the way becomes a fix in this phase.
+
+| # | Task | Done when |
+|---|---|---|
+| 3.1 | **Inches or millimeters** (added 2026-11-17: the user works in inches). ☰ › Units: Follow Windows (its region's measurement system: US → inches), Inches, Millimeters. The choice applies everywhere, also to files saved in other units (FreeCAD otherwise shows each file in its own), and sizes are typed and shown in it ("2.50 in", FreeCAD's "Imperial decimal") | Units service tests (choice, Windows' system, FreeCAD's unit settings); the menu and a switch tested in the app; tried by the user |
+| 3.2 | **Type sizes while drawing.** Check FreeCAD's on-view parameters in Studio's sketch tools (line, rectangle, circle, arc): the size boxes show, Tab moves between them, a typed value becomes a dimension, in Studio's look; fix the defaults where they differ from Fusion | Each sketch tool, tested with synthetic input: typed sizes give the matching dimensions; tried by the user |
+| 3.3 | **Smart auto constraints.** Compare FreeCAD's constraints-while-drawing with Fusion's (horizontal/vertical, coincident, midpoint, tangent, parallel, perpendicular, equal, concentric) and set Studio's defaults: on, no redundant ones | The tools' constraints, tested on drawn shapes; the missing ones listed with a decision each; tried by the user |
+| 3.4 | **One-click Fully Constrain** (new). A sketch tool that adds every missing constraint and dimension so the sketch is fully defined (it turns green) without moving anything; one undo step removes them all. A headless service (`auto_constrain(sketch)`) chooses what to add: shapes' own constraints first, then sizes, then positions from the origin | Service tests: sketches of lines, rectangles, circles, arcs and slots end fully defined, every point where it was, nothing redundant or conflicting; tried by the user |
+| 3.5 | **Extrude by dragging:** sketch → `E` → drag the arrow (or type the distance) to extrude, into the part to cut (wrapping Part Design's Pad and Pocket) | Extrude tool's states tested (start, preview, commit, cancel, undo); tried by the user |
+| 3.6 | Right-click → **Make default** on the tools' fields (moved here from 2.6, [ADR 0009](adr/0009-unified-main-window.md)), stored through the settings service | Settings service tests; tried by the user |
+| 3.7 | One-click **section view** with a draggable plane | Tested; tried by the user |
+| 3.8 | **Display presets:** pretty (shadows), gray box, realistic, hidden line; perspective/ortho toggle | Tested; visual baselines for each preset |
+| 3.9 | **Threads:** cosmetic by default, "model all threads on export", **allowance scrubber** (works on cosmetic and modeled), one-click hole chamfer | Thread service tests (cosmetic ↔ modeled volume checks, allowance changes diameter); export-with-modeled-threads round trip |
+
+**Exit:** the user has modeled the yarn holder in Studio without leaving it or looking anything up.
 
 ### Phase 4 — Advanced sketching
 
