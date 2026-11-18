@@ -2,9 +2,10 @@
 """Sketching like Fusion (PLAN 3.2–3.4): Studio's adjustments to FreeCAD's sketch tools.
 
 FreeCAD's tools already show size boxes while drawing ("on-view parameters"): a typed size becomes a
-dimension, Tab moves to the next box, Return finishes. Studio makes typing into those boxes replace the
-whole text, unit included (StudioGui.install_size_box_typing): FreeCAD keeps the unit after the typed
-number, so "50 mm" became "50 mm in", read as 50 in.
+dimension, Tab moves to the next box, Return finishes. Studio makes typing into a size box replace the
+whole text, unit included (StudioGui.install_size_box_typing), there and in task panels (Pad's length):
+FreeCAD keeps the unit after the typed number, so "50 mm" became "50 mm in", read as 50 in while drawing
+and ignored in a task panel.
 
 Fully Constrain (Studio_FullyConstrain, PLAN 3.4) runs studio.services.auto_constrain on the sketch being
 edited and says what it did in the status bar (through FreeCAD's console, which FreeCAD shows there).

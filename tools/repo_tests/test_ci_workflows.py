@@ -96,6 +96,10 @@ class StudioCITest(unittest.TestCase):
         # Through the isolating runner: a bare `FreeCAD.exe -t` uses the real profile and can
         # stop at the first-run settings-migration dialog, hanging until the job times out.
         self.assertRegex(commands, r"run_gui_suites\.py .*TestStudioGui")
+        # GUI tests that load Part Design run in a FreeCAD session of their own: TestStudioGui checks
+        # that workbenches load without switching, which needs them not loaded yet (PLAN 3.5).
+        self.assertRegex(commands, r"run_gui_suites\.py TestStudioModelingGui .*--build-dir build/slim-release")
+        self.assertNotRegex(commands, r"run_gui_suites\.py[^\n]*TestStudioGui[^\n]*TestStudioModelingGui")
         self.assertNotRegex(commands, r"FreeCAD\.exe.* -t ")
         self.assertIn("startup_smoke.py", commands)
         # The runner has no graphics card, only Windows' OpenGL 1.1, with which FreeCAD's 3D view

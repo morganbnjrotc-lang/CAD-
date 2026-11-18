@@ -40,6 +40,7 @@
 #include <Gui/BitmapFactory.h>
 #include <Gui/Command.h>
 #include <Gui/MainWindow.h>
+#include <Gui/QuantitySpinBox.h>
 #include <Gui/View3DInventor.h>
 #include <Gui/View3DInventorViewer.h>
 #include <Gui/Workbench.h>
@@ -120,20 +121,11 @@ QWidget* keyTarget()
     return target;
 }
 
-bool inA3DView(QWidget* widget)
-{
-    for (QWidget* parent = widget; parent; parent = parent->parentWidget()) {
-        if (dynamic_cast<Gui::View3DInventor*>(parent)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-// Typing into a size box in the 3D view replaces its whole text, unit included, as in Fusion (PLAN
-// 3.2). FreeCAD selects only the number ("1.52| in|"), and re-selects it as the box follows the mouse,
-// so "50 mm" typed became "50 mm in", which the box read as 50 in. On the first key typed while the
-// number is selected, everything is selected instead; the key then replaces it.
+// Typing into a size box replaces its whole text, unit included, as in Fusion (PLAN 3.2, 3.5). FreeCAD
+// selects only the number ("1.52| in|"): "50 mm" typed became "50 mm in". In the sketch tools' boxes in
+// the 3D view (which re-select the number as they follow the mouse) Tab took that as 50 in; in a task
+// panel's box (Pad's length) Return ignored it. On the first key typed while the number is selected,
+// everything is selected instead; the key then replaces it, and a bare number reads in the user's units.
 class SizeBoxTyping: public QObject
 {
 public:
@@ -150,7 +142,7 @@ public:
         }
         auto* box = static_cast<QWidget*>(watched);
         auto* edit = box->findChild<QLineEdit*>();
-        if (!edit || !edit->hasSelectedText() || edit->selectedText() == edit->text() || !inA3DView(box)) {
+        if (!edit || !edit->hasSelectedText() || edit->selectedText() == edit->text()) {
             return false;
         }
         edit->selectAll();
@@ -357,8 +349,9 @@ public:
             "install_size_box_typing",
             &Module::installSizeBoxTyping,
             "install_size_box_typing()\n\n"
-            "From now on, typing into a size box in the 3D view (the boxes sketch tools show while\n"
-            "drawing) replaces its whole text, unit included, as in Fusion (PLAN 3.2). Once per session."
+            "From now on, typing into a size box (the boxes sketch tools show while drawing, a task\n"
+            "panel's lengths) replaces its whole text, unit included, as in Fusion (PLAN 3.2, 3.5).\n"
+            "Once per session."
         );
         add_varargs_method(
             "view_point",
@@ -379,6 +372,13 @@ public:
             "type_keys(text)\n\n"
             "For tests: types `text` into the main window's focus widget; keys by name in braces: {Tab},\n"
             "{Return}, {Escape}, {Backspace}. Raises RuntimeError if nothing has the focus."
+        );
+        add_varargs_method(
+            "focus_field",
+            &Module::focusField,
+            "focus_field(object_name)\n\n"
+            "For tests: focuses the main window's visible field with that object name, as FreeCAD does\n"
+            "when it opens a task (a size field gets its number selected). Raises KeyError if none."
         );
         add_varargs_method(
             "focus_widget",
@@ -682,6 +682,26 @@ private:
             QApplication::processEvents();
         }
         return Py::None();
+    }
+
+    Py::Object focusField(const Py::Tuple& args)
+    {
+        char* name = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "s", &name)) {
+            throw Py::Exception();
+        }
+        Gui::MainWindow* main = Gui::getMainWindow();
+        for (QWidget* field : main->findChildren<QWidget*>(QString::fromUtf8(name))) {
+            if (!field->isVisible()) {
+                continue;
+            }
+            if (auto* sizeBox = qobject_cast<Gui::QuantitySpinBox*>(field)) {
+                sizeBox->selectNumber();
+            }
+            field->setFocus(Qt::OtherFocusReason);
+            return Py::None();
+        }
+        throw Py::KeyError(std::string("no visible field named ") + name);
     }
 
     Py::Object focusWidget(const Py::Tuple& args)

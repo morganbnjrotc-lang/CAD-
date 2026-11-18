@@ -126,4 +126,4 @@ except Exception as exc:  # never stop FreeCAD from starting over the look
     FreeCAD.Console.PrintWarning(f"Studio: could not add its icons: {exc}\n")
 FreeCADGui.addWorkbench(StudioWorkbench())
 
-FreeCAD.__unit_test__ += ["TestStudioGui"]
+FreeCAD.__unit_test__ += ["TestStudioGui", "TestStudioModelingGui"]

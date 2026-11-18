@@ -123,6 +123,13 @@ jobs:
         timeout-minutes: 20
         run: pixi run python tools/test/run_gui_suites.py TestStudioGui --build-dir build/slim-release
 
+      # GUI tests that load Part Design (extrude, ...), in a FreeCAD session of their own: TestStudioGui
+      # checks that workbenches load without switching, which needs them not loaded yet.
+      - name: Studio modeling GUI tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 20
+        run: pixi run python tools/test/run_gui_suites.py TestStudioModelingGui --build-dir build/slim-release
+
       # Studio's main screens in light and dark against the reviewed pictures in
       # tests/visual/baselines/studio (PLAN 2.10). On a mismatch the actual and diff pictures are
       # in the uploaded test logs (build/test-logs/visual).

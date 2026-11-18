@@ -75,6 +75,8 @@ pixi run python tools/test/run_headless_suites.py TestStudioApp
 pixi run python tools/test/run_headless_suites.py --exclude TestCAMApp   # everything but CAM (~3 min)
 # GUI suite, same isolation (never run a bare `FreeCAD.exe -t`: see below):
 pixi run python tools/test/run_gui_suites.py TestStudioGui
+# GUI tests that load Part Design run in their own session (TestStudioGui needs it not loaded):
+pixi run python tools/test/run_gui_suites.py TestStudioModelingGui
 # Studio's screens against their reviewed pictures (tests/visual/baselines/studio); --update after an
 # intended change, then review every changed picture:
 pixi run python tools/test/run_visual.py [--update]

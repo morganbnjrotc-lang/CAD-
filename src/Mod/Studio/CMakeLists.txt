@@ -19,6 +19,7 @@ if(BUILD_GUI)
     list(APPEND Studio_Scripts
         InitGui.py
         TestStudioGui.py
+        TestStudioModelingGui.py
     )
 endif(BUILD_GUI)
 
