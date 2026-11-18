@@ -28,7 +28,8 @@ TOOLS = {
     "feature": [("PartDesign_Mirrored", None), ("PartDesign_LinearPattern", None), ("PartDesign_PolarPattern", None),
                 ("Std_ViewFitSelection", None)],
     "editing": [("Sketcher_CreateLine", None), ("Sketcher_CreateRectangle", None), ("Sketcher_CreateCircle", "Circle"),
-                ("Sketcher_CreateArc", "Arc"), ("Sketcher_Dimension", None), ("Sketcher_LeaveSketch", "Close Sketch")],
+                ("Sketcher_CreateArc", "Arc"), ("Sketcher_Dimension", None), ("Studio_FullyConstrain", None),
+                ("Sketcher_LeaveSketch", "Close Sketch")],
 }
 
 

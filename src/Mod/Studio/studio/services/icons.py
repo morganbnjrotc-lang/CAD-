@@ -116,7 +116,7 @@ FREECAD_ICONS = {
 }
 
 # Only on Studio's surfaces: the command palette's icon is called "Studio", like the workbench.
-STUDIO_ONLY = {"Studio": "search"}
+STUDIO_ONLY = {"Studio": "search", "fully-constrain": "fully-constrain"}
 
 
 def icon_path(drawing: str) -> str:

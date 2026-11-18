@@ -1553,6 +1553,14 @@
    "icon": "src/Mod/Studio/Resources/icons/Studio.svg"
   },
   {
+   "name": "Studio_FullyConstrain",
+   "workbench": null,
+   "menu_text": "Fully Constrain",
+   "tooltip": "Adds the dimensions and constraints the sketch is missing, without moving anything",
+   "shortcut": "",
+   "icon": "src/Mod/Studio/Resources/icons/line/fully-constrain.svg"
+  },
+  {
    "name": "Material_Edit",
    "workbench": "SketcherWorkbench",
    "menu_text": "Edit",

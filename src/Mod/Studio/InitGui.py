@@ -86,6 +86,36 @@ class _CommandPalette:
 
 FreeCADGui.addCommand("Studio_CommandPalette", _CommandPalette())
 
+
+class _FullyConstrain:
+    """Adds what the sketch being edited is missing so it is fully defined, without moving anything
+    (PLAN 3.4, like Fusion's AutoConstrain). One undo step."""
+
+    def GetResources(self):
+        import os
+
+        import FreeCAD
+
+        return {
+            "MenuText": "Fully Constrain",
+            "ToolTip": "Adds the dimensions and constraints the sketch is missing, without moving anything",
+            "Pixmap": os.path.join(FreeCAD.getHomePath(), "Mod", "Studio", "Resources", "icons", "line",
+                                   "fully-constrain.svg"),
+        }
+
+    def IsActive(self):
+        from studio.shell import sketching
+
+        return sketching.sketch_in_edit() is not None
+
+    def Activated(self):
+        from studio.shell import sketching
+
+        sketching.fully_constrain()
+
+
+FreeCADGui.addCommand("Studio_FullyConstrain", _FullyConstrain())
+
 # Studio's line icons under FreeCAD's icon names (docs/adr/0010), before FreeCAD builds its menus and
 # model tree with them.
 try:

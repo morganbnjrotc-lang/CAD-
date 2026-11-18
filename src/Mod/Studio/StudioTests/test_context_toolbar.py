@@ -95,7 +95,8 @@ class Buttons(unittest.TestCase):
         self.assertEqual(self.labels("edge"), ["Fillet", "Chamfer", "Measure", "Fit Selection"])
         self.assertEqual(self.labels("geometry"), ["Fillet", "Chamfer", "Measure", "Fit Selection"])
         self.assertEqual(self.labels("feature"), ["Mirror", "Linear Pattern", "Polar Pattern", "Fit Selection"])
-        self.assertEqual(self.labels("editing"), ["Line", "Rectangle", "Circle", "Arc", "Dimension", "Close Sketch"])
+        self.assertEqual(self.labels("editing"),
+                         ["Line", "Rectangle", "Circle", "Arc", "Dimension", "Fully Constrain", "Close Sketch"])
 
     def test_every_tool_is_a_catalog_command(self):
         for kind, tools in TOOLS.items():
