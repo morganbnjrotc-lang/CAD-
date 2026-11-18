@@ -361,6 +361,12 @@ public:
             "widget's pixels from its top left."
         );
         add_varargs_method(
+            "view_size",
+            &Module::viewSize,
+            "view_size() -> (width, height)\n\n"
+            "For tests: the active 3D view widget's size in pixels."
+        );
+        add_varargs_method(
             "view_mouse",
             &Module::viewMouse,
             "view_mouse(action, px, py)\n\n"
@@ -600,6 +606,18 @@ private:
         Py::Tuple result(2);
         result.setItem(0, Py::Float(point[0] / ratio));
         result.setItem(1, Py::Float((size[1] - point[1] - 1) / ratio));
+        return result;
+    }
+
+    Py::Object viewSize(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        QWidget* widget = activeViewer()->getGLWidget();
+        Py::Tuple result(2);
+        result.setItem(0, Py::Long(widget->width()));
+        result.setItem(1, Py::Long(widget->height()));
         return result;
     }
 
