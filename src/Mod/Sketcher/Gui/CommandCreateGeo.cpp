@@ -406,9 +406,7 @@ void CmdSketcherCreate3PointArc::activated(int iMsg)
     Q_UNUSED(iMsg);
     ActivateHandler(
         getActiveGuiDocument(),
-        std::make_unique<DrawSketchHandlerArc>(
-            ConstructionMethods::CircleEllipseConstructionMethod::ThreeRim
-        )
+        std::make_unique<DrawSketchHandlerArc>(ConstructionMethods::ArcConstructionMethod::ThreeRim)
     );
 }
 
@@ -634,7 +632,7 @@ void CmdSketcherCreate3PointCircle::activated(int iMsg)
     ActivateHandler(
         getActiveGuiDocument(),
         std::make_unique<DrawSketchHandlerCircle>(
-            ConstructionMethods::CircleEllipseConstructionMethod::ThreeRim
+            ConstructionMethods::CircleConstructionMethod::ThreeRim
         )
     );
 }

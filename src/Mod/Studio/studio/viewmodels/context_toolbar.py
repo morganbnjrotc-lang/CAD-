@@ -55,10 +55,13 @@ class Way:
     icon: str = ""  # Studio's drawing, for a way FreeCAD has no command (and so no icon) for
 
 
-# Tool (its command in TOOLS) -> the ways it draws, the default first; Fusion's names for them.
+# Tool (its command in TOOLS) -> the ways it draws, the default first; Fusion's names for them. The way
+# picked last is remembered by its place in the list: add new ways at the end.
 WAYS = {
     "Sketcher_CreateLine": (Way("Sketcher_CreateLine", "Line"),
-                            Way("Sketcher_CreatePolyline", "Lines and Arcs")),  # M switches to arcs
+                            Way("Sketcher_CreatePolyline", "Lines and Arcs"),  # M switches to arcs
+                            # Added to FreeCAD's Line (CORE_PATCHES.md), as SolidWorks' Midpoint Line
+                            Way("Sketcher_CreateLine", "Center Point Line", 3, "line-center")),
     "Sketcher_CreateRectangle": (Way("Sketcher_CreateRectangle", "2-Point Rectangle"),
                                  Way("Sketcher_CreateRectangle_Center", "Center Rectangle"),
                                  Way("Sketcher_CreateRectangle", "3-Point Rectangle", 2, "rectangle-3-point"),
@@ -66,15 +69,27 @@ WAYS = {
                                      "rectangle-3-point-center"),
                                  Way("Sketcher_CreateOblong", "Rounded Rectangle")),
     "Sketcher_CreateCircle": (Way("Sketcher_CreateCircle", "Center Diameter Circle"),
-                              Way("Sketcher_Create3PointCircle", "3-Point Circle")),
+                              Way("Sketcher_Create3PointCircle", "3-Point Circle"),
+                              # added to FreeCAD's Circle (CORE_PATCHES.md)
+                              Way("Sketcher_CreateCircle", "2-Point Circle", 2, "circle-2-point")),
     "Sketcher_CreateArc": (Way("Sketcher_CreateArc", "Center Point Arc"),
-                           Way("Sketcher_Create3PointArc", "3-Point Arc")),
+                           Way("Sketcher_Create3PointArc", "3-Point Arc"),
+                           # added to FreeCAD's Arc (CORE_PATCHES.md): from the end of a line or arc
+                           Way("Sketcher_CreateArc", "Tangent Arc", 2, "arc-tangent")),
     "Sketcher_CreateRegularPolygon": (Way("Sketcher_CreateRegularPolygon", "Inscribed Polygon"),
                                       Way("Sketcher_CreateTriangle", "Triangle"),
                                       Way("Sketcher_CreateSquare", "Square"),
-                                      Way("Sketcher_CreateHexagon", "Hexagon")),
+                                      Way("Sketcher_CreateHexagon", "Hexagon"),
+                                      # added to FreeCAD's Polygon (CORE_PATCHES.md); six sides to start
+                                      # with (U and J change it) where FreeCAD's polygon command asks first
+                                      Way("Sketcher_CreateHexagon", "Circumscribed Polygon", 1,
+                                          "polygon-circumscribed"),
+                                      Way("Sketcher_CreateHexagon", "Edge Polygon", 2, "polygon-edge")),
     "Sketcher_CreateSlot": (Way("Sketcher_CreateSlot", "Center to Center Slot"),
-                            Way("Sketcher_CreateArcSlot", "Center Point Arc Slot")),
+                            Way("Sketcher_CreateArcSlot", "Center Point Arc Slot"),
+                            # added to FreeCAD's Slot (CORE_PATCHES.md)
+                            Way("Sketcher_CreateSlot", "Overall Slot", 1, "slot-overall"),
+                            Way("Sketcher_CreateSlot", "Center Point Slot", 2, "slot-center")),
     "Sketcher_CreateBSplineByInterpolation": (Way("Sketcher_CreateBSplineByInterpolation", "Fit Point Spline"),
                                               Way("Sketcher_CreateBSpline", "Control Point Spline")),
     "Sketcher_CreateEllipseByCenter": (Way("Sketcher_CreateEllipseByCenter", "Center Ellipse"),

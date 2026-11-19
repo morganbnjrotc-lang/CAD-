@@ -54,7 +54,8 @@ enum class LineConstructionMethod
     OnePointLengthAngle,
     OnePointWidthHeight,
     TwoPoints,
-    End  // Must be the last one
+    CenterPoint,  // the middle, then one end (SolidWorks' Midpoint Line)
+    End           // Must be the last one
 };
 
 }  // namespace ConstructionMethods
@@ -63,11 +64,11 @@ using DSHLineController = DrawSketchDefaultWidgetController<
     DrawSketchHandlerLine,
     /*SelectModeT*/ StateMachines::TwoSeekEnd,
     /*PAutoConstraintSize =*/2,
-    /*OnViewParametersT =*/OnViewParameters<4, 4, 4>,  // NOLINT
-    /*WidgetParametersT =*/WidgetParameters<0, 0, 0>,  // NOLINT
-    /*WidgetCheckboxesT =*/WidgetCheckboxes<0, 0, 0>,  // NOLINT
-    /*WidgetComboboxesT =*/WidgetComboboxes<1, 1, 1>,  // NOLINT
-    /*WidgetLineEditsT =*/WidgetLineEdits<0, 0, 0>,
+    /*OnViewParametersT =*/OnViewParameters<4, 4, 4, 4>,  // NOLINT
+    /*WidgetParametersT =*/WidgetParameters<0, 0, 0, 0>,  // NOLINT
+    /*WidgetCheckboxesT =*/WidgetCheckboxes<0, 0, 0, 0>,  // NOLINT
+    /*WidgetComboboxesT =*/WidgetComboboxes<1, 1, 1, 1>,  // NOLINT
+    /*WidgetLineEditsT =*/WidgetLineEdits<0, 0, 0, 0>,
     ConstructionMethods::LineConstructionMethod,
     /*bool PFirstComboboxIsConstructionMethod =*/true>;
 
@@ -104,17 +105,22 @@ private:
                 Base::Vector2d snapPoint;
                 startPoint = getLineExtensionAutoConstraintSnapPoint(snapPoint) ? snapPoint
                                                                                 : onSketchPos;
+                centerPoint = startPoint;  // CenterPoint: the first click is the middle
 
                 toolWidgetManager.drawPositionAtCursor(startPoint);
             } break;
             case SelectMode::SeekSecond: {
-                seekAndRenderAutoConstraint(sugConstraints[1], onSketchPos, onSketchPos - startPoint);
+                const Base::Vector2d anchor = isCenterPoint() ? centerPoint : startPoint;
+                seekAndRenderAutoConstraint(sugConstraints[1], onSketchPos, onSketchPos - anchor);
 
                 Base::Vector2d snapPoint;
                 endPoint = getLineExtensionAutoConstraintSnapPoint(snapPoint) ? snapPoint
                                                                               : onSketchPos;
+                if (isCenterPoint()) {
+                    startPoint = centerPoint + (centerPoint - endPoint);  // the other end mirrors it
+                }
 
-                toolWidgetManager.drawDirectionAtCursor(endPoint, startPoint);
+                toolWidgetManager.drawDirectionAtCursor(endPoint, anchor);
 
                 try {
                     CreateAndDrawShapeGeometry();
@@ -159,7 +165,7 @@ private:
 
     void generateAutoConstraints() override
     {
-        int LineGeoId = getHighestCurveIndex();
+        int LineGeoId = isCenterPoint() ? lineGeoId : getHighestCurveIndex();
 
         // Generate temporary autoconstraints (but do not actually add them to the sketch)
         if (avoidRedundants) {
@@ -169,7 +175,12 @@ private:
         auto& ac1 = sugConstraints[0];
         auto& ac2 = sugConstraints[1];
 
-        generateAutoConstraintsOnElement(ac1, LineGeoId, Sketcher::PointPos::start);
+        if (isCenterPoint()) {  // the first click's constraints go to the middle point
+            generateAutoConstraintsOnElement(ac1, LineGeoId + 1, Sketcher::PointPos::start);
+        }
+        else {
+            generateAutoConstraintsOnElement(ac1, LineGeoId, Sketcher::PointPos::start);
+        }
         generateAutoConstraintsOnElement(ac2, LineGeoId, Sketcher::PointPos::end);
 
         // Ensure temporary autoconstraints do not generate a redundancy and that the geometry
@@ -238,7 +249,7 @@ private:
     void angleSnappingControl() override
     {
         if (state() == SelectMode::SeekSecond) {
-            setAngleSnapping(true, startPoint);
+            setAngleSnapping(true, isCenterPoint() ? centerPoint : startPoint);
         }
 
         else {
@@ -257,14 +268,21 @@ private:
     bool getStartPointOfCurrentSegment(Base::Vector2d& point) const override
     {
         if (state() == SelectMode::SeekSecond) {
-            point = startPoint;
+            point = isCenterPoint() ? centerPoint : startPoint;
             return true;
         }
         return false;
     }
 
+    bool isCenterPoint() const
+    {
+        return constructionMethod() == ConstructionMethod::CenterPoint;
+    }
+
 private:
     Base::Vector2d startPoint, endPoint;
+    Base::Vector2d centerPoint;  // CenterPoint: the middle, kept by a construction point there
+    int lineGeoId = Sketcher::GeoEnum::GeoUndef;  // the line's id once added (CenterPoint)
     double length;
 
     // These store the direction sign when OVP is first set to prevent sign flipping
@@ -276,12 +294,29 @@ private:
     {
         Q_UNUSED(onlyeditoutline);
         ShapeGeometry.clear();
+        ShapeConstraints.clear();
+        lineGeoId = getHighestCurveIndex() + 1;
 
         Base::Vector2d vecL = endPoint - startPoint;
         length = vecL.Length();
         if (length > Precision::Confusion()) {
 
             addLineToShapeGeometry(toVector3d(startPoint), toVector3d(endPoint), isConstructionMode());
+
+            if (isCenterPoint()) {
+                // A construction point in the middle, the ends symmetric about it, as FreeCAD's
+                // center rectangle keeps its center.
+                addPointToShapeGeometry(toVector3d(centerPoint), true);
+                addToShapeConstraints(
+                    Sketcher::Symmetric,
+                    lineGeoId,
+                    Sketcher::PointPos::start,
+                    lineGeoId,
+                    Sketcher::PointPos::end,
+                    lineGeoId + 1,
+                    Sketcher::PointPos::start
+                );
+            }
         }
     }
 
@@ -336,6 +371,20 @@ private:
                          {tr("%1 pick second point"), {MouseLeft}},
                          switchModeHint,
                      }},
+
+                // CenterPoint method
+                {.state = {ConstructionMethod::CenterPoint, SelectMode::SeekFirst},
+                 .hints =
+                     {
+                         {tr("%1 pick the middle of the line"), {MouseLeft}},
+                         switchModeHint,
+                     }},
+                {.state = {ConstructionMethod::CenterPoint, SelectMode::SeekSecond},
+                 .hints =
+                     {
+                         {tr("%1 pick one end"), {MouseLeft}},
+                         switchModeHint,
+                     }},
             });
     }
 };
@@ -364,7 +413,8 @@ void DSHLineController::configureToolWidget()
         QStringList names = {
             QApplication::translate("Sketcher_CreateLine", "Point, length, angle"),
             QApplication::translate("Sketcher_CreateLine", "Point, width, height"),
-            QApplication::translate("Sketcher_CreateLine", "2 points")
+            QApplication::translate("Sketcher_CreateLine", "2 points"),
+            QApplication::translate("Sketcher_CreateLine", "Center point, length, angle")
         };
         toolWidget->setComboboxElements(WCombobox::FirstCombo, names);
 
@@ -372,6 +422,11 @@ void DSHLineController::configureToolWidget()
             toolWidget->setComboboxItemIcon(
                 WCombobox::FirstCombo,
                 0,
+                Gui::BitmapFactory().iconFromTheme("Sketcher_CreateLineAngleLength_Constr")
+            );
+            toolWidget->setComboboxItemIcon(
+                WCombobox::FirstCombo,
+                3,
                 Gui::BitmapFactory().iconFromTheme("Sketcher_CreateLineAngleLength_Constr")
             );
             toolWidget->setComboboxItemIcon(
@@ -393,6 +448,11 @@ void DSHLineController::configureToolWidget()
             );
             toolWidget->setComboboxItemIcon(
                 WCombobox::FirstCombo,
+                3,
+                Gui::BitmapFactory().iconFromTheme("Sketcher_CreateLineAngleLength")
+            );
+            toolWidget->setComboboxItemIcon(
+                WCombobox::FirstCombo,
                 1,
                 Gui::BitmapFactory().iconFromTheme("Sketcher_CreateLineLengthWidth")
             );
@@ -407,7 +467,8 @@ void DSHLineController::configureToolWidget()
     onViewParameters[OnViewParameter::First]->setLabelType(Gui::SoDatumLabel::DISTANCEX);
     onViewParameters[OnViewParameter::Second]->setLabelType(Gui::SoDatumLabel::DISTANCEY);
 
-    if (handler->constructionMethod() == ConstructionMethod::OnePointLengthAngle) {
+    if (handler->constructionMethod() == ConstructionMethod::OnePointLengthAngle
+        || handler->constructionMethod() == ConstructionMethod::CenterPoint) {
         onViewParameters[OnViewParameter::Third]->setLabelType(
             Gui::SoDatumLabel::DISTANCE,
             Gui::EditableDatumLabel::Function::Dimensioning
@@ -503,9 +564,14 @@ void DSHLineControllerBase::doEnforceControlParameters(Base::Vector2d& onSketchP
                     onSketchPos.y = handler->startPoint.y + handler->widthSign * width;
                 }
             }
-            else if (handler->constructionMethod() == ConstructionMethod::OnePointLengthAngle) {
+            else if (handler->constructionMethod() == ConstructionMethod::OnePointLengthAngle
+                     || handler->isCenterPoint()) {
+                // CenterPoint measures from the middle: a typed length is the whole line.
+                const Base::Vector2d anchor = handler->isCenterPoint() ? handler->centerPoint
+                                                                       : handler->startPoint;
+                const double reach = handler->isCenterPoint() ? 0.5 : 1.0;
 
-                Base::Vector2d dir = onSketchPos - handler->startPoint;
+                Base::Vector2d dir = onSketchPos - anchor;
                 if (dir.Length() < Precision::Confusion()) {
                     dir.x = 1.0;  // if direction null, default to (1,0)
                 }
@@ -528,15 +594,12 @@ void DSHLineControllerBase::doEnforceControlParameters(Base::Vector2d& onSketchP
                         return;
                     }
 
-                    onSketchPos = handler->startPoint + length * handler->capturedDirection;
+                    onSketchPos = anchor + reach * length * handler->capturedDirection;
                 }
                 else if (fourthParam->isSet) {
                     // only angle is set, project current position onto that angle
-                    onSketchPos.ProjectToLine(
-                        onSketchPos - handler->startPoint,
-                        handler->capturedDirection
-                    );
-                    onSketchPos += handler->startPoint;
+                    onSketchPos.ProjectToLine(onSketchPos - anchor, handler->capturedDirection);
+                    onSketchPos += anchor;
                 }
             }
             else {
@@ -548,8 +611,10 @@ void DSHLineControllerBase::doEnforceControlParameters(Base::Vector2d& onSketchP
                 }
             }
 
+            const Base::Vector2d anchor = handler->isCenterPoint() ? handler->centerPoint
+                                                                   : handler->startPoint;
             if (thirdParam->hasFinishedEditing && fourthParam->hasFinishedEditing
-                && (onSketchPos - handler->startPoint).Length() < Precision::Confusion()) {
+                && (onSketchPos - anchor).Length() < Precision::Confusion()) {
                 unsetOnViewParameter(thirdParam.get());
                 unsetOnViewParameter(fourthParam.get());
                 handler->lengthSign = 0;
@@ -608,10 +673,11 @@ void DSHLineController::adaptParameters(Base::Vector2d onSketchPos)
                 thirdParam->setPoints(start, end);
                 fourthParam->setPoints(start, end);
             }
-            else if (handler->constructionMethod() == ConstructionMethod::OnePointLengthAngle) {
+            else if (handler->constructionMethod() == ConstructionMethod::OnePointLengthAngle
+                     || handler->isCenterPoint()) {
                 Base::Vector3d start = toVector3d(handler->startPoint);
                 Base::Vector3d end = toVector3d(handler->endPoint);
-                Base::Vector3d vec = end - start;
+                Base::Vector3d vec = end - start;  // CenterPoint: the whole line too
 
                 if (!thirdParam->isSet) {
                     setOnViewParameterValue(OnViewParameter::Third, vec.Length());
@@ -637,7 +703,11 @@ void DSHLineController::adaptParameters(Base::Vector2d onSketchPos)
                 }
 
                 thirdParam->setPoints(start, end);
-                fourthParam->setPoints(start, Base::Vector3d());
+                // the angle is shown where the line was started: its middle for CenterPoint
+                fourthParam->setPoints(
+                    handler->isCenterPoint() ? toVector3d(handler->centerPoint) : start,
+                    Base::Vector3d()
+                );
                 fourthParam->setLabelRange(range);
             }
             else {
@@ -775,6 +845,59 @@ void DSHLineController::addConstraints()
     auto constraintp4y = [&]() {
         ConstraintToAttachment(GeoElementId(firstCurve, PointPos::end), GeoElementId::HAxis, p4, obj);
     };
+
+    if (handler->isCenterPoint()) {
+        // The typed position is the middle point's; the length (the whole line) and angle the line's.
+        const int line = handler->lineGeoId;
+        const GeoElementId middle(line + 1, PointPos::start);
+        auto length = [&]() {
+            Gui::cmdAppObjectArgs(obj, "addConstraint(Sketcher.Constraint('Distance',%d,%f)) ", line, fabs(p3));
+        };
+        auto angle = [&]() {
+            ConstraintLineByAngle(line, Base::toRadians(p4), obj);
+        };
+
+        if (handler->AutoConstraints.empty()) {
+            if (x0set && y0set && x0 == 0. && y0 == 0.) {
+                ConstraintToAttachment(middle, GeoElementId::RtPnt, x0, obj);
+            }
+            else {
+                if (x0set) {
+                    ConstraintToAttachment(middle, GeoElementId::VAxis, x0, obj);
+                }
+                if (y0set) {
+                    ConstraintToAttachment(middle, GeoElementId::HAxis, y0, obj);
+                }
+            }
+            if (p3set) {
+                length();
+            }
+            if (p4set) {
+                angle();
+            }
+            return;
+        }
+
+        auto middleinfo = handler->getPointInfo(middle);
+        if (x0set && middleinfo.isXDoF()) {
+            ConstraintToAttachment(middle, GeoElementId::VAxis, x0, obj);
+            handler->diagnoseWithAutoConstraints();
+            middleinfo = handler->getPointInfo(middle);
+        }
+        if (y0set && middleinfo.isYDoF()) {
+            ConstraintToAttachment(middle, GeoElementId::HAxis, y0, obj);
+            handler->diagnoseWithAutoConstraints();
+        }
+        int DoFs = handler->getLineDoFs(line);
+        if (p3set && DoFs > 0) {
+            length();
+            DoFs--;
+        }
+        if (p4set && DoFs > 0) {
+            angle();
+        }
+        return;
+    }
 
     if (handler->AutoConstraints.empty()) {  // No valid diagnosis. Every constraint can be added.
 

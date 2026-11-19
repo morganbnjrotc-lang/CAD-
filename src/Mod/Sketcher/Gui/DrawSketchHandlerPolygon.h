@@ -47,15 +47,30 @@ namespace SketcherGui
 
 class DrawSketchHandlerPolygon;
 
+namespace ConstructionMethods
+{
+
+enum class PolygonConstructionMethod
+{
+    Inscribed,      // the center, then a corner
+    Circumscribed,  // the center, then the middle of a side
+    Edge,           // two corners of one side; the polygon on the left going from the first
+    End             // Must be the last one
+};
+
+}  // namespace ConstructionMethods
+
 using DSHPolygonController = DrawSketchDefaultWidgetController<
     DrawSketchHandlerPolygon,
     StateMachines::TwoSeekEnd,
     /*PAutoConstraintSize =*/2,
-    /*OnViewParametersT =*/OnViewParameters<4>,
-    /*WidgetParametersT =*/WidgetParameters<1>,
-    /*WidgetCheckboxesT =*/WidgetCheckboxes<0>,
-    /*WidgetComboboxesT =*/WidgetComboboxes<0>,
-    /*WidgetLineEditsT =*/WidgetLineEdits<0>>;
+    /*OnViewParametersT =*/OnViewParameters<4, 4, 4>,
+    /*WidgetParametersT =*/WidgetParameters<1, 1, 1>,
+    /*WidgetCheckboxesT =*/WidgetCheckboxes<0, 0, 0>,
+    /*WidgetComboboxesT =*/WidgetComboboxes<1, 1, 1>,
+    /*WidgetLineEditsT =*/WidgetLineEdits<0, 0, 0>,
+    ConstructionMethods::PolygonConstructionMethod,
+    /*bool PFirstComboboxIsConstructionMethod =*/true>;
 
 using DSHPolygonControllerBase = DSHPolygonController::ControllerBase;
 
@@ -83,14 +98,16 @@ private:
             case SelectMode::SeekFirst: {
                 toolWidgetManager.drawPositionAtCursor(onSketchPos);
 
+                firstClick = onSketchPos;
                 centerPoint = onSketchPos;
 
                 seekAndRenderAutoConstraint(sugConstraints[0], onSketchPos, Base::Vector2d(0.f, 0.f));
             } break;
             case SelectMode::SeekSecond: {
-                toolWidgetManager.drawDirectionAtCursor(onSketchPos, centerPoint);
+                toolWidgetManager.drawDirectionAtCursor(onSketchPos, firstClick);
 
-                firstCorner = onSketchPos;
+                secondClick = onSketchPos;
+                placeCorners();
 
                 CreateAndDrawShapeGeometry();
 
@@ -122,6 +139,34 @@ private:
                 constructionModeAsBooleanText()
             );
 
+            if (constructionMethod() == ConstructionMethod::Circumscribed) {
+                // The circle touching the sides, which a typed size sets: concentric with the
+                // corners' circle and touching the side through the second click (the first side).
+                // Touching every side would be redundant, and without the corners' circle an even
+                // number of equal sides touching a circle could still lean like a rhombus.
+                int outer = getHighestCurveIndex();
+                int firstSide = outer - static_cast<int>(numberOfCorners);
+                Gui::cmdAppObjectArgs(
+                    sketchgui->getObject(),
+                    "addGeometry(Part.Circle(App.Vector(%f,%f,0),App.Vector(0,0,1),%f),True)",
+                    centerPoint.x,
+                    centerPoint.y,
+                    (secondClick - firstClick).Length()
+                );
+                Gui::cmdAppObjectArgs(
+                    sketchgui->getObject(),
+                    "addConstraint(Sketcher.Constraint('Coincident',%d,3,%d,3))",
+                    outer + 1,
+                    outer
+                );
+                Gui::cmdAppObjectArgs(
+                    sketchgui->getObject(),
+                    "addConstraint(Sketcher.Constraint('Tangent',%d,%d))",
+                    outer + 1,
+                    firstSide
+                );
+            }
+
             commitCommand();
 
             tryAutoRecomputeIfNotSolve(sketchgui->getObject<Sketcher::SketchObject>());
@@ -147,9 +192,22 @@ private:
 
     void generateAutoConstraints() override
     {
+        if (constructionMethod() == ConstructionMethod::Edge) {
+            // the two clicks are the first side's ends
+            const int firstsidegeoid = cornersCircleGeoId() - static_cast<int>(numberOfCorners);
+            generateAutoConstraintsOnElement(
+                sugConstraints[0],
+                firstsidegeoid,
+                Sketcher::PointPos::start
+            );
+            generateAutoConstraintsOnElement(sugConstraints[1], firstsidegeoid, Sketcher::PointPos::end);
+            removeRedundantAutoConstraints();
+            return;
+        }
+
         // add auto constraints at the center of the polygon
         auto* obj = sketchgui->getObject<Sketcher::SketchObject>();
-        for (int geoId = getHighestCurveIndex(); geoId >= 0; geoId--) {
+        for (int geoId = cornersCircleGeoId(); geoId >= 0; geoId--) {
             const Part::Geometry* geo = obj->getGeometry(geoId);
             if (geo->is<Part::GeomCircle>()) {
                 int circlegeoid = geoId;
@@ -162,8 +220,10 @@ private:
                     );
                 }
 
-                // add auto constraints to the last side of the polygon
-                if (sugConstraints[1].size() > 0) {
+                // add auto constraints to the last side of the polygon (Circumscribed: the second
+                // click is the middle of a side, no corner to attach them to)
+                if (sugConstraints[1].size() > 0
+                    && constructionMethod() == ConstructionMethod::Inscribed) {
                     generateAutoConstraintsOnElement(
                         sugConstraints[1],
                         lastsidegeoid,
@@ -178,6 +238,14 @@ private:
                 return;
             }
         }
+    }
+
+    /// The construction circle through the corners, once added (the circle touching the sides
+    /// comes after it for Circumscribed).
+    int cornersCircleGeoId()
+    {
+        return getHighestCurveIndex()
+            - (constructionMethod() == ConstructionMethod::Circumscribed ? 1 : 0);
     }
 
     void createAutoConstraints() override
@@ -231,7 +299,7 @@ private:
     void angleSnappingControl() override
     {
         if (state() == SelectMode::SeekSecond) {
-            setAngleSnapping(true, centerPoint);
+            setAngleSnapping(true, firstClick);
         }
 
         else {
@@ -242,7 +310,44 @@ private:
 private:
     unsigned int numberOfCorners;
     Base::Vector2d centerPoint, firstCorner;
+    Base::Vector2d firstClick, secondClick;
     double radius;
+
+    /// The center and the first corner (where ProfileLib's polygon starts, going counterclockwise)
+    /// from the two clicks.
+    void placeCorners()
+    {
+        const double half = std::numbers::pi / static_cast<double>(numberOfCorners);
+        switch (constructionMethod()) {
+            case ConstructionMethod::Inscribed:
+                centerPoint = firstClick;
+                firstCorner = secondClick;
+                break;
+            case ConstructionMethod::Circumscribed: {
+                // the second click is the middle of the first side: its corners half a step either
+                // side, 1 / cos(half) farther out
+                centerPoint = firstClick;
+                const Base::Vector2d apothem = secondClick - firstClick;
+                const double c = cos(half);
+                const double s = sin(half);
+                const Base::Vector2d back(c * apothem.x + s * apothem.y, -s * apothem.x + c * apothem.y);
+                firstCorner = centerPoint + back / c;
+            } break;
+            case ConstructionMethod::Edge: {
+                const Base::Vector2d side = secondClick - firstClick;
+                const double length = side.Length();
+                firstCorner = firstClick;
+                if (length < Precision::Confusion()) {
+                    centerPoint = firstClick;  // no polygon yet
+                    break;
+                }
+                const Base::Vector2d left(-side.y / length, side.x / length);
+                centerPoint = (firstClick + secondClick) / 2 + (length / (2 * tan(half))) * left;
+            } break;
+            default:
+                break;
+        }
+    }
 
     void createShape(bool onlyeditoutline) override
     {
@@ -279,22 +384,53 @@ private:
     std::list<Gui::InputHint> getToolHints() const override
     {
         using enum Gui::InputHint::UserInput;
+        using State = std::pair<ConstructionMethod, SelectMode>;
 
-        return Gui::lookupHints<SelectMode>(
-            state(),
+        const Gui::InputHint sidesHint {tr("%1/%2 increase/decrease number of sides"), {KeyU, KeyJ}};
+        const Gui::InputHint switchModeHint {tr("%1 switch mode"), {KeyM}};
+
+        return Gui::lookupHints<State>(
+            {constructionMethod(), state()},
             {
-                {.state = SelectMode::SeekFirst,
+                {.state = {ConstructionMethod::Inscribed, SelectMode::SeekFirst},
                  .hints =
                      {
                          {tr("%1 pick polygon center"), {MouseLeft}},
-                         {tr("%1/%2 increase/decrease number of sides"), {KeyU, KeyJ}},
+                         sidesHint,
+                         switchModeHint,
                      }},
-                {.state = SelectMode::SeekSecond,
+                {.state = {ConstructionMethod::Inscribed, SelectMode::SeekSecond},
                  .hints =
                      {
                          {tr("%1 pick rotation and size"), {MouseMove}},
                          {tr("%1 confirm"), {MouseLeft}},
-                         {tr("%1/%2 increase/decrease number of sides"), {KeyU, KeyJ}},
+                         sidesHint,
+                     }},
+                {.state = {ConstructionMethod::Circumscribed, SelectMode::SeekFirst},
+                 .hints =
+                     {
+                         {tr("%1 pick polygon center"), {MouseLeft}},
+                         sidesHint,
+                         switchModeHint,
+                     }},
+                {.state = {ConstructionMethod::Circumscribed, SelectMode::SeekSecond},
+                 .hints =
+                     {
+                         {tr("%1 pick the middle of a side"), {MouseLeft}},
+                         sidesHint,
+                     }},
+                {.state = {ConstructionMethod::Edge, SelectMode::SeekFirst},
+                 .hints =
+                     {
+                         {tr("%1 pick the first corner of a side"), {MouseLeft}},
+                         sidesHint,
+                         switchModeHint,
+                     }},
+                {.state = {ConstructionMethod::Edge, SelectMode::SeekSecond},
+                 .hints =
+                     {
+                         {tr("%1 pick the next corner (the polygon goes on the left)"), {MouseLeft}},
+                         sidesHint,
                      }},
             });
     }
@@ -336,6 +472,24 @@ void DSHPolygonController::secondKeyShortcut()
 template<>
 void DSHPolygonController::configureToolWidget()
 {
+    if (!init) {  // Code to be executed only upon initialisation
+        QStringList names = {
+            QApplication::translate("Sketcher_CreateRegularPolygon", "Inscribed (center, corner)"),
+            QApplication::translate("Sketcher_CreateRegularPolygon", "Circumscribed (center, middle of a side)"),
+            QApplication::translate("Sketcher_CreateRegularPolygon", "Edge (two corners)")
+        };
+        toolWidget->setComboboxElements(WCombobox::FirstCombo, names);
+        for (int i = 0; i < names.size(); ++i) {
+            toolWidget->setComboboxItemIcon(
+                WCombobox::FirstCombo,
+                i,
+                Gui::BitmapFactory().iconFromTheme(
+                    handler->isConstructionMode() ? "Sketcher_CreateRegularPolygon_Constr"
+                                                  : "Sketcher_CreateRegularPolygon"
+                )
+            );
+        }
+    }
 
     toolWidget->setParameterLabel(
         WParameter::First,
@@ -391,7 +545,10 @@ void DSHPolygonControllerBase::doEnforceControlParameters(Base::Vector2d& onSket
             auto& thirdParam = onViewParameters[OnViewParameter::Third];
             auto& fourthParam = onViewParameters[OnViewParameter::Fourth];
 
-            Base::Vector2d dir = onSketchPos - handler->centerPoint;
+            // Sizes measure from the first click: the center to a corner (Inscribed) or to the
+            // middle of a side (Circumscribed); one side (Edge).
+            const Base::Vector2d anchor = handler->firstClick;
+            Base::Vector2d dir = onSketchPos - anchor;
             if (dir.Length() < Precision::Confusion()) {
                 dir.x = 1.0;  // if direction null, default to (1,0)
             }
@@ -404,13 +561,13 @@ void DSHPolygonControllerBase::doEnforceControlParameters(Base::Vector2d& onSket
                     return;
                 }
 
-                onSketchPos = handler->centerPoint + length * dir.Normalize();
+                onSketchPos = anchor + length * dir.Normalize();
             }
 
             if (fourthParam->isSet) {
                 double angle = Base::toRadians(fourthParam->getValue());
-                onSketchPos.x = handler->centerPoint.x + cos(angle) * length;
-                onSketchPos.y = handler->centerPoint.y + sin(angle) * length;
+                onSketchPos.x = anchor.x + cos(angle) * length;
+                onSketchPos.y = anchor.y + sin(angle) * length;
             }
         } break;
         default:
@@ -444,15 +601,16 @@ void DSHPolygonController::adaptParameters(Base::Vector2d onSketchPos)
             auto& thirdParam = onViewParameters[OnViewParameter::Third];
             auto& fourthParam = onViewParameters[OnViewParameter::Fourth];
 
-            Base::Vector3d start = toVector3d(handler->centerPoint);
-            Base::Vector3d end = toVector3d(handler->firstCorner);
+            // between the clicks: Inscribed's center and corner, as before
+            Base::Vector3d start = toVector3d(handler->firstClick);
+            Base::Vector3d end = toVector3d(handler->secondClick);
             Base::Vector3d vec = end - start;
 
             if (!thirdParam->isSet) {
                 setOnViewParameterValue(OnViewParameter::Third, vec.Length());
             }
 
-            double range = (handler->firstCorner - handler->centerPoint).Angle();
+            double range = (handler->secondClick - handler->firstClick).Angle();
             if (!fourthParam->isSet) {
                 setOnViewParameterValue(
                     OnViewParameter::Fourth,
@@ -514,6 +672,65 @@ void DSHPolygonController::addConstraints()
     auto angleSet = onViewParameters[OnViewParameter::Fourth]->isSet;
 
     using namespace Sketcher;
+
+    if (handler->constructionMethod() != DrawSketchHandlerPolygon::ConstructionMethod::Inscribed) {
+        // Circumscribed: the typed position is the center, the size the circle touching the sides,
+        // the angle the direction to the middle of the first side (which is square to it).
+        // Edge: the typed position is the first corner, the size and angle the first side's.
+        const bool edge = handler->constructionMethod()
+            == DrawSketchHandlerPolygon::ConstructionMethod::Edge;
+        const int corners = edge ? lastCurve : lastCurve - 1;  // the corners' circle
+        const int firstSide = corners - static_cast<int>(handler->numberOfCorners);
+        const GeoElementId position = edge ? GeoElementId(firstSide, PointPos::start)
+                                           : GeoElementId(corners, PointPos::mid);
+        const double sideAngle = edge ? angle : angle + std::numbers::pi / 2;
+
+        auto size = [&]() {
+            if (edge) {
+                Gui::cmdAppObjectArgs(obj, "addConstraint(Sketcher.Constraint('Distance',%d,%f)) ", firstSide, radius);
+            }
+            else {
+                Gui::cmdAppObjectArgs(obj, "addConstraint(Sketcher.Constraint('Radius',%d,%f)) ", lastCurve, radius);
+            }
+        };
+
+        if (handler->AutoConstraints.empty()) {
+            if (x0set) {
+                ConstraintToAttachment(position, GeoElementId::VAxis, x0, obj);
+            }
+            if (y0set) {
+                ConstraintToAttachment(position, GeoElementId::HAxis, y0, obj);
+            }
+            if (radiusSet) {
+                size();
+            }
+            if (angleSet) {
+                ConstraintLineByAngle(firstSide, sideAngle, obj);
+            }
+            return;
+        }
+
+        auto pointinfo = handler->getPointInfo(position);
+        if (x0set && pointinfo.isXDoF()) {
+            ConstraintToAttachment(position, GeoElementId::VAxis, x0, obj);
+            handler->diagnoseWithAutoConstraints();
+            pointinfo = handler->getPointInfo(position);
+        }
+        if (y0set && pointinfo.isYDoF()) {
+            ConstraintToAttachment(position, GeoElementId::HAxis, y0, obj);
+            handler->diagnoseWithAutoConstraints();
+        }
+        int DoFs = handler->getLineDoFs(firstSide);
+        if (radiusSet && DoFs > 0) {
+            size();
+            handler->diagnoseWithAutoConstraints();
+            DoFs = handler->getLineDoFs(firstSide);
+        }
+        if (angleSet && DoFs > 0) {
+            ConstraintLineByAngle(firstSide, sideAngle, obj);
+        }
+        return;
+    }
 
     auto constraintx0 = [&]() {
         ConstraintToAttachment(GeoElementId(lastCurve, PointPos::mid), GeoElementId::VAxis, x0, obj);

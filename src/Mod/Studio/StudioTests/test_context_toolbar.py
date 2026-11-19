@@ -147,13 +147,14 @@ class Ways(unittest.TestCase):
     def test_every_way_fusion_and_freecad_share(self):
         ways = {b.label: [w.label for w in b.ways] for b in self.toolbar.buttons("editing") if b.ways}
         self.assertEqual(ways, {
-            "Line": ["Line", "Lines and Arcs"],
+            "Line": ["Line", "Lines and Arcs", "Center Point Line"],
             "Rectangle": ["2-Point Rectangle", "Center Rectangle", "3-Point Rectangle", "3-Point Center Rectangle",
                           "Rounded Rectangle"],
-            "Circle": ["Center Diameter Circle", "3-Point Circle"],
-            "Arc": ["Center Point Arc", "3-Point Arc"],
-            "Polygon": ["Inscribed Polygon", "Triangle", "Square", "Hexagon"],
-            "Slot": ["Center to Center Slot", "Center Point Arc Slot"],
+            "Circle": ["Center Diameter Circle", "3-Point Circle", "2-Point Circle"],
+            "Arc": ["Center Point Arc", "3-Point Arc", "Tangent Arc"],
+            "Polygon": ["Inscribed Polygon", "Triangle", "Square", "Hexagon", "Circumscribed Polygon",
+                        "Edge Polygon"],
+            "Slot": ["Center to Center Slot", "Center Point Arc Slot", "Overall Slot", "Center Point Slot"],
             "Spline": ["Fit Point Spline", "Control Point Spline"],
             "Ellipse": ["Center Ellipse", "3-Point Ellipse", "Elliptical Arc"],
         })
@@ -170,6 +171,18 @@ class Ways(unittest.TestCase):
         self.assertEqual(rectangle["Center Rectangle"], ("Sketcher_CreateRectangle_Center", 0))
         self.assertEqual(rectangle["3-Point Rectangle"], ("Sketcher_CreateRectangle", 2))
         self.assertEqual(rectangle["3-Point Center Rectangle"], ("Sketcher_CreateRectangle", 3))
+        line = {w.label: (w.command, w.method) for w in self.button("Line").ways}
+        self.assertEqual(line["Center Point Line"], ("Sketcher_CreateLine", 3))  # added to FreeCAD's Line
+        circle = {w.label: (w.command, w.method) for w in self.button("Circle").ways}
+        self.assertEqual(circle["2-Point Circle"], ("Sketcher_CreateCircle", 2))  # added to FreeCAD's Circle
+        polygon = {w.label: (w.command, w.method) for w in self.button("Polygon").ways}
+        self.assertEqual(polygon["Circumscribed Polygon"], ("Sketcher_CreateHexagon", 1))
+        self.assertEqual(polygon["Edge Polygon"], ("Sketcher_CreateHexagon", 2))
+        slot = {w.label: (w.command, w.method) for w in self.button("Slot").ways}
+        self.assertEqual(slot["Overall Slot"], ("Sketcher_CreateSlot", 1))
+        self.assertEqual(slot["Center Point Slot"], ("Sketcher_CreateSlot", 2))
+        arc = {w.label: (w.command, w.method) for w in self.button("Arc").ways}
+        self.assertEqual(arc["Tangent Arc"], ("Sketcher_CreateArc", 2))
 
     def test_a_tool_starts_with_its_first_way(self):
         rectangle = self.button("Rectangle")
@@ -188,6 +201,18 @@ class Ways(unittest.TestCase):
     def test_the_button_shows_the_ways_icon(self):
         self.toolbar.choose("Sketcher_CreateRectangle", 1)
         self.assertEqual(self.button("Rectangle").icon, self.catalog.get("Sketcher_CreateRectangle_Center").icon)
+
+    def test_new_ways_come_last_so_a_remembered_way_stays_the_same(self):
+        # The way picked last is stored by its place in the list (Toolbar/Ways/<tool>). Ways added after
+        # the user picked one go at the end; these were the lists the user first had (2026-11-18).
+        first = {"Sketcher_CreateLine": ["Line", "Lines and Arcs"],
+                 "Sketcher_CreateCircle": ["Center Diameter Circle", "3-Point Circle"],
+                 "Sketcher_CreateArc": ["Center Point Arc", "3-Point Arc"],
+                 "Sketcher_CreateRegularPolygon": ["Inscribed Polygon", "Triangle", "Square", "Hexagon"],
+                 "Sketcher_CreateSlot": ["Center to Center Slot", "Center Point Arc Slot"]}
+        for tool, labels in first.items():
+            with self.subTest(tool=tool):
+                self.assertEqual([w.label for w in WAYS[tool]][:len(labels)], labels)
 
     def test_a_way_remembered_that_no_longer_exists_falls_back_to_the_first(self):
         self.toolbar.choose("Sketcher_CreateCircle", 1)

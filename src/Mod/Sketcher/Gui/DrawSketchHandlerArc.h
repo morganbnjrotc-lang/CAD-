@@ -52,16 +52,32 @@ namespace SketcherGui
 
 class DrawSketchHandlerArc;
 
+namespace ConstructionMethods
+{
+
+// The arc's own methods: the first two as CircleEllipseConstructionMethod's, which the circle and the
+// ellipse share; a method added here doesn't appear in their tools.
+enum class ArcConstructionMethod
+{
+    Center,
+    ThreeRim,
+    Tangent,  // from the end of a line or arc, carrying on its direction
+    End       // Must be the last one
+};
+
+}  // namespace ConstructionMethods
+
 using DSHArcController = DrawSketchDefaultWidgetController<
     DrawSketchHandlerArc,
     StateMachines::ThreeSeekEnd,
     /*PAutoConstraintSize =*/3,
-    /*OnViewParametersT =*/OnViewParameters<5, 6>,  // NOLINT
-    /*WidgetParametersT =*/WidgetParameters<0, 0>,  // NOLINT
-    /*WidgetCheckboxesT =*/WidgetCheckboxes<0, 0>,  // NOLINT
-    /*WidgetComboboxesT =*/WidgetComboboxes<1, 1>,  // NOLINT,
-    /*WidgetLineEditsT =*/WidgetLineEdits<0, 0>,
-    ConstructionMethods::CircleEllipseConstructionMethod,
+    // Tangent uses four (the fifth is configured with the others, never shown)
+    /*OnViewParametersT =*/OnViewParameters<5, 6, 5>,  // NOLINT
+    /*WidgetParametersT =*/WidgetParameters<0, 0, 0>,  // NOLINT
+    /*WidgetCheckboxesT =*/WidgetCheckboxes<0, 0, 0>,  // NOLINT
+    /*WidgetComboboxesT =*/WidgetComboboxes<1, 1, 1>,  // NOLINT,
+    /*WidgetLineEditsT =*/WidgetLineEdits<0, 0, 0>,
+    ConstructionMethods::ArcConstructionMethod,
     /*bool PFirstComboboxIsConstructionMethod =*/true>;
 
 using DSHArcControllerBase = DSHArcController::ControllerBase;
@@ -138,6 +154,20 @@ private:
                          {tr("%1 pick third arc point"), {MouseLeft}},
                          switchModeHint,
                      }},
+
+                // Tangent method
+                {.state = {ConstructionMethod::Tangent, SelectMode::SeekFirst},
+                 .hints =
+                     {
+                         {tr("%1 pick the end of a line or arc"), {MouseLeft}},
+                         switchModeHint,
+                     }},
+                {.state = {ConstructionMethod::Tangent, SelectMode::SeekSecond},
+                 .hints =
+                     {
+                         {tr("%1 pick arc end point"), {MouseLeft}},
+                         switchModeHint,
+                     }},
             });
     }
 
@@ -155,8 +185,21 @@ private:
                 }
 
                 seekAndRenderAutoConstraint(sugConstraints[0], onSketchPos, Base::Vector2d(0.f, 0.f));
+
+                if (isTangent()) {
+                    findTangentStart();  // the end of a line or arc under the pointer, if any
+                }
             } break;
             case SelectMode::SeekSecond: {
+                if (isTangent()) {
+                    secondPoint = onSketchPos;
+                    placeTangentArc();
+                    CreateAndDrawShapeGeometry();
+                    toolWidgetManager.drawPositionAtCursor(onSketchPos);
+                    seekAndRenderAutoConstraint(sugConstraints[1], onSketchPos, Base::Vector2d(0.f, 0.f));
+                    break;
+                }
+
                 if (constructionMethod() == ConstructionMethod::Center) {
                     firstPoint = onSketchPos;
                     startAngle = (firstPoint - centerPoint).Angle();
@@ -309,6 +352,19 @@ private:
         auto& ac2 = sugConstraints[1];
         auto& ac3 = sugConstraints[2];
 
+        if (isTangent()) {
+            // The start is held by the tangency to the line or arc (which makes them meet too);
+            // only the end takes the second click's constraints.
+            generateAutoConstraintsOnElement(
+                ac2,
+                ArcGeoId,
+                arcPosAtStart == Sketcher::PointPos::start ? Sketcher::PointPos::end
+                                                           : Sketcher::PointPos::start
+            );
+            removeRedundantAutoConstraints();
+            return;
+        }
+
         if (constructionMethod() == ConstructionMethod::Center) {
             // Prevent overconstraining when the arc center is placed symmetrically (at the midpoint)
             // of a line and the arc endpoints are coincident with the endpoints of the same line.
@@ -437,6 +493,12 @@ private:
 
     bool canGoToNextMode() override
     {
+        if (isTangent() && state() == SelectMode::SeekFirst) {
+            return tangentGeoId != Sketcher::GeoEnum::GeoUndef;  // only from the end of a line or arc
+        }
+        if (isTangent() && state() == SelectMode::SeekSecond) {
+            return radius > Precision::Confusion() && fabs(arcAngle) > Precision::Confusion();
+        }
         if (state() == SelectMode::SeekSecond && radius < Precision::Confusion()) {
             // Prevent validation of null arc.
             return false;
@@ -445,6 +507,20 @@ private:
             return false;
         }
         return true;
+    }
+
+    // reimplement because the tangent arc is 2 steps while the others are 3
+    void onButtonPressed(Base::Vector2d onSketchPos) override
+    {
+        this->updateDataAndDrawToPosition(onSketchPos);
+        if (canGoToNextMode()) {
+            if (isTangent() && state() == SelectMode::SeekSecond) {
+                setState(SelectMode::End);
+            }
+            else {
+                moveToNextMode();
+            }
+        }
     }
 
     void angleSnappingControl() override
@@ -467,7 +543,7 @@ private:
             return;
         }
 
-        if (state() == SelectMode::SeekSecond) {
+        if (state() == SelectMode::SeekSecond && !isTangent()) {
             addCircleToShapeGeometry(toVector3d(centerPoint), radius, isConstructionMode());
         }
         else {
@@ -482,6 +558,20 @@ private:
                 radius,
                 isConstructionMode()
             );
+        }
+
+        if (isTangent()) {
+            if (!onlyeditoutline) {
+                // tangent to the line or arc it starts from, end to end (so they meet too)
+                addToShapeConstraints(
+                    Sketcher::Tangent,
+                    getHighestCurveIndex() + 1,
+                    arcPosAtStart,
+                    tangentGeoId,
+                    tangentPos
+                );
+            }
+            return;
         }
 
         if (onlyeditoutline) {
@@ -537,10 +627,89 @@ private:
         }
     }
 
+    bool isTangent() const
+    {
+        return constructionMethod() == ConstructionMethod::Tangent;
+    }
+
+    /// Tangent: the line or arc end the first click snapped to (from the autoconstraint suggested
+    /// there), and the direction it heads out of that end.
+    bool findTangentStart()
+    {
+        tangentGeoId = Sketcher::GeoEnum::GeoUndef;
+        auto* sketch = getSketchObject();
+        for (const auto& ac : sugConstraints[0]) {
+            if (ac.Type != Sketcher::Coincident
+                || (ac.PosId != Sketcher::PointPos::start && ac.PosId != Sketcher::PointPos::end)
+                || ac.GeoId == Sketcher::GeoEnum::HAxis || ac.GeoId == Sketcher::GeoEnum::VAxis) {
+                continue;
+            }
+            const Part::Geometry* geo = sketch->getGeometry(ac.GeoId);
+            if (!geo || !(geo->is<Part::GeomLineSegment>() || geo->is<Part::GeomArcOfCircle>())) {
+                continue;
+            }
+            auto* curve = static_cast<const Part::GeomCurve*>(geo);
+            const bool atStart = ac.PosId == Sketcher::PointPos::start;
+            Base::Vector3d dir;
+            if (!curve->tangent(atStart ? curve->getFirstParameter() : curve->getLastParameter(), dir)) {
+                continue;
+            }
+            if (atStart) {
+                dir = -dir;  // carry on out of the start
+            }
+            tangentDir = Base::Vector2d(dir.x, dir.y);
+            if (tangentDir.Length() < Precision::Confusion()) {
+                continue;
+            }
+            tangentDir.Normalize();
+            const Base::Vector3d end = sketch->getPoint(ac.GeoId, ac.PosId);
+            firstPoint = Base::Vector2d(end.x, end.y);
+            tangentGeoId = ac.GeoId;
+            tangentPos = ac.PosId;
+            return true;
+        }
+        return false;
+    }
+
+    /// Tangent: the arc from the start, heading along tangentDir, through secondPoint. Its center
+    /// is square to the direction, as far from the start as from the end; it turns towards the end.
+    void placeTangentArc()
+    {
+        const Base::Vector2d chord = secondPoint - firstPoint;
+        const Base::Vector2d left(-tangentDir.y, tangentDir.x);
+        const double across = chord * left;
+        if (tangentGeoId == Sketcher::GeoEnum::GeoUndef || fabs(across) < Precision::Confusion()) {
+            radius = 0.0;  // straight ahead: no arc
+            arcAngle = 0.0;
+            return;
+        }
+        const double offset = (chord * chord) / (2 * across);  // > 0: the center on the left
+        centerPoint = firstPoint + offset * left;
+        radius = fabs(offset);
+
+        const double fromAngle = (firstPoint - centerPoint).Angle();
+        const double toAngle = (secondPoint - centerPoint).Angle();
+        // Arcs go counterclockwise: from the start when turning left, from the end when turning right
+        startAngle = offset > 0 ? fromAngle : toAngle;
+        endAngle = offset > 0 ? toAngle : fromAngle;
+        arcPosAtStart = offset > 0 ? Sketcher::PointPos::start : Sketcher::PointPos::end;
+        if (endAngle <= startAngle) {
+            endAngle += 2 * std::numbers::pi;
+        }
+        arcAngle = endAngle - startAngle;
+    }
+
 private:
     Base::Vector2d centerPoint, firstPoint, secondPoint;
     double radius, startAngle, endAngle, arcAngle;
     Sketcher::PointPos arcPos1, arcPos2;
+
+    // Tangent: the line or arc end it starts from, the way it heads there, and which end of the
+    // new arc meets it
+    int tangentGeoId = Sketcher::GeoEnum::GeoUndef;
+    Sketcher::PointPos tangentPos = Sketcher::PointPos::none;
+    Base::Vector2d tangentDir;
+    Sketcher::PointPos arcPosAtStart = Sketcher::PointPos::start;
 };
 
 template<>
@@ -570,9 +739,17 @@ void DSHArcController::configureToolWidget()
     if (!init) {  // Code to be executed only upon initialisation
         QStringList names = {
             QApplication::translate("Sketcher_CreateArc", "Center"),
-            QApplication::translate("Sketcher_CreateArc", "3 rim points")
+            QApplication::translate("Sketcher_CreateArc", "3 rim points"),
+            QApplication::translate("Sketcher_CreateArc", "Tangent (from the end of a line or arc)")
         };
         toolWidget->setComboboxElements(WCombobox::FirstCombo, names);
+        toolWidget->setComboboxItemIcon(
+            WCombobox::FirstCombo,
+            2,
+            Gui::BitmapFactory().iconFromTheme(
+                handler->isConstructionMode() ? "Sketcher_CreateArc_Constr" : "Sketcher_CreateArc"
+            )
+        );
 
         if (handler->isConstructionMode()) {
             toolWidget->setComboboxItemIcon(
@@ -634,6 +811,10 @@ void DSHArcControllerBase::doEnforceControlParameters(Base::Vector2d& onSketchPo
             auto& firstParam = onViewParameters[OnViewParameter::First];
             auto& secondParam = onViewParameters[OnViewParameter::Second];
 
+            if (handler->isTangent()) {
+                break;  // it starts where a line or arc ends: picked, not typed
+            }
+
             if (firstParam->isSet) {
                 onSketchPos.x = firstParam->getValue();
             }
@@ -645,6 +826,41 @@ void DSHArcControllerBase::doEnforceControlParameters(Base::Vector2d& onSketchPo
         case SelectMode::SeekSecond: {
             auto& thirdParam = onViewParameters[OnViewParameter::Third];
             auto& fourthParam = onViewParameters[OnViewParameter::Fourth];
+
+            if (handler->isTangent()) {
+                // the radius, and how far round (degrees); the side the pointer is on sets the turn
+                if (!thirdParam->isSet && !fourthParam->isSet) {
+                    break;
+                }
+                const Base::Vector2d start = handler->firstPoint;
+                const Base::Vector2d left(-handler->tangentDir.y, handler->tangentDir.x);
+                const double side = (onSketchPos - start) * left >= 0 ? 1.0 : -1.0;
+                double radius = handler->radius;
+                if (thirdParam->isSet) {
+                    radius = thirdParam->getValue();
+                    if (radius < Precision::Confusion() && thirdParam->hasFinishedEditing) {
+                        unsetOnViewParameter(thirdParam.get());
+                        return;
+                    }
+                }
+                if (radius < Precision::Confusion()) {
+                    break;
+                }
+                const Base::Vector2d center = start + side * radius * left;
+                if (fourthParam->isSet) {
+                    Base::Vector2d spoke = start - center;
+                    spoke.Rotate(side * Base::toRadians(fourthParam->getValue()));
+                    onSketchPos = center + spoke;
+                }
+                else {
+                    Base::Vector2d dir = onSketchPos - center;
+                    if (dir.Length() < Precision::Confusion()) {
+                        dir = start - center;
+                    }
+                    onSketchPos = center + radius * dir.Normalize();
+                }
+                break;
+            }
 
             if (handler->constructionMethod() == DrawSketchHandlerArc::ConstructionMethod::Center) {
                 Base::Vector2d dir = onSketchPos - handler->centerPoint;
@@ -745,6 +961,25 @@ void DSHArcController::adaptParameters(Base::Vector2d onSketchPos)
             auto& thirdParam = onViewParameters[OnViewParameter::Third];
             auto& fourthParam = onViewParameters[OnViewParameter::Fourth];
 
+            if (handler->isTangent()) {
+                if (!thirdParam->isSet) {
+                    setOnViewParameterValue(OnViewParameter::Third, handler->radius);
+                }
+                if (!fourthParam->isSet) {
+                    setOnViewParameterValue(
+                        OnViewParameter::Fourth,
+                        Base::toDegrees(handler->arcAngle),
+                        Base::Unit::Angle
+                    );
+                }
+                const Base::Vector3d center = toVector3d(handler->centerPoint);
+                thirdParam->setPoints(center, toVector3d(onSketchPos));
+                fourthParam->setPoints(center, Base::Vector3d());
+                fourthParam->setLabelStartAngle(handler->startAngle);
+                fourthParam->setLabelRange(handler->arcAngle);
+                break;
+            }
+
             if (handler->constructionMethod() == DrawSketchHandlerArc::ConstructionMethod::Center) {
 
                 if (!thirdParam->isSet) {
@@ -833,7 +1068,7 @@ void DSHArcController::computeNextDrawSketchHandlerMode()
             auto& fourthParam = onViewParameters[OnViewParameter::Fourth];
 
             if (thirdParam->hasFinishedEditing && fourthParam->hasFinishedEditing) {
-                handler->setNextState(SelectMode::SeekThird);
+                handler->setNextState(handler->isTangent() ? SelectMode::End : SelectMode::SeekThird);
             }
         } break;
         case SelectMode::SeekThird: {
@@ -874,6 +1109,31 @@ void DSHArcController::addConstraints()
     auto p3set = onViewParameters[OnViewParameter::Third]->isSet;
     auto p4set = onViewParameters[OnViewParameter::Fourth]->isSet;
     auto p5set = onViewParameters[OnViewParameter::Fifth]->isSet;
+
+    if (handler->isTangent()) {
+        // The start is held by the tangency; a typed radius and sweep become constraints, unless the
+        // end's own constraints already set them.
+        bool radiusFree = true;
+        if (!handler->AutoConstraints.empty()) {
+            auto edgeinfo = handler->getEdgeInfo(firstCurve);
+            radiusFree = static_cast<SolverGeometryExtension::Arc&>(edgeinfo).isRadiusDoF();
+        }
+        if (p3set && radiusFree) {
+            Gui::cmdAppObjectArgs(obj, "addConstraint(Sketcher.Constraint('Radius',%d,%f)) ", firstCurve, p3);
+            if (!handler->AutoConstraints.empty()) {
+                handler->diagnoseWithAutoConstraints();
+            }
+        }
+        if (p4set && handler->AutoConstraints.empty()) {
+            Gui::cmdAppObjectArgs(
+                obj,
+                "addConstraint(Sketcher.Constraint('Angle',%d,%f)) ",
+                firstCurve,
+                Base::toRadians(p4)
+            );
+        }
+        return;
+    }
 
 
     PointPos pos1 = handler->constructionMethod() == DrawSketchHandlerArc::ConstructionMethod::Center

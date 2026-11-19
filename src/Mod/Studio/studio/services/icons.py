@@ -138,7 +138,10 @@ FREECAD_ICONS = {
 # Only on Studio's surfaces: the command palette's icon is called "Studio", like the workbench.
 STUDIO_ONLY = {"Studio": "search", "fully-constrain": "fully-constrain",
                # ways to draw FreeCAD has no command for (studio.viewmodels.context_toolbar.WAYS)
-               "rectangle-3-point": "rectangle-3-point", "rectangle-3-point-center": "rectangle-3-point-center"}
+               "rectangle-3-point": "rectangle-3-point", "rectangle-3-point-center": "rectangle-3-point-center",
+               "line-center": "line-center", "circle-2-point": "circle-2-point",
+               "polygon-circumscribed": "polygon-circumscribed", "polygon-edge": "polygon-edge",
+               "slot-overall": "slot-overall", "slot-center": "slot-center", "arc-tangent": "arc-tangent"}
 
 
 def icon_path(drawing: str) -> str:

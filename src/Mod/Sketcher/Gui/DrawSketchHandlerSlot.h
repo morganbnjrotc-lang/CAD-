@@ -47,15 +47,30 @@ namespace SketcherGui
 
 class DrawSketchHandlerSlot;
 
+namespace ConstructionMethods
+{
+
+enum class SlotConstructionMethod
+{
+    CenterToCenter,  // the two arcs' centers, then the width
+    Overall,         // the slot's two ends, then the width (a centerline carries the length)
+    CenterPoint,     // the middle, one arc's center (the other mirrors it), then the width
+    End              // Must be the last one
+};
+
+}  // namespace ConstructionMethods
+
 using DSHSlotController = DrawSketchDefaultWidgetController<
     DrawSketchHandlerSlot,
     StateMachines::ThreeSeekEnd,
     /*PAutoConstraintSize =*/2,
-    /*OnViewParametersT =*/OnViewParameters<5>,  // NOLINT
-    /*WidgetParametersT =*/WidgetParameters<0>,  // NOLINT
-    /*WidgetCheckboxesT =*/WidgetCheckboxes<0>,  // NOLINT
-    /*WidgetComboboxesT =*/WidgetComboboxes<0>,  // NOLINT
-    /*WidgetLineEditsT =*/WidgetLineEdits<0>>;   // NOLINT
+    /*OnViewParametersT =*/OnViewParameters<5, 5, 5>,  // NOLINT
+    /*WidgetParametersT =*/WidgetParameters<0, 0, 0>,  // NOLINT
+    /*WidgetCheckboxesT =*/WidgetCheckboxes<0, 0, 0>,  // NOLINT
+    /*WidgetComboboxesT =*/WidgetComboboxes<1, 1, 1>,  // NOLINT
+    /*WidgetLineEditsT =*/WidgetLineEdits<0, 0, 0>,    // NOLINT
+    ConstructionMethods::SlotConstructionMethod,
+    /*bool PFirstComboboxIsConstructionMethod =*/true>;
 
 using DSHSlotControllerBase = DSHSlotController::ControllerBase;
 
@@ -83,25 +98,30 @@ private:
     std::list<Gui::InputHint> getToolHints() const override
     {
         using enum Gui::InputHint::UserInput;
+        using State = std::pair<ConstructionMethod, SelectMode>;
 
-        return Gui::lookupHints<SelectMode>(
-            state(),
+        const Gui::InputHint widthHint {tr("%1 pick slot width"), {MouseLeft}};
+
+        return Gui::lookupHints<State>(
+            {constructionMethod(), state()},
             {
-                {.state = SelectMode::SeekFirst,
-                 .hints =
-                     {
-                         {tr("%1 pick slot start point"), {MouseLeft}},
-                     }},
-                {.state = SelectMode::SeekSecond,
-                 .hints =
-                     {
-                         {tr("%1 pick slot end point"), {MouseLeft}},
-                     }},
-                {.state = SelectMode::SeekThird,
-                 .hints =
-                     {
-                         {tr("%1 pick slot width"), {MouseLeft}},
-                     }},
+                {.state = {ConstructionMethod::CenterToCenter, SelectMode::SeekFirst},
+                 .hints = {{tr("%1 pick slot start point"), {MouseLeft}}}},
+                {.state = {ConstructionMethod::CenterToCenter, SelectMode::SeekSecond},
+                 .hints = {{tr("%1 pick slot end point"), {MouseLeft}}}},
+                {.state = {ConstructionMethod::CenterToCenter, SelectMode::SeekThird},
+                 .hints = {widthHint}},
+                {.state = {ConstructionMethod::Overall, SelectMode::SeekFirst},
+                 .hints = {{tr("%1 pick one end of the slot"), {MouseLeft}}}},
+                {.state = {ConstructionMethod::Overall, SelectMode::SeekSecond},
+                 .hints = {{tr("%1 pick the other end"), {MouseLeft}}}},
+                {.state = {ConstructionMethod::Overall, SelectMode::SeekThird}, .hints = {widthHint}},
+                {.state = {ConstructionMethod::CenterPoint, SelectMode::SeekFirst},
+                 .hints = {{tr("%1 pick the middle of the slot"), {MouseLeft}}}},
+                {.state = {ConstructionMethod::CenterPoint, SelectMode::SeekSecond},
+                 .hints = {{tr("%1 pick the center of one end"), {MouseLeft}}}},
+                {.state = {ConstructionMethod::CenterPoint, SelectMode::SeekThird},
+                 .hints = {widthHint}},
             });
     }
 
@@ -112,28 +132,54 @@ private:
                 toolWidgetManager.drawPositionAtCursor(onSketchPos);
 
                 startPoint = onSketchPos;
+                firstClick = onSketchPos;
 
                 seekAndRenderAutoConstraint(sugConstraints[0], onSketchPos, Base::Vector2d(0.f, 0.f));
             } break;
             case SelectMode::SeekSecond: {
-                toolWidgetManager.drawDirectionAtCursor(onSketchPos, startPoint);
+                toolWidgetManager.drawDirectionAtCursor(onSketchPos, firstClick);
 
-                secondPoint = onSketchPos;
-                angle = (secondPoint - startPoint).Angle();
-                length = (secondPoint - startPoint).Length();
+                secondClick = onSketchPos;
                 const double scale = 0.2;
-                radius = length * scale;  // radius chosen at 1/5 of length
+                if (constructionMethod() == ConstructionMethod::Overall) {
+                    overall = (secondClick - firstClick).Length();
+                    angle = (secondClick - firstClick).Angle();
+                    radius = overall * scale;  // radius chosen at 1/5 of the length
+                    placeOverallCenters();
+                }
+                else {
+                    if (constructionMethod() == ConstructionMethod::CenterPoint) {
+                        startPoint = firstClick + (firstClick - secondClick);  // mirrors the click
+                    }
+                    secondPoint = onSketchPos;
+                    angle = (secondPoint - startPoint).Angle();
+                    length = (secondPoint - startPoint).Length();
+                    radius = length * scale;  // radius chosen at 1/5 of length
+                }
 
                 CreateAndDrawShapeGeometry();
 
                 seekAndRenderAutoConstraint(
                     sugConstraints[1],
                     onSketchPos,
-                    secondPoint - startPoint,
+                    secondClick - firstClick,
                     AutoConstraint::VERTEX_NO_TANGENCY
                 );
             } break;
             case SelectMode::SeekThird: {
+                if (constructionMethod() == ConstructionMethod::Overall) {
+                    // the width from the line through the ends; the centers move in as it grows
+                    const Base::Vector2d axis = secondClick - firstClick;
+                    radius = fabs(axis.x * (onSketchPos.y - firstClick.y)
+                                  - axis.y * (onSketchPos.x - firstClick.x))
+                        / overall;
+                    radius = std::min(radius, 0.499 * overall);  // NOLINT: the arcs mustn't cross
+                    placeOverallCenters();
+                    toolWidgetManager.drawDoubleAtCursor(onSketchPos, radius);
+                    CreateAndDrawShapeGeometry();
+                    break;
+                }
+
                 /*To follow the cursor, r should adapt depending on the position of the cursor. If
                 cursor is 'between' the center points, then its distance to that line and not
                 distance to the second center. A is "between" B and C if angle ?ABC and angle ?ACB
@@ -215,6 +261,21 @@ private:
             removeRedundantHorizontalVertical(getSketchObject(), sugConstraints[0], sugConstraints[1]);
         }
 
+        if (constructionMethod() != ConstructionMethod::CenterToCenter) {
+            // Overall: the clicks are the centerline's ends; CenterPoint: the middle point, then
+            // the second arc's center
+            using Sketcher::PointPos;
+            const bool overallSlot = constructionMethod() == ConstructionMethod::Overall;
+            generateAutoConstraintsOnElement(sugConstraints[0], firstCurve + 4, PointPos::start);
+            generateAutoConstraintsOnElement(
+                sugConstraints[1],
+                overallSlot ? firstCurve + 4 : firstCurve + 1,
+                overallSlot ? PointPos::end : PointPos::mid
+            );
+            removeRedundantAutoConstraints();
+            return;
+        }
+
         // add auto constraints for the center of 1st arc
         generateAutoConstraintsOnElement(
             sugConstraints[0],
@@ -277,7 +338,7 @@ private:
     void angleSnappingControl() override
     {
         if (state() == SelectMode::SeekSecond) {
-            setAngleSnapping(true, startPoint);
+            setAngleSnapping(true, firstClick);
         }
 
         else {
@@ -350,12 +411,56 @@ private:
                 Sketcher::PointPos::end
             );
             addToShapeConstraints(Sketcher::Equal, firstCurve, Sketcher::PointPos::none, firstCurve + 1);
+
+            using Sketcher::PointPos;
+            if (constructionMethod() == ConstructionMethod::Overall) {
+                // A construction centerline from end to end, through both centers: it carries the
+                // overall length, which isn't between any two points of the slot itself.
+                const Base::Vector2d dir(cos(angle), sin(angle));
+                addLineToShapeGeometry(
+                    toVector3d(startPoint - radius * dir),
+                    toVector3d(secondPoint + radius * dir),
+                    true
+                );
+                addToShapeConstraints(Sketcher::PointOnObject, firstCurve + 4, PointPos::start, firstCurve);
+                addToShapeConstraints(Sketcher::PointOnObject, firstCurve + 4, PointPos::end, firstCurve + 1);
+                addToShapeConstraints(Sketcher::PointOnObject, firstCurve, PointPos::mid, firstCurve + 4);
+                addToShapeConstraints(Sketcher::PointOnObject, firstCurve + 1, PointPos::mid, firstCurve + 4);
+            }
+            else if (constructionMethod() == ConstructionMethod::CenterPoint) {
+                // A construction point in the middle, the arcs' centers symmetric about it.
+                addPointToShapeGeometry(toVector3d(firstClick), true);
+                addToShapeConstraints(
+                    Sketcher::Symmetric,
+                    firstCurve,
+                    PointPos::mid,
+                    firstCurve + 1,
+                    PointPos::mid,
+                    firstCurve + 4,
+                    PointPos::start
+                );
+            }
         }
     }
 
+    /// Overall: the arcs' centers a radius in from the clicked ends.
+    void placeOverallCenters()
+    {
+        if (overall < Precision::Confusion()) {
+            length = 0.0;
+            return;
+        }
+        const Base::Vector2d dir = (secondClick - firstClick) / overall;
+        startPoint = firstClick + radius * dir;
+        secondPoint = secondClick - radius * dir;
+        length = overall - 2 * radius;
+    }
+
 private:
-    Base::Vector2d startPoint, secondPoint;
+    Base::Vector2d startPoint, secondPoint;  // the arcs' centers
+    Base::Vector2d firstClick, secondClick;
     double radius, length, angle;
+    double overall = 0.0;  // Overall: end to end
     int firstCurve;
 
     // Direction tracking to prevent OVP from flipping (issue #23459)
@@ -385,6 +490,24 @@ auto DSHSlotControllerBase::getState(int labelindex) const
 template<>
 void DSHSlotController::configureToolWidget()
 {
+    if (!init) {  // Code to be executed only upon initialisation
+        QStringList names = {
+            QApplication::translate("Sketcher_CreateSlot", "Center to center"),
+            QApplication::translate("Sketcher_CreateSlot", "Overall (end to end)"),
+            QApplication::translate("Sketcher_CreateSlot", "Center point")
+        };
+        toolWidget->setComboboxElements(WCombobox::FirstCombo, names);
+        for (int i = 0; i < names.size(); ++i) {
+            toolWidget->setComboboxItemIcon(
+                WCombobox::FirstCombo,
+                i,
+                Gui::BitmapFactory().iconFromTheme(
+                    handler->isConstructionMode() ? "Sketcher_CreateSlot_Constr" : "Sketcher_CreateSlot"
+                )
+            );
+        }
+    }
+
     onViewParameters[OnViewParameter::First]->setLabelType(Gui::SoDatumLabel::DISTANCEX);
     onViewParameters[OnViewParameter::Second]->setLabelType(Gui::SoDatumLabel::DISTANCEY);
     onViewParameters[OnViewParameter::Third]->setLabelType(
@@ -421,7 +544,15 @@ void DSHSlotControllerBase::doEnforceControlParameters(Base::Vector2d& onSketchP
             auto& thirdParam = onViewParameters[OnViewParameter::Third];
             auto& fourthParam = onViewParameters[OnViewParameter::Fourth];
 
-            Base::Vector2d dir = onSketchPos - handler->startPoint;
+            // The typed length: center to center, end to end (Overall), or center to center
+            // around the middle (CenterPoint: the second click is half of it from the first).
+            const Base::Vector2d anchor = handler->firstClick;
+            const double reach = handler->constructionMethod()
+                    == DrawSketchHandlerSlot::ConstructionMethod::CenterPoint
+                ? 0.5
+                : 1.0;
+
+            Base::Vector2d dir = onSketchPos - anchor;
             if (dir.Length() < Precision::Confusion()) {
                 dir.x = 1.0;  // if direction null, default to (1,0)
             }
@@ -444,11 +575,11 @@ void DSHSlotControllerBase::doEnforceControlParameters(Base::Vector2d& onSketchP
                     return;
                 }
 
-                onSketchPos = handler->startPoint + length * handler->capturedDirection;
+                onSketchPos = anchor + reach * length * handler->capturedDirection;
             }
             else if (fourthParam->isSet) {
-                onSketchPos.ProjectToLine(onSketchPos - handler->startPoint, handler->capturedDirection);
-                onSketchPos += handler->startPoint;
+                onSketchPos.ProjectToLine(onSketchPos - anchor, handler->capturedDirection);
+                onSketchPos += anchor;
             }
         } break;
         case SelectMode::SeekThird: {
@@ -462,8 +593,16 @@ void DSHSlotControllerBase::doEnforceControlParameters(Base::Vector2d& onSketchP
                     return;
                 }
 
-                onSketchPos.x = handler->secondPoint.x + cos(handler->angle) * radius;
-                onSketchPos.y = handler->secondPoint.y + sin(handler->angle) * radius;
+                if (handler->constructionMethod()
+                    == DrawSketchHandlerSlot::ConstructionMethod::Overall) {
+                    // the width is measured square to the line through the ends
+                    const Base::Vector2d side(-sin(handler->angle), cos(handler->angle));
+                    onSketchPos = (handler->firstClick + handler->secondClick) / 2 + radius * side;
+                }
+                else {
+                    onSketchPos.x = handler->secondPoint.x + cos(handler->angle) * radius;
+                    onSketchPos.y = handler->secondPoint.y + sin(handler->angle) * radius;
+                }
             }
         } break;
         default:
@@ -497,15 +636,18 @@ void DSHSlotController::adaptParameters(Base::Vector2d onSketchPos)
             auto& thirdParam = onViewParameters[OnViewParameter::Third];
             auto& fourthParam = onViewParameters[OnViewParameter::Fourth];
 
-            Base::Vector3d start = toVector3d(handler->startPoint);
-            Base::Vector3d end = toVector3d(handler->secondPoint);
+            // center to center, or end to end (Overall)
+            const bool overallSlot = handler->constructionMethod()
+                == DrawSketchHandlerSlot::ConstructionMethod::Overall;
+            Base::Vector3d start = toVector3d(overallSlot ? handler->firstClick : handler->startPoint);
+            Base::Vector3d end = toVector3d(overallSlot ? handler->secondClick : handler->secondPoint);
             Base::Vector3d vec = end - start;
 
             if (!thirdParam->isSet) {
                 setOnViewParameterValue(OnViewParameter::Third, vec.Length());
             }
 
-            double range = (handler->secondPoint - handler->startPoint).Angle();
+            double range = (handler->secondClick - handler->firstClick).Angle();
             if (!fourthParam->isSet) {
                 setOnViewParameterValue(
                     OnViewParameter::Fourth,
@@ -585,7 +727,17 @@ void DSHSlotController::addConstraints()
 {
     App::DocumentObject* obj = handler->sketchgui->getObject();
 
-    int firstCurve = handler->getHighestCurveIndex() - 3;
+    using namespace Sketcher;
+
+    // Overall and CenterPoint add a centerline or a middle point after the slot.
+    const auto method = handler->constructionMethod();
+    const bool overallSlot = method == DrawSketchHandlerSlot::ConstructionMethod::Overall;
+    int firstCurve = handler->getHighestCurveIndex() - 3
+        - (method == DrawSketchHandlerSlot::ConstructionMethod::CenterToCenter ? 0 : 1);
+    // what the first click placed: the first arc's center, the centerline's start, the middle point
+    const GeoElementId position = method == DrawSketchHandlerSlot::ConstructionMethod::CenterToCenter
+        ? GeoElementId(firstCurve, PointPos::mid)
+        : GeoElementId(firstCurve + 4, PointPos::start);
 
     auto x0 = onViewParameters[OnViewParameter::First]->getValue();
     auto y0 = onViewParameters[OnViewParameter::Second]->getValue();
@@ -596,21 +748,28 @@ void DSHSlotController::addConstraints()
     auto angleSet = onViewParameters[OnViewParameter::Fourth]->isSet;
     auto radiusSet = onViewParameters[OnViewParameter::Fifth]->isSet;
 
-    using namespace Sketcher;
-
     auto constraintToOrigin = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, PointPos::mid), GeoElementId::RtPnt, x0, obj);
+        ConstraintToAttachment(position, GeoElementId::RtPnt, x0, obj);
     };
 
     auto constraintx0 = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, PointPos::mid), GeoElementId::VAxis, x0, obj);
+        ConstraintToAttachment(position, GeoElementId::VAxis, x0, obj);
     };
 
     auto constrainty0 = [&]() {
-        ConstraintToAttachment(GeoElementId(firstCurve, PointPos::mid), GeoElementId::HAxis, y0, obj);
+        ConstraintToAttachment(position, GeoElementId::HAxis, y0, obj);
     };
 
     auto constraintLength = [&]() {
+        if (overallSlot) {  // end to end, along the centerline
+            Gui::cmdAppObjectArgs(
+                obj,
+                "addConstraint(Sketcher.Constraint('Distance',%d,%f)) ",
+                firstCurve + 4,
+                handler->overall
+            );
+            return;
+        }
         Gui::cmdAppObjectArgs(
             obj,
             "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%d,%f)) ",
@@ -662,7 +821,7 @@ void DSHSlotController::addConstraints()
         }
     }
     else {  // Valid diagnosis. Must check which constraints may be added.
-        auto startpointinfo = handler->getPointInfo(GeoElementId(firstCurve, PointPos::mid));
+        auto startpointinfo = handler->getPointInfo(position);
 
         if (x0set && startpointinfo.isXDoF()) {
             constraintx0();

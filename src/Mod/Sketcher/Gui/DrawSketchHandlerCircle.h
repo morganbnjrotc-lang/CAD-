@@ -46,16 +46,31 @@ namespace SketcherGui
 
 class DrawSketchHandlerCircle;
 
+namespace ConstructionMethods
+{
+
+// The circle's own methods: the first two as CircleEllipseConstructionMethod's, which the arc and the
+// ellipse share; a method added here doesn't appear in their tools.
+enum class CircleConstructionMethod
+{
+    Center,
+    ThreeRim,
+    TwoRim,  // the two ends of a diameter
+    End      // Must be the last one
+};
+
+}  // namespace ConstructionMethods
+
 using DSHCircleController = DrawSketchDefaultWidgetController<
     DrawSketchHandlerCircle,
     /*SelectModeT*/ StateMachines::ThreeSeekEnd,
     /*PAutoConstraintSize =*/3,
-    /*OnViewParametersT =*/OnViewParameters<3, 6>,  // NOLINT
-    /*WidgetParametersT =*/WidgetParameters<0, 0>,  // NOLINT
-    /*WidgetCheckboxesT =*/WidgetCheckboxes<0, 0>,  // NOLINT
-    /*WidgetComboboxesT =*/WidgetComboboxes<1, 1>,  // NOLINT
-    /*WidgetLineEditsT =*/WidgetLineEdits<0, 0>,
-    ConstructionMethods::CircleEllipseConstructionMethod,
+    /*OnViewParametersT =*/OnViewParameters<3, 6, 3>,  // NOLINT
+    /*WidgetParametersT =*/WidgetParameters<0, 0, 0>,  // NOLINT
+    /*WidgetCheckboxesT =*/WidgetCheckboxes<0, 0, 0>,  // NOLINT
+    /*WidgetComboboxesT =*/WidgetComboboxes<1, 1, 1>,  // NOLINT
+    /*WidgetLineEditsT =*/WidgetLineEdits<0, 0, 0>,
+    ConstructionMethods::CircleConstructionMethod,
     /*bool PFirstComboboxIsConstructionMethod =*/true>;
 
 using DSHCircleControllerBase = DSHCircleController::ControllerBase;
@@ -122,6 +137,20 @@ private:
                          {tr("%1 pick third rim point"), {MouseLeft}},
                          switchModeHint,
                      }},
+
+                // TwoRim method
+                {.state = {ConstructionMethod::TwoRim, SelectMode::SeekFirst},
+                 .hints =
+                     {
+                         {tr("%1 pick one end of the diameter"), {MouseLeft}},
+                         switchModeHint,
+                     }},
+                {.state = {ConstructionMethod::TwoRim, SelectMode::SeekSecond},
+                 .hints =
+                     {
+                         {tr("%1 pick the other end"), {MouseLeft}},
+                         switchModeHint,
+                     }},
             });
     }
 
@@ -147,7 +176,8 @@ private:
                 }
             } break;
             case SelectMode::SeekSecond: {
-                if (constructionMethod() == ConstructionMethod::ThreeRim) {
+                if (constructionMethod() == ConstructionMethod::ThreeRim
+                    || constructionMethod() == ConstructionMethod::TwoRim) {
                     centerPoint = (onSketchPos - firstPoint) / 2 + firstPoint;
                 }
                 secondPoint = onSketchPos;
@@ -342,7 +372,7 @@ private:
         this->updateDataAndDrawToPosition(onSketchPos);
         if (canGoToNextMode()) {
             if (state() == SelectMode::SeekSecond
-                && constructionMethod() == ConstructionMethod::Center) {
+                && constructionMethod() != ConstructionMethod::ThreeRim) {
                 setState(SelectMode::End);
             }
             else {
@@ -374,7 +404,8 @@ template<>
 auto DSHCircleControllerBase::getState(int labelindex) const
 {
 
-    if (handler->constructionMethod() == DrawSketchHandlerCircle::ConstructionMethod::Center) {
+    // Center and TwoRim: a point, then a size
+    if (handler->constructionMethod() != DrawSketchHandlerCircle::ConstructionMethod::ThreeRim) {
         switch (labelindex) {
             case OnViewParameter::First:
             case OnViewParameter::Second:
@@ -413,7 +444,8 @@ void DSHCircleController::configureToolWidget()
     if (!init) {  // Code to be executed only upon initialisation
         QStringList names = {
             QApplication::translate("Sketcher_CreateCircle", "Center"),
-            QApplication::translate("Sketcher_CreateCircle", "3 rim points")
+            QApplication::translate("Sketcher_CreateCircle", "3 rim points"),
+            QApplication::translate("Sketcher_CreateCircle", "2 rim points (diameter)")
         };
         toolWidget->setComboboxElements(WCombobox::FirstCombo, names);
 
@@ -428,6 +460,11 @@ void DSHCircleController::configureToolWidget()
                 1,
                 Gui::BitmapFactory().iconFromTheme("Sketcher_Create3PointCircle_Constr")
             );
+            toolWidget->setComboboxItemIcon(
+                WCombobox::FirstCombo,
+                2,
+                Gui::BitmapFactory().iconFromTheme("Sketcher_Create3PointCircle_Constr")
+            );
         }
         else {
             toolWidget->setComboboxItemIcon(
@@ -438,6 +475,11 @@ void DSHCircleController::configureToolWidget()
             toolWidget->setComboboxItemIcon(
                 WCombobox::FirstCombo,
                 1,
+                Gui::BitmapFactory().iconFromTheme("Sketcher_Create3PointCircle")
+            );
+            toolWidget->setComboboxItemIcon(
+                WCombobox::FirstCombo,
+                2,
                 Gui::BitmapFactory().iconFromTheme("Sketcher_Create3PointCircle")
             );
         }
@@ -520,6 +562,24 @@ void DSHCircleControllerBase::doEnforceControlParameters(Base::Vector2d& onSketc
                     }
 
                     onSketchPos = handler->centerPoint + radius * dir.Normalize();
+                }
+            }
+            else if (handler->constructionMethod()
+                     == DrawSketchHandlerCircle::ConstructionMethod::TwoRim) {
+                if (thirdParam->isSet) {  // the second point a diameter from the first
+                    double diameter = (handler->isDiameter ? 1 : 2) * thirdParam->getValue();
+                    if (diameter < Precision::Confusion() && thirdParam->hasFinishedEditing) {
+                        unsetOnViewParameter(thirdParam.get());
+                        return;
+                    }
+
+                    auto dir = (onSketchPos - handler->firstPoint);
+
+                    if (dir.Length() < Precision::Confusion()) {
+                        dir.x = 1.0;  // if direction null, default to (1,0)
+                    }
+
+                    onSketchPos = handler->firstPoint + diameter * dir.Normalize();
                 }
             }
             else {
@@ -607,6 +667,19 @@ void DSHCircleController::adaptParameters(Base::Vector2d onSketchPos)
 
                 thirdParam->setPoints(start, end);
             }
+            else if (handler->constructionMethod()
+                     == DrawSketchHandlerCircle::ConstructionMethod::TwoRim) {
+                if (!thirdParam->isSet) {
+                    setOnViewParameterValue(
+                        OnViewParameter::Third,
+                        handler->radius * (handler->isDiameter ? 2 : 1)
+                    );
+                }
+                thirdParam->setPoints(
+                    toVector3d(handler->isDiameter ? handler->firstPoint : handler->centerPoint),
+                    toVector3d(onSketchPos)
+                );
+            }
             else {
                 auto& fourthParam = onViewParameters[OnViewParameter::Fourth];
                 if (!thirdParam->isSet) {
@@ -664,7 +737,7 @@ void DSHCircleController::computeNextDrawSketchHandlerMode()
 
             if (thirdParam->hasFinishedEditing
                 && handler->constructionMethod()
-                    == DrawSketchHandlerCircle::ConstructionMethod::Center) {
+                    != DrawSketchHandlerCircle::ConstructionMethod::ThreeRim) {
 
                 handler->setNextState(SelectMode::End);
             }
@@ -804,6 +877,30 @@ void DSHCircleController::addConstraints()
                 constraintradius();
             }
         }
+    }
+    else if (handler->constructionMethod() == DrawSketchHandlerCircle::ConstructionMethod::TwoRim) {
+        // A typed diameter (or radius) becomes one, unless the clicked points already set it.
+        if (!onViewParameters[OnViewParameter::Third]->isSet) {
+            return;
+        }
+        int circleId = handler->getHighestCurveIndex();
+        if (!handler->AutoConstraints.empty()) {
+            auto edgeinfo = handler->getEdgeInfo(circleId);
+            auto circle = static_cast<Sketcher::SolverGeometryExtension::Circle&>(edgeinfo);
+            if (!circle.isRadiusDoF()) {
+                return;
+            }
+        }
+        Gui::cmdAppObjectArgs(
+            handler->sketchgui->getObject(),
+            handler->isDiameter ? "addConstraint(Sketcher.Constraint('Diameter',%d,%f)) "
+                                : "addConstraint(Sketcher.Constraint('Radius',%d,%f)) ",
+            circleId,
+            handler->isDiameter ? handler->radius * 2 : handler->radius
+        );
+        const std::vector<Sketcher::Constraint*>& constraints
+            = handler->sketchgui->getSketchObject()->Constraints.getValues();
+        handler->moveConstraint(static_cast<int>(constraints.size()) - 1, prevCursorPosition);
     }
     // No constraint possible for 3 rim circle.
 }
