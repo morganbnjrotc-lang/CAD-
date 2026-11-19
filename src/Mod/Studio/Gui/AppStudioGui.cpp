@@ -18,6 +18,7 @@
 #include <QLineEdit>
 #include <QMap>
 #include <QMdiArea>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPlainTextEdit>
@@ -375,7 +376,21 @@ public:
             "view_mouse",
             &Module::viewMouse,
             "view_mouse(action, px, py)\n\n"
-            "For tests: 'move', 'press', 'release' or 'click' (left button) at a pixel of the active 3D view."
+            "For tests: 'move', 'press', 'release' or 'click' (left button), or 'right_click', at a pixel\n"
+            "of the active 3D view."
+        );
+        add_varargs_method(
+            "popup_menu",
+            &Module::popupMenu,
+            "popup_menu() -> list of str or None\n\n"
+            "For tests: the items of the menu open now (a right-click menu), without the '&' of their\n"
+            "shortcut letters; None if no menu is open."
+        );
+        add_varargs_method(
+            "close_popups",
+            &Module::closePopups,
+            "close_popups() -> int\n\n"
+            "For tests: closes every open menu, as clicking elsewhere would. Returns how many it closed."
         );
         add_varargs_method(
             "type_keys",
@@ -686,10 +701,50 @@ private:
         else if (what == "release") {
             send(QEvent::MouseButtonRelease, Qt::LeftButton, Qt::NoButton);
         }
+        else if (what == "right_click") {
+            send(QEvent::MouseMove, Qt::NoButton, Qt::NoButton);
+            send(QEvent::MouseButtonPress, Qt::RightButton, Qt::RightButton);
+            send(QEvent::MouseButtonRelease, Qt::RightButton, Qt::NoButton);
+        }
         else {
-            throw Py::ValueError("action is 'move', 'press', 'release' or 'click'");
+            throw Py::ValueError("action is 'move', 'press', 'release', 'click' or 'right_click'");
         }
         return Py::None();
+    }
+
+    Py::Object popupMenu(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+        if (!menu) {
+            return Py::None();
+        }
+        Py::List items;
+        for (QAction* action : menu->actions()) {
+            if (!action->isSeparator() && action->isVisible()) {
+                items.append(Py::String(action->text().remove(QLatin1Char('&')).toStdString()));
+            }
+        }
+        return items;
+    }
+
+    Py::Object closePopups(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        int closed = 0;
+        // A menu that refuses to close would stay the active popup: stop rather than loop forever.
+        for (QWidget* popup = QApplication::activePopupWidget(); popup && closed < 16;
+             popup = QApplication::activePopupWidget()) {
+            if (!popup->close()) {
+                break;
+            }
+            ++closed;
+        }
+        return Py::Long(closed);
     }
 
     Py::Object typeKeys(const Py::Tuple& args)

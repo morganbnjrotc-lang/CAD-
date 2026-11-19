@@ -2783,6 +2783,9 @@ void NavigationStyle::openPopupMenu(const SbVec2s& position)
         separator = true;
         if (auto cmd
             = Application::Instance->commandManager().getCommandByName("Std_ClarifySelection")) {
+            // A command's action is only made when a menu or toolbar first shows the command:
+            // a workbench without the Tools menu, where this one lives, never makes it.
+            cmd->initAction();
             pickAction = new QAction(cmd->getAction()->text(), contextMenu);
             pickAction->setShortcut(cmd->getAction()->shortcut());
         }
