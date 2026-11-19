@@ -5,10 +5,14 @@ The shell reports the selection as `Selected` items (object type, sub-elements s
 the type of the object being edited, if any. `selection_kind` sorts that into one kind; `TOOLS` lists
 the tools for each kind; `ContextToolbar` turns them into buttons with plain names, icons, the
 active shortcut and FreeCAD's name in the tooltip, plus a status-bar hint. No Qt here.
+
+Sketch tools that draw a shape more than one way (`WAYS`, PLAN 3.12) list the ways in a drop-down, as
+Fusion and Inventor do; the button draws the way picked last (`choose`), remembered in the settings.
 """
 
 from dataclasses import dataclass
 
+from studio.services.settings import Setting
 from studio.viewmodels.tool_names import clean_title, display_title
 
 SKETCH = "Sketcher::SketchObject"
@@ -28,9 +32,55 @@ TOOLS = {
     "feature": [("PartDesign_Mirrored", None), ("PartDesign_LinearPattern", None), ("PartDesign_PolarPattern", None),
                 ("Std_ViewFitSelection", None)],
     "editing": [("Sketcher_CreateLine", None), ("Sketcher_CreateRectangle", None), ("Sketcher_CreateCircle", "Circle"),
-                ("Sketcher_CreateArc", "Arc"), ("Sketcher_Dimension", None), ("Studio_FullyConstrain", None),
+                ("Sketcher_CreateArc", "Arc"), ("Sketcher_CreateRegularPolygon", "Polygon"),
+                ("Sketcher_CreateSlot", None), ("Sketcher_CreateBSplineByInterpolation", "Spline"),
+                ("Sketcher_CreateEllipseByCenter", "Ellipse"), ("Sketcher_CreatePoint", None),
+                ("Sketcher_CreateText", None), ("Sketcher_Dimension", None), ("Studio_FullyConstrain", None),
                 ("Sketcher_LeaveSketch", "Close Sketch")],
 }
+
+
+@dataclass(frozen=True)
+class Way:
+    """One way to draw a shape: a FreeCAD command, and the drawing method its tool panel starts in (the
+    index in the panel's first list) when FreeCAD has no command that starts in it."""
+
+    command: str
+    label: str
+    method: int = 0
+    icon: str = ""  # Studio's drawing, for a way FreeCAD has no command (and so no icon) for
+
+
+# Tool (its command in TOOLS) -> the ways it draws, the default first; Fusion's names for them.
+WAYS = {
+    "Sketcher_CreateLine": (Way("Sketcher_CreateLine", "Line"),
+                            Way("Sketcher_CreatePolyline", "Lines and Arcs")),  # M switches to arcs
+    "Sketcher_CreateRectangle": (Way("Sketcher_CreateRectangle", "2-Point Rectangle"),
+                                 Way("Sketcher_CreateRectangle_Center", "Center Rectangle"),
+                                 Way("Sketcher_CreateRectangle", "3-Point Rectangle", 2, "rectangle-3-point"),
+                                 Way("Sketcher_CreateRectangle", "3-Point Center Rectangle", 3,
+                                     "rectangle-3-point-center"),
+                                 Way("Sketcher_CreateOblong", "Rounded Rectangle")),
+    "Sketcher_CreateCircle": (Way("Sketcher_CreateCircle", "Center Diameter Circle"),
+                              Way("Sketcher_Create3PointCircle", "3-Point Circle")),
+    "Sketcher_CreateArc": (Way("Sketcher_CreateArc", "Center Point Arc"),
+                           Way("Sketcher_Create3PointArc", "3-Point Arc")),
+    "Sketcher_CreateRegularPolygon": (Way("Sketcher_CreateRegularPolygon", "Inscribed Polygon"),
+                                      Way("Sketcher_CreateTriangle", "Triangle"),
+                                      Way("Sketcher_CreateSquare", "Square"),
+                                      Way("Sketcher_CreateHexagon", "Hexagon")),
+    "Sketcher_CreateSlot": (Way("Sketcher_CreateSlot", "Center to Center Slot"),
+                            Way("Sketcher_CreateArcSlot", "Center Point Arc Slot")),
+    "Sketcher_CreateBSplineByInterpolation": (Way("Sketcher_CreateBSplineByInterpolation", "Fit Point Spline"),
+                                              Way("Sketcher_CreateBSpline", "Control Point Spline")),
+    "Sketcher_CreateEllipseByCenter": (Way("Sketcher_CreateEllipseByCenter", "Center Ellipse"),
+                                       Way("Sketcher_CreateEllipseBy3Points", "3-Point Ellipse"),
+                                       Way("Sketcher_CreateArcOfEllipse", "Elliptical Arc")),
+}
+
+
+def _way_setting(tool: str) -> Setting:
+    return Setting(f"Toolbar/Ways/{tool}", 0)
 
 
 @dataclass(frozen=True)
@@ -69,12 +119,30 @@ class ToolButton:
     icon: str | None  # source SVG path from the catalog
     shortcut: str  # first active key sequence, "" if none
     tooltip: str
+    method: int = 0  # the drawing method to start the command's tool in (Way.method)
+    ways: tuple = ()  # the tool's Ways when it draws more than one way; `way` is the one the button draws
+    way: int = 0
+    tool: str = ""  # the tool's command in TOOLS, for `choose`
 
 
 class ContextToolbar:
-    def __init__(self, catalog, keymap=None):
+    def __init__(self, catalog, keymap=None, settings=None):
         self._catalog = catalog
         self._keymap = keymap
+        self._settings = settings
+
+    def choose(self, tool: str, way: int):
+        """The user picked `way` from `tool`'s list: the button draws it from now on."""
+        if self._settings is not None:
+            self._settings.set(_way_setting(tool), way)
+
+    def way_icon(self, way: Way) -> str:
+        """The icon a way shows: Studio's drawing for it, else its command's."""
+        return way.icon or self._catalog.get(way.command).icon
+
+    def _chosen(self, tool: str) -> int:
+        way = self._settings.get(_way_setting(tool)) if self._settings is not None else 0
+        return way if 0 <= way < len(WAYS[tool]) else 0
 
     def _key(self, command, contexts) -> str:
         if self._keymap is None:
@@ -83,12 +151,21 @@ class ContextToolbar:
 
     def buttons(self, kind: str, contexts=()) -> list:
         result = []
-        for command, label in TOOLS[kind]:
+        for tool, label in TOOLS[kind]:
+            label = label or display_title(self._catalog.get(tool))
+            ways, way = WAYS.get(tool, ()), 0
+            command, method, title = tool, 0, label
+            if ways:
+                way = self._chosen(tool)
+                command, method, title = ways[way].command, ways[way].method, ways[way].label
             info = self._catalog.get(command)
-            label = label or display_title(info)
+            icon = self.way_icon(ways[way]) if ways else info.icon
             freecad_name = clean_title(info.menu_text)
-            tooltip = info.tooltip + (f"\nFreeCAD: {freecad_name}" if freecad_name != label else "")
-            result.append(ToolButton(command, label, info.icon, self._key(command, contexts), tooltip))
+            tooltip = info.tooltip + (f"\nFreeCAD: {freecad_name}" if freecad_name != title else "")
+            if ways:
+                tooltip = f"{title}\n{tooltip}"
+            result.append(ToolButton(command, label, icon, self._key(command, contexts), tooltip,
+                                     method, ways, way, tool))
         return result
 
     def hint(self, kind: str, contexts=()) -> str:

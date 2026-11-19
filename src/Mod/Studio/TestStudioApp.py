@@ -23,7 +23,7 @@ from StudioTests.test_keymap import (  # noqa: F401
     UserBindings,
 )
 from StudioTests.test_keymap import ShippedCatalog as KeymapShippedCatalog  # noqa: F401
-from StudioTests.test_context_toolbar import Buttons, Kinds, Names  # noqa: F401
+from StudioTests.test_context_toolbar import Buttons, Kinds, Names, Ways  # noqa: F401
 from StudioTests.test_home import Cards, ListSize, RecentFilesStore, Thumbnails  # noqa: F401
 from StudioTests.test_icons import Drawings  # noqa: F401
 from StudioTests.test_icons import Names as IconNames  # noqa: F401

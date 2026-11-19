@@ -9,6 +9,9 @@ and ignored in a task panel.
 
 Fully Constrain (Studio_FullyConstrain, PLAN 3.4) runs studio.services.auto_constrain on the sketch being
 edited and says what it did in the status bar (through FreeCAD's console, which FreeCAD shows there).
+
+Ways to draw FreeCAD has no command for (a 3-point rectangle, PLAN 3.12) start its tool and pick the way
+in the tool's panel, the list FreeCAD's M key steps through (`use_method`).
 """
 
 import FreeCAD
@@ -40,6 +43,16 @@ def sketch_in_edit():
     view_provider = document.getInEdit() if document is not None else None
     target = getattr(view_provider, "Object", None)
     return target if getattr(target, "TypeId", None) == "Sketcher::SketchObject" else None
+
+
+def use_method(method: int) -> bool:
+    """Switches the sketch tool just started to its drawing method `method` (its panel's first list)."""
+    import StudioGui  # Studio's C++ helpers: Python wrappers of FreeCAD's panels abort at exit
+
+    if StudioGui.set_drawing_method(method):
+        return True
+    FreeCAD.Console.PrintWarning(f"Studio: no sketch tool to switch to drawing method {method}\n")
+    return False
 
 
 def fully_constrain():

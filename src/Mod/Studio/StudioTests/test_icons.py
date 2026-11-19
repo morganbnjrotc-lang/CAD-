@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 
 from studio.services import icons, theme
 from studio.services.commands import CommandCatalog
-from studio.viewmodels.context_toolbar import TOOLS
+from studio.viewmodels.context_toolbar import TOOLS, WAYS, ContextToolbar
 
 SVG = "{http://www.w3.org/2000/svg}"
 SHAPES = {f"{SVG}{tag}" for tag in ("path", "circle", "ellipse", "rect", "g")}
@@ -54,6 +54,18 @@ class Names(unittest.TestCase):
             for command, _label in tools:
                 with self.subTest(kind=kind, command=command):
                     self.assertIsNotNone(icons.line_icon(stem(catalog.get(command).icon)))
+
+    def test_every_way_to_draw_has_a_line_icon_of_its_own(self):
+        # The drop-down under a sketch tool shows each way's drawing, and the button the one it draws (PLAN 3.12).
+        toolbar = ContextToolbar(CommandCatalog.load())
+        drawings = {}
+        for ways in WAYS.values():
+            for way in ways:
+                with self.subTest(way=way.label):
+                    drawing = icons.line_icon(stem(toolbar.way_icon(way)))
+                    self.assertIsNotNone(drawing)
+                    drawings.setdefault(drawing, []).append(way.label)
+        self.assertEqual({d: w for d, w in drawings.items() if len(w) > 1}, {}, "ways sharing a drawing")
 
     def test_the_model_trees_feature_types_have_line_icons(self):
         names = {name for names in icons.freecad_registrations().values() for name in names}

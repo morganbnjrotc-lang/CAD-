@@ -13,8 +13,8 @@ import FreeCAD
 
 from studio.interaction.keymap import Keymap
 from studio.services.commands import CommandCatalog
-from studio.services.settings import Settings
-from studio.viewmodels.context_toolbar import TOOLS, ContextToolbar, Selected, selection_kind
+from studio.services.settings import Setting, Settings
+from studio.viewmodels.context_toolbar import TOOLS, WAYS, ContextToolbar, Selected, selection_kind
 from studio.viewmodels.tool_names import PLAIN_NAMES, display_title
 
 TEST_PARENT = "User parameter:BaseApp/Preferences/Mod/Studio/Tests"
@@ -96,7 +96,8 @@ class Buttons(unittest.TestCase):
         self.assertEqual(self.labels("geometry"), ["Fillet", "Chamfer", "Measure", "Fit Selection"])
         self.assertEqual(self.labels("feature"), ["Mirror", "Linear Pattern", "Polar Pattern", "Fit Selection"])
         self.assertEqual(self.labels("editing"),
-                         ["Line", "Rectangle", "Circle", "Arc", "Dimension", "Fully Constrain", "Close Sketch"])
+                         ["Line", "Rectangle", "Circle", "Arc", "Polygon", "Slot", "Spline", "Ellipse", "Point",
+                          "Text", "Dimension", "Fully Constrain", "Close Sketch"])
 
     def test_every_tool_is_a_catalog_command(self):
         for kind, tools in TOOLS.items():
@@ -128,6 +129,74 @@ class Buttons(unittest.TestCase):
         self.assertIn("Ctrl+E", self.toolbar.hint("sketch"))
         self.keymap.set_sequences("PartDesign_Pad", [])
         self.assertNotIn("Press", self.toolbar.hint("sketch"))
+
+
+class Ways(unittest.TestCase):
+    """Sketch tools that draw a shape more than one way, picked from a drop-down (PLAN 3.12)."""
+
+    def setUp(self):
+        name = "Ways" + uuid.uuid4().hex[:8]
+        self.settings = Settings(root=f"{TEST_PARENT}/{name}")
+        self.addCleanup(lambda: FreeCAD.ParamGet(TEST_PARENT).RemGroup(name))
+        self.catalog = CommandCatalog.load()
+        self.toolbar = ContextToolbar(self.catalog, None, self.settings)
+
+    def button(self, label, toolbar=None):
+        return next(b for b in (toolbar or self.toolbar).buttons("editing") if b.label == label)
+
+    def test_every_way_fusion_and_freecad_share(self):
+        ways = {b.label: [w.label for w in b.ways] for b in self.toolbar.buttons("editing") if b.ways}
+        self.assertEqual(ways, {
+            "Line": ["Line", "Lines and Arcs"],
+            "Rectangle": ["2-Point Rectangle", "Center Rectangle", "3-Point Rectangle", "3-Point Center Rectangle",
+                          "Rounded Rectangle"],
+            "Circle": ["Center Diameter Circle", "3-Point Circle"],
+            "Arc": ["Center Point Arc", "3-Point Arc"],
+            "Polygon": ["Inscribed Polygon", "Triangle", "Square", "Hexagon"],
+            "Slot": ["Center to Center Slot", "Center Point Arc Slot"],
+            "Spline": ["Fit Point Spline", "Control Point Spline"],
+            "Ellipse": ["Center Ellipse", "3-Point Ellipse", "Elliptical Arc"],
+        })
+
+    def test_every_way_is_a_catalog_command(self):
+        for ways in WAYS.values():
+            for way in ways:
+                with self.subTest(way=way.label):
+                    self.catalog.get(way.command)
+
+    def test_ways_freecad_has_no_command_for_start_its_rectangle_in_another_method(self):
+        rectangle = {w.label: (w.command, w.method) for w in self.button("Rectangle").ways}
+        self.assertEqual(rectangle["2-Point Rectangle"], ("Sketcher_CreateRectangle", 0))
+        self.assertEqual(rectangle["Center Rectangle"], ("Sketcher_CreateRectangle_Center", 0))
+        self.assertEqual(rectangle["3-Point Rectangle"], ("Sketcher_CreateRectangle", 2))
+        self.assertEqual(rectangle["3-Point Center Rectangle"], ("Sketcher_CreateRectangle", 3))
+
+    def test_a_tool_starts_with_its_first_way(self):
+        rectangle = self.button("Rectangle")
+        self.assertEqual((rectangle.command, rectangle.method), ("Sketcher_CreateRectangle", 0))
+        self.assertEqual(rectangle.way, 0)
+        self.assertTrue(rectangle.tooltip.startswith("2-Point Rectangle\n"), rectangle.tooltip)
+
+    def test_then_it_draws_the_way_picked_last_also_next_time(self):
+        self.toolbar.choose("Sketcher_CreateRectangle", 2)
+        for toolbar in (self.toolbar, ContextToolbar(self.catalog, None, self.settings)):
+            rectangle = self.button("Rectangle", toolbar)
+            self.assertEqual((rectangle.command, rectangle.method, rectangle.way), ("Sketcher_CreateRectangle", 2, 2))
+            self.assertTrue(rectangle.tooltip.startswith("3-Point Rectangle\n"), rectangle.tooltip)
+            self.assertEqual(rectangle.label, "Rectangle")
+
+    def test_the_button_shows_the_ways_icon(self):
+        self.toolbar.choose("Sketcher_CreateRectangle", 1)
+        self.assertEqual(self.button("Rectangle").icon, self.catalog.get("Sketcher_CreateRectangle_Center").icon)
+
+    def test_a_way_remembered_that_no_longer_exists_falls_back_to_the_first(self):
+        self.toolbar.choose("Sketcher_CreateCircle", 1)
+        self.settings.set(Setting("Toolbar/Ways/Sketcher_CreateCircle", 0), 9)
+        self.assertEqual(self.button("Circle").way, 0)
+
+    def test_tools_with_one_way_have_no_list(self):
+        self.assertEqual(self.button("Point").ways, ())
+        self.assertEqual(self.button("Dimension").ways, ())
 
 
 if __name__ == "__main__":

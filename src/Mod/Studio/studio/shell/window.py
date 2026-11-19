@@ -3,7 +3,8 @@
 
 On top of FreeCAD's main window, while Studio's workbench is active:
   top bar  ☰ menu (FreeCAD's File, Edit, View and Help menus) · panel button · "Search tools" (palette)
-  toolbar  the tools for the current selection (studio.viewmodels.context_toolbar), icon and label
+  toolbar  the tools for the current selection (studio.viewmodels.context_toolbar), icon and label;
+           a sketch tool that draws more than one way has an arrow listing the ways (PLAN 3.12)
   status   a hint for the current selection, at the right of the status bar
 FreeCAD's menu bar is hidden; the Model panel (tree above properties) is FreeCAD's own dock.
 The bars are plain QToolBars: FreeCAD's toolbar manager only hides its own Gui::ToolBar class.
@@ -73,6 +74,7 @@ class StudioWindow:
         self.kind = None
         self.extra_menus = []  # Studio's own menus after FreeCAD's in ☰ (e.g. Appearance)
         self._model_panel = None
+        self._tool_widgets = []  # the toolbar's buttons with ways, replaced on each refresh
 
     # -- setup -------------------------------------------------------------------------------
     def install(self):
@@ -226,15 +228,56 @@ class StudioWindow:
         kind = selection_kind(selected, editing)
         contexts = self._contexts()
         self.tools.clear()
+        for widget in self._tool_widgets:
+            widget.deleteLater()
+        self._tool_widgets = []
         for button in self._toolbar.buttons(kind, contexts):
-            action = self.tools.addAction(self._icon(button.icon), button.label)
             key = f" ({button.shortcut})" if button.shortcut else ""
-            action.setToolTip(f"{button.label}{key}\n{button.tooltip}")
+            tooltip = f"{button.label}{key}\n{button.tooltip}"
+            if button.ways:
+                tooltip = button.tooltip.replace("\n", f"{key}\n", 1)  # the way's name first
+                action = self.tools.addWidget(self._ways_button(button, tooltip))
+                action.setText(button.label)
+            else:
+                action = self.tools.addAction(self._icon(button.icon), button.label)
+                action.setToolTip(tooltip)
+                action.triggered.connect(functools.partial(self._run, button.command, button.method))
             action.setData(button.command)
             action.setEnabled(self._active(button.command))
-            action.triggered.connect(functools.partial(self._run, button.command))
         self.hint.setText(self._toolbar.hint(kind, contexts))
         self.kind = kind
+
+    def _ways_button(self, button, tooltip):
+        """A tool that draws more than one way: the button draws the way picked last, its arrow lists them."""
+        widget = QtWidgets.QToolButton(self.tools)
+        widget.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        widget.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
+        widget.setText(button.label)
+        widget.setIcon(self._icon(button.icon))
+        widget.setToolTip(tooltip)
+        menu = QtWidgets.QMenu(widget)
+        for index, way in enumerate(button.ways):
+            item = menu.addAction(self._icon(self._toolbar.way_icon(way)), way.label)
+            item.setCheckable(True)
+            item.setChecked(index == button.way)
+            item.triggered.connect(functools.partial(self._pick_way, button.tool, index, way))
+        widget.setMenu(menu)
+        widget.clicked.connect(functools.partial(self._run, button.command, button.method))
+        self._tool_widgets.append(widget)
+        return widget
+
+    def tool_widget(self, label):
+        """The toolbar's button with ways named `label`, or None (a plain tool has no button of its own here)."""
+        return next((w for w in self._tool_widgets if w.text() == label), None)
+
+    def choose_way(self, tool, index):
+        """The button of `tool` (its command in context_toolbar.TOOLS) draws its way `index` from now on."""
+        self._toolbar.choose(tool, index)
+        self.schedule_refresh()
+
+    def _pick_way(self, tool, index, way, *_):
+        self.choose_way(tool, index)
+        self._run(way.command, way.method)
 
     def _active(self, command):
         try:
@@ -248,14 +291,19 @@ class StudioWindow:
             if command:
                 action.setEnabled(self._active(command))
 
-    def _run(self, command, *_):
-        QtCore.QTimer.singleShot(0, lambda: self._run_now(command))
+    def _run(self, command, method=0, *_):
+        QtCore.QTimer.singleShot(0, lambda: self._run_now(command, method))
 
-    def _run_now(self, command):
+    def _run_now(self, command, method=0):
         try:
             self._service.run(command)
         except Exception as exc:
             FreeCAD.Console.PrintError(f"Studio toolbar: {command} failed: {exc}\n")
+            return
+        if method:
+            from studio.shell import sketching
+
+            QtCore.QTimer.singleShot(0, lambda: sketching.use_method(method))
 
 
 def _top_bar_style(p):
@@ -282,6 +330,9 @@ QToolBar#StudioToolBar QToolButton {{ color: {p.text}; background: transparent; 
 QToolBar#StudioToolBar QToolButton:hover {{ background: {p.hover}; }}
 QToolBar#StudioToolBar QToolButton:pressed {{ background: {p.selection}; }}
 QToolBar#StudioToolBar QToolButton:disabled {{ color: {p.faint}; }}
+QToolBar#StudioToolBar QToolButton[popupMode="1"] {{ padding-right: 16px; }}
+QToolBar#StudioToolBar QToolButton::menu-button {{ border: none; border-radius: 4px; width: 14px; }}
+QToolBar#StudioToolBar QToolButton::menu-button:hover {{ background: {p.selection}; }}
 """
 
 
@@ -297,7 +348,7 @@ def install_once():
         from studio.viewmodels.context_toolbar import ContextToolbar
 
         service = app.command_service()
-        toolbar = ContextToolbar(service.catalog, Keymap(service.catalog, app.settings()))
+        toolbar = ContextToolbar(service.catalog, Keymap(service.catalog, app.settings()), app.settings())
 
         def contexts():
             return shortcuts._handler.contexts if shortcuts._handler is not None else []

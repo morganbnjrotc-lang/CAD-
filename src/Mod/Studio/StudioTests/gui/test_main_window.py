@@ -129,7 +129,8 @@ class FollowsSelection(unittest.TestCase):
         window.show_tools_for([Selected("Sketcher::SketchObject")], None)
         self.assertEqual(labels(), ["Extrude", "Cut", "Revolve", "Hole", "Edit Sketch"])
         window.show_tools_for([], "Sketcher::SketchObject")
-        self.assertEqual(labels(), ["Line", "Rectangle", "Circle", "Arc", "Dimension", "Fully Constrain", "Close Sketch"])
+        self.assertEqual(labels(), ["Line", "Rectangle", "Circle", "Arc", "Polygon", "Slot", "Spline", "Ellipse",
+                                    "Point", "Text", "Dimension", "Fully Constrain", "Close Sketch"])
         window.show_tools_for([], None)
         self.assertEqual(labels(), ["New Sketch", "New Body", "Import", "Measure", "Search"])
 

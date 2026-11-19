@@ -406,6 +406,15 @@ public:
             "it is off limits (\"Use All Edges\") or already pressed. Returns True if it pressed it."
         );
         add_varargs_method(
+            "set_drawing_method",
+            &Module::setDrawingMethod,
+            "set_drawing_method(index) -> bool\n\n"
+            "Switches the sketch tool being used to another way of drawing (PLAN 3.12): picks `index` in\n"
+            "the first list of the tool's settings panel, the one FreeCAD's M key steps through (a\n"
+            "rectangle: 0 two corners, 1 center, 2 three corners, 3 center and two corners). False if no\n"
+            "tool panel shows that list; ValueError if the index is outside it."
+        );
+        add_varargs_method(
             "tasks_room",
             &Module::tasksRoom,
             "tasks_room() -> (area_height, cube)\n\n"
@@ -744,6 +753,36 @@ private:
                 button->setChecked(true);  // the panel's toggled slot starts picking
                 return Py::True();
             }
+        }
+        return Py::False();
+    }
+
+    Py::Object setDrawingMethod(const Py::Tuple& args)
+    {
+        int index = 0;
+        if (!PyArg_ParseTuple(args.ptr(), "i", &index)) {
+            throw Py::Exception();
+        }
+        Gui::TaskView::TaskView* tasks = Gui::Control().taskPanel();
+        if (tasks == nullptr) {
+            return Py::False();
+        }
+        for (QWidget* panel : tasks->findChildren<QWidget*>()) {
+            // Sketcher's tool settings panel; its first list is the drawing method when a tool has several.
+            if (qstrcmp(panel->metaObject()->className(), "SketcherGui::SketcherToolDefaultWidget") != 0) {
+                continue;
+            }
+            auto* methods = panel->findChild<QComboBox*>(QStringLiteral("comboBox1"));
+            if (methods == nullptr || !methods->isVisibleTo(panel)) {
+                continue;
+            }
+            if (index < 0 || index >= methods->count()) {
+                throw Py::ValueError(
+                    "drawing method " + std::to_string(index) + " of " + std::to_string(methods->count())
+                );
+            }
+            methods->setCurrentIndex(index);  // the tool follows its list (FreeCAD's controller)
+            return Py::True();
         }
         return Py::False();
     }

@@ -28,6 +28,25 @@ FREECAD_ICONS = {
     "Sketcher_CreateRectangle": "rectangle",
     "Sketcher_CreateCircle": "circle",
     "Sketcher_CreateArc": "arc",
+    # The sketch tools' ways to draw (PLAN 3.12): each way its own drawing, rings where the user clicks.
+    "Sketcher_CreatePolyline": "line-arc",
+    "Sketcher_CreateRectangle_Center": "rectangle-center",
+    "Sketcher_CreateOblong": "rectangle-rounded",
+    "Sketcher_Create3PointCircle": "circle-3-point",
+    "Sketcher_Create3PointArc": "arc-3-point",
+    "Sketcher_CreateRegularPolygon": "polygon",
+    "Sketcher_CreateTriangle": "triangle",
+    "Sketcher_CreateSquare": "square",
+    "Sketcher_CreateHexagon": "hexagon",
+    "Sketcher_CreateSlot": "slot",
+    "Sketcher_CreateArcSlot": "slot-arc",
+    "Sketcher_CreateBSplineByInterpolation": "spline",
+    "Sketcher_CreateBSpline": "spline-control",
+    "Sketcher_CreateEllipseByCenter": "ellipse",
+    "Sketcher_CreateEllipse_3points": "ellipse-3-point",
+    "Sketcher_CreateElliptical_Arc": "ellipse-arc",
+    "Sketcher_CreatePoint": "point",
+    "Sketcher_CreateText": "text",
     "Constraint_Dimension": "dimension",
     # Sketcher constraints: the sketch panel's Constraints list and the constraint tools. A driven
     # (reference) constraint shares its driving one's drawing. The Elements list keeps FreeCAD's icons:
@@ -116,7 +135,9 @@ FREECAD_ICONS = {
 }
 
 # Only on Studio's surfaces: the command palette's icon is called "Studio", like the workbench.
-STUDIO_ONLY = {"Studio": "search", "fully-constrain": "fully-constrain"}
+STUDIO_ONLY = {"Studio": "search", "fully-constrain": "fully-constrain",
+               # ways to draw FreeCAD has no command for (studio.viewmodels.context_toolbar.WAYS)
+               "rectangle-3-point": "rectangle-3-point", "rectangle-3-point-center": "rectangle-3-point-center"}
 
 
 def icon_path(drawing: str) -> str:
