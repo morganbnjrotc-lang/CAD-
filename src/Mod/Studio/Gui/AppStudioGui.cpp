@@ -39,6 +39,7 @@
 #include <Inventor/SbViewportRegion.h>
 #include <Inventor/SoRenderManager.h>
 
+#include <Gui/Action.h>
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
 #include <Gui/Command.h>
@@ -275,6 +276,75 @@ private:
     Py::Object callback;
 };
 
+/// Construction on and off while sketching (PLAN 3.13; Fusion's X). It runs FreeCAD's
+/// Sketcher_ToggleConstruction: with sketch geometry selected that switches the geometry to or from
+/// construction, otherwise it switches what gets drawn next. Python can't read whether construction
+/// is on, so this command is a C++ one: FreeCAD tells the commands registered for its
+/// "ToggleConstruction" mode whenever construction goes on or off (the toggle, another sketch edited,
+/// editing ends), and this one keeps that for Studio's toolbar and tells it (watch_construction).
+class ConstructionCommand: public Gui::Command
+{
+public:
+    ConstructionCommand()
+        : Command("Studio_Construction")
+    {
+        sAppModule = "Studio";
+        sGroup = "Studio";
+        sMenuText = QT_TR_NOOP("Construction");
+        sToolTipText = QT_TR_NOOP(
+            "Draws construction geometry from now on, or turns the selected sketch geometry into "
+            "construction geometry and back"
+        );
+        sWhatsThis = "Studio_Construction";
+        sStatusTip = sToolTipText;
+        sPixmap = "Sketcher_ToggleConstruction";
+        eType = ForEdit | NoTransaction;  // FreeCAD's toggle opens its own undo step
+    }
+
+    const char* className() const override
+    {
+        return "StudioGui::ConstructionCommand";
+    }
+
+    bool isActive() override
+    {
+        Gui::Command* toggle = Gui::Application::Instance->commandManager().getCommandByName(
+            "Sketcher_ToggleConstruction"
+        );
+        return toggle && toggle->isActive();
+    }
+
+    /// mode: FreeCAD's SketcherGui::GeometryCreationMode (0 normal, 1 construction).
+    void updateAction(int mode) override
+    {
+        on = mode == 1;
+        if (Gui::Action* action = getAction()) {
+            action->setCheckable(true);
+            action->setChecked(on);
+        }
+        if (!listener) {
+            return;
+        }
+        Base::PyGILStateLocker lock;
+        try {
+            Py::Callable(listener).apply(Py::Tuple());
+        }
+        catch (Py::Exception&) {
+            Base::PyException error;  // takes the pending Python error
+            error.reportException();
+        }
+    }
+
+    static inline bool on = false;
+    static inline PyObject* listener = nullptr;  // a new reference while set
+
+protected:
+    void activated(int) override
+    {
+        Gui::Application::Instance->commandManager().runCommandByName("Sketcher_ToggleConstruction");
+    }
+};
+
 class Module: public Py::ExtensionModule<Module>
 {
 public:
@@ -292,6 +362,24 @@ public:
             "it then creates the workbench object. A later activateWorkbench() sees __Workbench__\n"
             "and skips both, so nothing runs twice. Returns False if the workbench was already\n"
             "initialized."
+        );
+        add_varargs_method(
+            "add_commands",
+            &Module::addCommands,
+            "add_commands()\n\n"
+            "Registers Studio's C++ commands (once): Studio_Construction (PLAN 3.13)."
+        );
+        add_varargs_method(
+            "construction_mode",
+            &Module::constructionMode,
+            "construction_mode() -> bool\n\n"
+            "Whether the sketch being edited draws construction geometry (Studio_Construction)."
+        );
+        add_varargs_method(
+            "watch_construction",
+            &Module::watchConstruction,
+            "watch_construction(callback)\n\n"
+            "callback() whenever construction goes on or off; None stops."
         );
         add_varargs_method(
             "add_key_filter",
@@ -912,6 +1000,45 @@ private:
         result.setItem(1, Py::Boolean(inView));
         result.setItem(2, Py::String(spinBox ? spinBox->text().toStdString() : std::string()));
         return result;
+    }
+
+    Py::Object addCommands(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        Gui::CommandManager& commands = Gui::Application::Instance->commandManager();
+        if (!commands.getCommandByName("Studio_Construction")) {
+            commands.addCommand(new ConstructionCommand());
+            commands.addCommandMode("ToggleConstruction", "Studio_Construction");
+        }
+        return Py::None();
+    }
+
+    Py::Object constructionMode(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        return Py::Boolean(ConstructionCommand::on);
+    }
+
+    Py::Object watchConstruction(const Py::Tuple& args)
+    {
+        PyObject* callback = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "O", &callback)) {
+            throw Py::Exception();
+        }
+        if (callback != Py_None && !PyCallable_Check(callback)) {
+            throw Py::TypeError("callback must be callable or None");
+        }
+        Py_XDECREF(ConstructionCommand::listener);
+        ConstructionCommand::listener = nullptr;
+        if (callback != Py_None) {
+            Py_INCREF(callback);
+            ConstructionCommand::listener = callback;
+        }
+        return Py::None();
     }
 
     Py::Object initializeWorkbench(const Py::Tuple& args)

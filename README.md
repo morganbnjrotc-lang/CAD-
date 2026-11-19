@@ -27,7 +27,7 @@ Inspiration: the feature set shown in [this FizCAD demo](https://www.youtube.com
 
 | Feature | FreeCAD today | What we need to do |
 |---|---|---|
-| Sketching like Fusion: sizes typed while drawing, automatic constraints, one-click Fully Constrain | Partial — sizes typed while drawing and most automatic constraints exist; no one-click way to fully define a sketch | Fusion-like defaults and look; new Fully Constrain tool (Phase 3) |
+| Sketching like Fusion: sizes typed while drawing, automatic constraints, one-click Fully Constrain, construction on and off with X | Partial — sizes typed while drawing and most automatic constraints exist; construction is a toggle on G, N with no sign that it's on; no one-click way to fully define a sketch | Fusion-like defaults and look; new Fully Constrain tool; a lit Construction switch on X (Phase 3) |
 | Several ways to draw each shape (center or 3-point rectangle, 2-tangent circle, overall slot…), as in Fusion, Inventor and AutoCAD | Partial — most exist, hidden in each tool's panel or the M key; no 2-point or tangent circles, circumscribed or edge polygons, overall or center-point slots ([comparison](docs/SKETCH_TOOLS.md)) | A drop-down of ways under each sketch tool (Phase 3); the missing ways added to FreeCAD's sketch tools |
 | Sketch → extrude, single-key shortcuts (`E` extrude) | Partial — Sketcher + PartDesign Pad, but multi-step, workbench-bound | Unified sketch/feature tools, hotkey-driven, in-viewport drag handles |
 | Section view | Has — Std ClippingPlane / Part Section | Single clean toggle with draggable plane |

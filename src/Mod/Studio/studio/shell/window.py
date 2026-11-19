@@ -4,7 +4,8 @@
 On top of FreeCAD's main window, while Studio's workbench is active:
   top bar  ☰ menu (FreeCAD's File, Edit, View and Help menus) · panel button · "Search tools" (palette)
   toolbar  the tools for the current selection (studio.viewmodels.context_toolbar), icon and label;
-           a sketch tool that draws more than one way has an arrow listing the ways (PLAN 3.12)
+           a sketch tool that draws more than one way has an arrow listing the ways (PLAN 3.12);
+           a switch (Construction, PLAN 3.13) stays lit while on
   status   a hint for the current selection, at the right of the status bar
 FreeCAD's menu bar is hidden; the Model panel (tree above properties) is FreeCAD's own dock.
 The bars are plain QToolBars: FreeCAD's toolbar manager only hides its own Gui::ToolBar class.
@@ -241,6 +242,9 @@ class StudioWindow:
             else:
                 action = self.tools.addAction(self._icon(button.icon), button.label)
                 action.setToolTip(tooltip)
+                if button.checked is not None:  # a switch: lit while on
+                    action.setCheckable(True)
+                    action.setChecked(button.checked)
                 action.triggered.connect(functools.partial(self._run, button.command, button.method))
             action.setData(button.command)
             action.setEnabled(self._active(button.command))
@@ -329,6 +333,7 @@ QToolBar#StudioToolBar QToolButton {{ color: {p.text}; background: transparent; 
     border-radius: 6px; padding: 3px 8px; }}
 QToolBar#StudioToolBar QToolButton:hover {{ background: {p.hover}; }}
 QToolBar#StudioToolBar QToolButton:pressed {{ background: {p.selection}; }}
+QToolBar#StudioToolBar QToolButton:checked {{ background: {p.selection}; }}
 QToolBar#StudioToolBar QToolButton:disabled {{ color: {p.faint}; }}
 QToolBar#StudioToolBar QToolButton[popupMode="1"] {{ padding-right: 16px; }}
 QToolBar#StudioToolBar QToolButton::menu-button {{ border: none; border-radius: 4px; width: 14px; }}
@@ -339,6 +344,13 @@ QToolBar#StudioToolBar QToolButton::menu-button:hover {{ background: {p.selectio
 _window = None
 
 
+def _switch_is_on(command):
+    """Whether a toolbar switch (context_toolbar.SWITCHES) is on."""
+    import StudioGui
+
+    return command == "Studio_Construction" and StudioGui.construction_mode()
+
+
 def install_once():
     """Sets up the session's window (once) and shows Studio's look."""
     global _window
@@ -347,14 +359,19 @@ def install_once():
         from studio.shell import app, palette, shortcuts
         from studio.viewmodels.context_toolbar import ContextToolbar
 
+        import StudioGui  # Studio's C++ helpers
+
         service = app.command_service()
-        toolbar = ContextToolbar(service.catalog, Keymap(service.catalog, app.settings()), app.settings())
+        toolbar = ContextToolbar(service.catalog, Keymap(service.catalog, app.settings()), app.settings(),
+                                 is_on=_switch_is_on)
 
         def contexts():
             return shortcuts._handler.contexts if shortcuts._handler is not None else []
 
         _window = StudioWindow(FreeCADGui.getMainWindow(), toolbar, service, contexts, palette.open_palette)
         _window.install()
+        # FreeCAD tells when construction goes on or off (the button, X, FreeCAD's G, N, another sketch).
+        StudioGui.watch_construction(_window.schedule_refresh)
     else:
         _window.show()
     return _window

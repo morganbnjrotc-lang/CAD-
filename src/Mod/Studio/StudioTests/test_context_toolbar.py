@@ -97,7 +97,7 @@ class Buttons(unittest.TestCase):
         self.assertEqual(self.labels("feature"), ["Mirror", "Linear Pattern", "Polar Pattern", "Fit Selection"])
         self.assertEqual(self.labels("editing"),
                          ["Line", "Rectangle", "Circle", "Arc", "Polygon", "Slot", "Spline", "Ellipse", "Point",
-                          "Text", "Dimension", "Fully Constrain", "Close Sketch"])
+                          "Text", "Construction", "Dimension", "Fully Constrain", "Close Sketch"])
 
     def test_every_tool_is_a_catalog_command(self):
         for kind, tools in TOOLS.items():
@@ -197,6 +197,38 @@ class Ways(unittest.TestCase):
     def test_tools_with_one_way_have_no_list(self):
         self.assertEqual(self.button("Point").ways, ())
         self.assertEqual(self.button("Dimension").ways, ())
+
+
+class Switches(unittest.TestCase):
+    """Construction is a switch (PLAN 3.13): its button shows whether new geometry is construction."""
+
+    def setUp(self):
+        name = "Switches" + uuid.uuid4().hex[:8]
+        self.settings = Settings(root=f"{TEST_PARENT}/{name}")
+        self.addCleanup(lambda: FreeCAD.ParamGet(TEST_PARENT).RemGroup(name))
+        self.catalog = CommandCatalog.load()
+        self.on = set()
+
+    def button(self, label, toolbar):
+        return next(b for b in toolbar.buttons("editing", ["SketcherWorkbench"]) if b.label == label)
+
+    def test_the_construction_button_shows_whether_construction_is_on(self):
+        toolbar = ContextToolbar(self.catalog, is_on=lambda command: command in self.on)
+        self.assertIs(self.button("Construction", toolbar).checked, False)
+        self.on.add("Studio_Construction")
+        self.assertIs(self.button("Construction", toolbar).checked, True)
+
+    def test_other_tools_are_not_switches(self):
+        toolbar = ContextToolbar(self.catalog, is_on=lambda command: True)
+        self.assertIsNone(self.button("Line", toolbar).checked)
+        self.assertIsNone(self.button("Dimension", toolbar).checked)
+
+    def test_without_a_way_to_tell_a_switch_shows_off(self):
+        self.assertIs(self.button("Construction", ContextToolbar(self.catalog)).checked, False)
+
+    def test_x_is_on_the_construction_button(self):
+        toolbar = ContextToolbar(self.catalog, Keymap(self.catalog, self.settings))
+        self.assertEqual(self.button("Construction", toolbar).shortcut, "X")
 
 
 if __name__ == "__main__":

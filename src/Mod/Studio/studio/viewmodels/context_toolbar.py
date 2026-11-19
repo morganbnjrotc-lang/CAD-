@@ -8,6 +8,7 @@ active shortcut and FreeCAD's name in the tooltip, plus a status-bar hint. No Qt
 
 Sketch tools that draw a shape more than one way (`WAYS`, PLAN 3.12) list the ways in a drop-down, as
 Fusion and Inventor do; the button draws the way picked last (`choose`), remembered in the settings.
+Switches (`SWITCHES`: Construction, PLAN 3.13) show whether they are on.
 """
 
 from dataclasses import dataclass
@@ -35,9 +36,12 @@ TOOLS = {
                 ("Sketcher_CreateArc", "Arc"), ("Sketcher_CreateRegularPolygon", "Polygon"),
                 ("Sketcher_CreateSlot", None), ("Sketcher_CreateBSplineByInterpolation", "Spline"),
                 ("Sketcher_CreateEllipseByCenter", "Ellipse"), ("Sketcher_CreatePoint", None),
-                ("Sketcher_CreateText", None), ("Sketcher_Dimension", None), ("Studio_FullyConstrain", None),
-                ("Sketcher_LeaveSketch", "Close Sketch")],
+                ("Sketcher_CreateText", None), ("Studio_Construction", None), ("Sketcher_Dimension", None),
+                ("Studio_FullyConstrain", None), ("Sketcher_LeaveSketch", "Close Sketch")],
 }
+
+# Tools that are switches: their button stays lit while on (PLAN 3.13; the shell says which are on).
+SWITCHES = frozenset({"Studio_Construction"})
 
 
 @dataclass(frozen=True)
@@ -123,13 +127,16 @@ class ToolButton:
     ways: tuple = ()  # the tool's Ways when it draws more than one way; `way` is the one the button draws
     way: int = 0
     tool: str = ""  # the tool's command in TOOLS, for `choose`
+    checked: bool | None = None  # a switch (SWITCHES): whether it is on; None: not a switch
 
 
 class ContextToolbar:
-    def __init__(self, catalog, keymap=None, settings=None):
+    def __init__(self, catalog, keymap=None, settings=None, is_on=None):
+        """`is_on(command) -> bool` tells whether a switch is on (SWITCHES); without it they show off."""
         self._catalog = catalog
         self._keymap = keymap
         self._settings = settings
+        self._is_on = is_on
 
     def choose(self, tool: str, way: int):
         """The user picked `way` from `tool`'s list: the button draws it from now on."""
@@ -164,8 +171,11 @@ class ContextToolbar:
             tooltip = info.tooltip + (f"\nFreeCAD: {freecad_name}" if freecad_name != title else "")
             if ways:
                 tooltip = f"{title}\n{tooltip}"
+            checked = None
+            if command in SWITCHES:
+                checked = bool(self._is_on(command)) if self._is_on is not None else False
             result.append(ToolButton(command, label, icon, self._key(command, contexts), tooltip,
-                                     method, ways, way, tool))
+                                     method, ways, way, tool, checked))
         return result
 
     def hint(self, kind: str, contexts=()) -> str:

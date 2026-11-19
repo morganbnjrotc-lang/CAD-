@@ -121,6 +121,15 @@ class _FullyConstrain:
 
 FreeCADGui.addCommand("Studio_FullyConstrain", _FullyConstrain())
 
+# Studio's C++ commands: Construction (PLAN 3.13) hears from FreeCAD when construction goes on or off,
+# which Python can't.
+try:
+    import StudioGui as _studio_gui
+
+    _studio_gui.add_commands()
+except Exception as exc:
+    FreeCAD.Console.PrintWarning(f"Studio: could not add its C++ commands: {exc}\n")
+
 # Studio's line icons under FreeCAD's icon names (docs/adr/0010), before FreeCAD builds its menus and
 # model tree with them.
 try:

@@ -83,10 +83,17 @@ class KeymapTestCase(unittest.TestCase):
 class Defaults(KeymapTestCase):
     def test_studio_defaults_in_global(self):
         # E / F / Shift+F from PLAN 2.4; S and Ctrl+K open the command palette (the user's choice for
-        # 2.5: S like Fusion 360 outside sketches, where S is Sketcher's; Ctrl+K everywhere).
-        self.assertEqual(STUDIO_DEFAULTS, {GLOBAL: {
-            "E": "PartDesign_Pad", "F": "Std_ViewFitSelection", "Shift+F": "Std_ViewFitAll",
-            "S": "Studio_CommandPalette", "Ctrl+K": "Studio_CommandPalette"}})
+        # 2.5: S like Fusion 360 outside sketches, where S is Sketcher's; Ctrl+K everywhere). While
+        # sketching, X switches construction, as in Fusion (the user asked for a way to it, PLAN 3.13).
+        self.assertEqual(STUDIO_DEFAULTS, {
+            GLOBAL: {"E": "PartDesign_Pad", "F": "Std_ViewFitSelection", "Shift+F": "Std_ViewFitAll",
+                     "S": "Studio_CommandPalette", "Ctrl+K": "Studio_CommandPalette"},
+            "SketcherWorkbench": {"X": "Studio_Construction"},
+        })
+
+    def test_x_switches_construction_only_while_sketching(self):
+        self.assertEqual(self.keymap.resolve("X", ["SketcherWorkbench"]), "Studio_Construction")
+        self.assertIsNone(self.keymap.resolve("X"))
 
     def test_global_keys_work_everywhere(self):
         self.assertEqual(self.keymap.resolve("E"), "PartDesign_Pad")

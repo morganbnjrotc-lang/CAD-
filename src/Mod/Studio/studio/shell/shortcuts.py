@@ -13,8 +13,10 @@ owner. Leaving some keys to FreeCAD's actions instead breaks sequences: with "V,
 doesn't bind go their usual way.
 
 Keys are left alone in text fields, while a modal dialog is open, and outside the main window (the
-C++ filter checks). `EditContextObserver` switches the keymap context while a sketch or an assembly
-is being edited.
+C++ filter checks). The size boxes a sketch tool shows in the 3D view are text fields too, but FreeCAD
+passes letter keys from them to the 3D view until a number is typed, so sketch keys (X for construction)
+work in the middle of a shape. `EditContextObserver` switches the keymap context while a sketch or an
+assembly is being edited.
 """
 
 import FreeCAD

@@ -1553,6 +1553,14 @@
    "icon": "src/Mod/Studio/Resources/icons/Studio.svg"
   },
   {
+   "name": "Studio_Construction",
+   "workbench": null,
+   "menu_text": "Construction",
+   "tooltip": "Draws construction geometry from now on, or turns the selected sketch geometry into construction geometry and back",
+   "shortcut": "",
+   "icon": "src/Mod/Sketcher/Gui/Resources/icons/geometry/Sketcher_ToggleConstruction.svg"
+  },
+  {
    "name": "Studio_FullyConstrain",
    "workbench": null,
    "menu_text": "Fully Constrain",

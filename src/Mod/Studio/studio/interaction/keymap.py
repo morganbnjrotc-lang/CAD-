@@ -33,7 +33,10 @@ STUDIO_DEFAULTS = {
         # Ctrl+K everywhere. Chosen by the user, 2026-11-14.
         "S": "Studio_CommandPalette",
         "Ctrl+K": "Studio_CommandPalette",
-    }
+    },
+    # Construction on and off, as in Fusion (PLAN 3.13). Also in the middle of a shape: FreeCAD passes
+    # letter keys from a sketch tool's size boxes to the 3D view until a number is typed.
+    "SketcherWorkbench": {"X": "Studio_Construction"},
 }
 
 MAX_CHORDS = 4  # what Qt's QKeySequence holds

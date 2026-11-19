@@ -2,6 +2,7 @@
 """GUI Studio test suite. Run: FreeCAD -t TestStudioGui"""
 
 from StudioTests.gui.test_appearance import AppearanceTest, FreeCADPanels, SessionAppearance, StudioWidgets  # noqa: F401
+from StudioTests.gui.test_construction import Construction  # noqa: F401
 from StudioTests.gui.test_icons import FreeCADPlaces, Toolbar  # noqa: F401
 from StudioTests.gui.test_command_backend import (  # noqa: F401
     CommandServiceInTheAppTest,

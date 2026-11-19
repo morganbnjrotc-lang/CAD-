@@ -47,6 +47,7 @@ FREECAD_ICONS = {
     "Sketcher_CreateElliptical_Arc": "ellipse-arc",
     "Sketcher_CreatePoint": "point",
     "Sketcher_CreateText": "text",
+    "Sketcher_ToggleConstruction": "construction",  # also Studio's Construction switch (PLAN 3.13)
     "Constraint_Dimension": "dimension",
     # Sketcher constraints: the sketch panel's Constraints list and the constraint tools. A driven
     # (reference) constraint shares its driving one's drawing. The Elements list keeps FreeCAD's icons:
