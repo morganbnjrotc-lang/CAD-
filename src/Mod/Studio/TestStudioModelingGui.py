@@ -6,4 +6,6 @@ workbenches not loaded yet; these tests extrude with Part Design, which loads it
 `pixi run python tools/test/run_gui_suites.py TestStudioModelingGui` (CI runs both suites).
 """
 
-from StudioTests.gui.test_extrude import TypedLength  # noqa: F401
+from StudioTests.gui.test_extrude import StaysInStudio, TypedLength  # noqa: F401
+from StudioTests.gui.test_feature_panels import PicksEdges  # noqa: F401
+from StudioTests.gui.test_tasks_panel import MediumSize  # noqa: F401

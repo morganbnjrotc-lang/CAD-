@@ -94,8 +94,25 @@ class OneEnvironment(unittest.TestCase):
         self.assertEqual([o.Name for o in FreeCADGui.Selection.getSelection()], ["Sketch"])
         self.assertEqual(labels()[0], "Extrude")
 
+    def test_a_switch_asked_for_from_python_stays_in_studio(self):
+        # Part Design asks for its workbench each time its panels open (Extrude's): the switch there
+        # and back took the window out of maximized. The switch's purpose, the commands, is kept.
+        main = FreeCADGui.getMainWindow()
+        switches = []
+        main.workbenchActivated.connect(switches.append)
+        self.addCleanup(main.workbenchActivated.disconnect, switches.append)
+
+        FreeCADGui.activateWorkbench("PartWorkbench")  # e.g. a macro, or Part Design's panels
+        settle()
+
+        self.assertEqual(switches, [])
+        self.assertEqual(FreeCADGui.activeWorkbench().name(), "StudioWorkbench")
+        self.assertIsNotNone(FreeCADGui.Command.get("Part_Box"), "Part's commands weren't loaded")
+
     def test_a_switch_from_elsewhere_comes_back_to_studio(self):
-        FreeCADGui.activateWorkbench("PartWorkbench")  # e.g. a macro or FreeCAD's Start page
+        from studio.shell import environment
+
+        environment.switch_workbench("PartWorkbench")  # FreeCAD's own switch, e.g. from its C++ code
         settle()
         settle()
         self.assertEqual(FreeCADGui.activeWorkbench().name(), "StudioWorkbench")

@@ -56,6 +56,13 @@ The user was shown three layouts with mockups for each kind of selection: A, a l
   sketch editor, its task panel and context menu work in any workbench, and Studio's toolbar, keymap
   and palette provide the tools. Setting `EditingWorkbench` to "" on each sketch would also work but
   changes the document. Any other switch (a macro, FreeCAD's Start page) is undone right after it.
+- *Amended 2026-11-18* (the user: pressing E took the window out of full screen): Part Design asks for
+  its workbench each time one of its panels opens (`Command::assureWorkbench`, run as Python), and the
+  switch there and back took a maximized window out of maximized. While Studio is active, a switch asked
+  for from Python (`FreeCADGui.activateWorkbench`) no longer happens: the workbench's commands are loaded
+  instead (`StudioGui.initialize_workbench`), which is what the switch was for. Switches FreeCAD's C++
+  makes directly are still undone right after. `environment.switch_workbench` makes FreeCAD's own switch,
+  for tests.
 - A probe that ends the app with `os._exit` logs two "Unhandled unknown exception caught in
   GUIApplication::notify" lines with the window installed. A normal close logs none.
 

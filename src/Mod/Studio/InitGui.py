@@ -26,7 +26,8 @@ class StudioWorkbench(FreeCADGui.Workbench):
                 self.removeMenu(name)
 
     def Activated(self):
-        from studio.shell import appearance, environment, home, shortcuts, sketching, units, warmup, window
+        from studio.shell import (appearance, environment, feature_panels, home, shortcuts, sketching,
+                                  tasks_panel, units, warmup, window)
 
         # One environment (docs/adr/0009): editing a sketch no longer switches workbench.
         environment.install_once()
@@ -40,6 +41,10 @@ class StudioWorkbench(FreeCADGui.Workbench):
         units.install_once()
         # Sketching like Fusion: typing into a size box replaces it, unit included (PLAN 3.2).
         sketching.install_once()
+        # Fillet and Chamfer open ready to pick more edges (PLAN 3.11).
+        feature_panels.install_once()
+        # The Tasks panel medium-sized at the right of the 3D view, following the window (PLAN 3.10).
+        tasks_panel.install_once()
         # The Home page replaces FreeCAD's Start page while no document is open (PLAN 2.8).
         home.install_once()
         # Load the cheap workbenches in the background once startup is done (docs/adr/0007).

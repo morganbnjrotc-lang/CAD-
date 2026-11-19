@@ -9,7 +9,12 @@ in any workbench, and Studio's toolbar, keymap and palette provide the tools.
 - While Studio is active, TempoVis's workbench step is skipped, so editing a sketch stays in Studio.
   (Setting each sketch's EditingWorkbench to "" would also work, but changes the document, which
   would then ask to be saved.)
-- Any other switch (a macro, FreeCAD's Start page) is undone right after it: Studio comes back.
+- While Studio is active, a switch asked for from Python (`FreeCADGui.activateWorkbench`) doesn't
+  happen: the workbench's commands are loaded instead, which is what the switch was for. Part Design
+  asks for its workbench each time one of its panels opens (Extrude's included, through
+  `Command::assureWorkbench`), and the switch there and back took the window out of maximized.
+  `switch_workbench` still makes FreeCAD's own switch, for tests.
+- Any other switch (FreeCAD's C++ code switching directly) is undone right after it: Studio comes back.
 """
 
 import FreeCADGui
@@ -17,6 +22,7 @@ from PySide import QtCore, QtWidgets  # FreeCAD's PySide shim
 
 STUDIO = "StudioWorkbench"
 _installed = False
+_freecad_activate = None  # FreeCAD's own switch, once Studio's is installed
 
 
 def _studio_active() -> bool:
@@ -24,12 +30,28 @@ def _studio_active() -> bool:
     return active is not None and active.name() == STUDIO
 
 
+def switch_workbench(name):
+    """FreeCAD's own switch, even while Studio is active (Studio then comes back right after it)."""
+    return (_freecad_activate or FreeCADGui.activateWorkbench)(name)
+
+
+def _activate_workbench(name, *args):
+    """FreeCADGui.activateWorkbench while Studio's environment is installed."""
+    if name == STUDIO or not _studio_active() or name not in FreeCADGui.listWorkbenches():
+        return _freecad_activate(name, *args)
+    import StudioGui  # Studio's C++ helpers
+
+    StudioGui.initialize_workbench(name)  # its commands, without switching to it
+    return False  # Studio stays: no switch happened
+
+
 def install_once():
-    """Stops editing a sketch from leaving Studio (patches Show's workbench step, once)."""
-    global _installed
+    """Stops editing a sketch, Part Design's panels and macros from leaving Studio (once)."""
+    global _installed, _freecad_activate
     if _installed:
         return
     _installed = True
+    _freecad_activate = FreeCADGui.activateWorkbench
     from Show.SceneDetails.Workbench import Workbench
 
     original = Workbench.apply_data
@@ -40,6 +62,7 @@ def install_once():
         original(self, value)
 
     Workbench.apply_data = apply_data
+    FreeCADGui.activateWorkbench = _activate_workbench
 
 
 def schedule_return():
@@ -52,4 +75,4 @@ def _return_to_studio():
     main = FreeCADGui.getMainWindow()
     if app is None or app.closingDown() or main is None or not main.isVisible() or _studio_active():
         return
-    FreeCADGui.activateWorkbench(STUDIO)
+    switch_workbench(STUDIO)

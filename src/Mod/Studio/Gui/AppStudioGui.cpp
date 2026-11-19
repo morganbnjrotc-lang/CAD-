@@ -17,11 +17,13 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMap>
+#include <QMdiArea>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QStatusBar>
 #include <QSvgRenderer>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QTextEdit>
 #include <QToolButton>
@@ -39,8 +41,11 @@
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
 #include <Gui/Command.h>
+#include <Gui/Control.h>
 #include <Gui/MainWindow.h>
+#include <Gui/NaviCube.h>
 #include <Gui/QuantitySpinBox.h>
+#include <Gui/TaskView/TaskView.h>
 #include <Gui/View3DInventor.h>
 #include <Gui/View3DInventorViewer.h>
 #include <Gui/Workbench.h>
@@ -392,6 +397,28 @@ public:
             "focus_widget() -> (class name, is a size box in the 3D view, its text) or None\n\n"
             "For tests: what keys typed now would go to."
         );
+        add_varargs_method(
+            "start_picking",
+            &Module::startPicking,
+            "start_picking() -> bool\n\n"
+            "Presses the open task panel's \"Select\" button (Part Design's Fillet and Chamfer), so clicks\n"
+            "on the model add or take out edges straight away, as in Fusion (PLAN 3.11). Does nothing if\n"
+            "it is off limits (\"Use All Edges\") or already pressed. Returns True if it pressed it."
+        );
+        add_varargs_method(
+            "tasks_room",
+            &Module::tasksRoom,
+            "tasks_room() -> (area_height, cube)\n\n"
+            "The main area's height as FreeCAD lays its floating panels out (less the tab bar) and the\n"
+            "navigation cube's size, in px: what sizing the Tasks panel takes (PLAN 3.10)."
+        );
+        add_varargs_method(
+            "tasks_panel_rect",
+            &Module::tasksPanelRect,
+            "tasks_panel_rect() -> (x, y, width, height) or None\n\n"
+            "For tests: where the floating Tasks panel (FreeCAD's OverlayRight) shows, in the main area's\n"
+            "pixels from its top left; None while it's hidden."
+        );
         initialize("Studio's C++ helpers for the shell (docs/adr/0007, 0008, 0010).");
     }
 
@@ -700,6 +727,57 @@ private:
             QApplication::processEvents();
         }
         return Py::None();
+    }
+
+    Py::Object startPicking(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        Gui::TaskView::TaskView* tasks = Gui::Control().taskPanel();
+        if (tasks == nullptr) {
+            return Py::False();
+        }
+        // FreeCAD's dress-up panels (TaskDressUpParameters) name their pick toggle buttonRefSel.
+        for (QToolButton* button : tasks->findChildren<QToolButton*>(QStringLiteral("buttonRefSel"))) {
+            if (button->isCheckable() && button->isEnabled() && !button->isChecked()) {
+                button->setChecked(true);  // the panel's toggled slot starts picking
+                return Py::True();
+            }
+        }
+        return Py::False();
+    }
+
+    Py::Object tasksRoom(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        QMdiArea* area = Gui::getMainWindow()->getMdiArea();
+        int height = area->geometry().height();
+        if (auto* tabs = area->findChild<QTabBar*>()) {
+            height -= tabs->height();  // as FreeCAD's OverlayManager counts it
+        }
+        return Py::TupleN(Py::Long(height), Py::Long(NaviCube::getNaviCubeSize()));
+    }
+
+    Py::Object tasksPanelRect(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        Gui::MainWindow* main = Gui::getMainWindow();
+        auto* panel = main->findChild<QTabWidget*>(QStringLiteral("OverlayRight"));
+        if (panel == nullptr || !panel->isVisible()) {
+            return Py::None();
+        }
+        QPoint corner = panel->mapTo(main, QPoint(0, 0)) - main->getMdiArea()->mapTo(main, QPoint(0, 0));
+        return Py::TupleN(
+            Py::Long(corner.x()),
+            Py::Long(corner.y()),
+            Py::Long(panel->width()),
+            Py::Long(panel->height())
+        );
     }
 
     Py::Object focusField(const Py::Tuple& args)

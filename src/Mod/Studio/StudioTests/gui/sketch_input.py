@@ -19,6 +19,7 @@ import FreeCADGui
 from PySide import QtCore, QtWidgets  # FreeCAD's PySide shim
 
 import StudioGui
+from studio.services import tasks_panel
 from studio.services import units as unit_service
 from studio.services.settings import Settings
 from studio.shell import units
@@ -28,7 +29,7 @@ INCH = 25.4
 
 ROOM = (1280, 800)  # the main window, at least
 CUBE = 180  # px: the navigation cube's corner, top right of the view
-TASKS = 300  # px: the Tasks panel floating at the view's right
+TASKS = tasks_panel.WIDTH + 10  # px: the Tasks panel floating at the view's right, and its margin
 DRAWING_MIDDLE = (1.5, 1.0)  # in: the middle of where the tests draw
 
 

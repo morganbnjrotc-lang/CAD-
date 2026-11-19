@@ -13,6 +13,7 @@ import FreeCADGui
 from PySide import QtWidgets  # FreeCAD's PySide shim
 
 from studio.services.commands import CommandCatalog, CommandService
+from studio.shell import environment
 from studio.shell.backend import FreeCADCommandBackend
 
 
@@ -65,7 +66,7 @@ class WorkbenchLoadingTest(unittest.TestCase):
         self.addCleanup(FreeCADGui.activateWorkbench, self.active)
 
         self.helper.initialize_workbench("TechDrawWorkbench")
-        FreeCADGui.activateWorkbench("TechDrawWorkbench")
+        environment.switch_workbench("TechDrawWorkbench")  # FreeCAD's own switch (Studio blocks others)
 
         self.assertEqual(FreeCADGui.activeWorkbench().name(), "TechDrawWorkbench")
         self.assertEqual(len(calls), 1, "Initialize() ran again when FreeCAD switched to the workbench")
