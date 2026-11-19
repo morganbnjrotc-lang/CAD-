@@ -41,6 +41,9 @@
 
 #include "CircleEllipseConstructionMethod.h"
 
+#include <algorithm>
+#include <vector>
+
 namespace SketcherGui
 {
 
@@ -55,8 +58,10 @@ enum class CircleConstructionMethod
 {
     Center,
     ThreeRim,
-    TwoRim,  // the two ends of a diameter
-    End      // Must be the last one
+    TwoRim,        // the two ends of a diameter
+    TwoTangent,    // two lines picked, then where it sits and its size
+    ThreeTangent,  // three lines picked
+    End            // Must be the last one
 };
 
 }  // namespace ConstructionMethods
@@ -65,11 +70,13 @@ using DSHCircleController = DrawSketchDefaultWidgetController<
     DrawSketchHandlerCircle,
     /*SelectModeT*/ StateMachines::ThreeSeekEnd,
     /*PAutoConstraintSize =*/3,
-    /*OnViewParametersT =*/OnViewParameters<3, 6, 3>,  // NOLINT
-    /*WidgetParametersT =*/WidgetParameters<0, 0, 0>,  // NOLINT
-    /*WidgetCheckboxesT =*/WidgetCheckboxes<0, 0, 0>,  // NOLINT
-    /*WidgetComboboxesT =*/WidgetComboboxes<1, 1, 1>,  // NOLINT
-    /*WidgetLineEditsT =*/WidgetLineEdits<0, 0, 0>,
+    // The tangent methods use only the third (TwoTangent's size); the first two are configured with
+    // every method's, never needed while picking lines.
+    /*OnViewParametersT =*/OnViewParameters<3, 6, 3, 3, 3>,  // NOLINT
+    /*WidgetParametersT =*/WidgetParameters<0, 0, 0, 0, 0>,  // NOLINT
+    /*WidgetCheckboxesT =*/WidgetCheckboxes<0, 0, 0, 0, 0>,  // NOLINT
+    /*WidgetComboboxesT =*/WidgetComboboxes<1, 1, 1, 1, 1>,  // NOLINT
+    /*WidgetLineEditsT =*/WidgetLineEdits<0, 0, 0, 0, 0>,
     ConstructionMethods::CircleConstructionMethod,
     /*bool PFirstComboboxIsConstructionMethod =*/true>;
 
@@ -151,11 +158,30 @@ private:
                          {tr("%1 pick the other end"), {MouseLeft}},
                          switchModeHint,
                      }},
+
+                // Tangent methods
+                {.state = {ConstructionMethod::TwoTangent, SelectMode::SeekFirst},
+                 .hints = {{tr("%1 pick a line"), {MouseLeft}}, switchModeHint}},
+                {.state = {ConstructionMethod::TwoTangent, SelectMode::SeekSecond},
+                 .hints = {{tr("%1 pick another line"), {MouseLeft}}, switchModeHint}},
+                {.state = {ConstructionMethod::TwoTangent, SelectMode::SeekThird},
+                 .hints = {{tr("%1 pick where the circle sits"), {MouseLeft}}, switchModeHint}},
+                {.state = {ConstructionMethod::ThreeTangent, SelectMode::SeekFirst},
+                 .hints = {{tr("%1 pick a line"), {MouseLeft}}, switchModeHint}},
+                {.state = {ConstructionMethod::ThreeTangent, SelectMode::SeekSecond},
+                 .hints = {{tr("%1 pick another line"), {MouseLeft}}, switchModeHint}},
+                {.state = {ConstructionMethod::ThreeTangent, SelectMode::SeekThird},
+                 .hints = {{tr("%1 pick a third line"), {MouseLeft}}, switchModeHint}},
             });
     }
 
     void updateDataAndDrawToPosition(Base::Vector2d onSketchPos) override
     {
+        if (isTangentMethod()) {
+            updateTangentCircle(onSketchPos);
+            return;
+        }
+
         switch (state()) {
             case SelectMode::SeekFirst: {
                 toolWidgetManager.drawPositionAtCursor(onSketchPos);
@@ -265,6 +291,10 @@ private:
 
     void generateAutoConstraints() override
     {
+        if (isTangentMethod()) {
+            return;  // held by its tangencies to the picked lines
+        }
+
         int CircleGeoId = getHighestCurveIndex();
 
         if (constructionMethod() == ConstructionMethod::Center) {
@@ -370,6 +400,29 @@ private:
     void onButtonPressed(Base::Vector2d onSketchPos) override
     {
         this->updateDataAndDrawToPosition(onSketchPos);
+
+        if (isTangentMethod()) {
+            if (isPickingLine()) {
+                if (hoveredLine == Sketcher::GeoEnum::GeoUndef) {
+                    return;  // a click away from any line picks nothing
+                }
+                tangentLines.push_back(hoveredLine);
+                if (state() != SelectMode::SeekThird) {
+                    moveToNextMode();
+                    return;
+                }
+                if (radius > Precision::Confusion()) {  // the third line: done
+                    setState(SelectMode::End);
+                    return;
+                }
+                tangentLines.pop_back();  // no circle touches these three
+                return;
+            }
+            if (radius > Precision::Confusion()) {  // TwoTangent: where it sits
+                setState(SelectMode::End);
+            }
+            return;
+        }
         if (canGoToNextMode()) {
             if (state() == SelectMode::SeekSecond
                 && constructionMethod() != ConstructionMethod::ThreeRim) {
@@ -386,23 +439,224 @@ private:
         Q_UNUSED(onlyeditoutline);
 
         ShapeGeometry.clear();
+        ShapeConstraints.clear();
 
         if (radius < Precision::Confusion()) {
             return;
         }
 
         addCircleToShapeGeometry(toVector3d(centerPoint), radius, isConstructionMode());
+
+        if (isTangentMethod() && !onlyeditoutline) {
+            const int circleId = getHighestCurveIndex() + 1;
+            for (int line : tangentLines) {
+                addToShapeConstraints(
+                    Sketcher::Tangent,
+                    circleId,
+                    Sketcher::PointPos::none,
+                    line,
+                    Sketcher::PointPos::none
+                );
+            }
+        }
+    }
+
+    void onReset() override
+    {
+        tangentLines.clear();
+        hoveredLine = Sketcher::GeoEnum::GeoUndef;
+        toolWidgetManager.resetControls();
+    }
+
+    bool isTangentMethod() const
+    {
+        return constructionMethod() == ConstructionMethod::TwoTangent
+            || constructionMethod() == ConstructionMethod::ThreeTangent;
+    }
+
+    /// Tangent methods: picking lines (all three steps for ThreeTangent, the first two for TwoTangent)
+    bool isPickingLine() const
+    {
+        return state() == SelectMode::SeekFirst || state() == SelectMode::SeekSecond
+            || (state() == SelectMode::SeekThird
+                && constructionMethod() == ConstructionMethod::ThreeTangent);
+    }
+
+    /// A line as n·p + c = 0 (n a unit normal), with its segment's ends.
+    struct Line2d
+    {
+        Base::Vector2d n, a, b;
+        double c = 0.0;
+    };
+
+    bool lineOf(int geoId, Line2d& line)
+    {
+        const Part::Geometry* geo = getSketchObject()->getGeometry(geoId);
+        if (!geo || !geo->is<Part::GeomLineSegment>()) {
+            return false;
+        }
+        auto* segment = static_cast<const Part::GeomLineSegment*>(geo);
+        const Base::Vector3d s = segment->getStartPoint();
+        const Base::Vector3d e = segment->getEndPoint();
+        line.a = Base::Vector2d(s.x, s.y);
+        line.b = Base::Vector2d(e.x, e.y);
+        Base::Vector2d u = line.b - line.a;
+        if (u.Length() < Precision::Confusion()) {
+            return false;
+        }
+        u.Normalize();
+        line.n = Base::Vector2d(-u.y, u.x);
+        line.c = -(line.n * line.a);
+        return true;
+    }
+
+    /// The line under the pointer (a sketch line or an axis) not picked yet, else GeoUndef.
+    int lineUnderPointer() const
+    {
+        const PreselectionData data = getPreselectionData();
+        if (!data.isLine || data.geoId == Sketcher::GeoEnum::GeoUndef
+            || std::ranges::find(tangentLines, data.geoId) != tangentLines.end()) {
+            return Sketcher::GeoEnum::GeoUndef;
+        }
+        return data.geoId;
+    }
+
+    void updateTangentCircle(Base::Vector2d onSketchPos)
+    {
+        toolWidgetManager.drawPositionAtCursor(onSketchPos);
+        radius = 0.0;
+        if (isPickingLine()) {
+            hoveredLine = lineUnderPointer();
+            if (state() == SelectMode::SeekThird && hoveredLine != Sketcher::GeoEnum::GeoUndef) {
+                placeThreeTangentCircle(hoveredLine, onSketchPos);  // the circle it would make
+            }
+        }
+        else {
+            placeTwoTangentCircle(onSketchPos);
+        }
+        CreateAndDrawShapeGeometry();
+    }
+
+    /// TwoTangent: the circle touching both lines, its center on the line halfway between them in
+    /// the corner the pointer is in, nearest the pointer; or of the given radius in that corner.
+    void placeTwoTangentCircle(Base::Vector2d pointer, double givenRadius = 0.0)
+    {
+        radius = 0.0;
+        Line2d first, second;
+        if (tangentLines.size() < 2 || !lineOf(tangentLines[0], first)
+            || !lineOf(tangentLines[1], second)) {
+            return;
+        }
+        // facing the pointer: its side of each line is positive
+        const double s1 = first.n * pointer + first.c >= 0 ? 1.0 : -1.0;
+        const double s2 = second.n * pointer + second.c >= 0 ? 1.0 : -1.0;
+        const Base::Vector2d n1 = s1 * first.n;
+        const Base::Vector2d n2 = s2 * second.n;
+        const double c1 = s1 * first.c;
+        const double c2 = s2 * second.c;
+        const double cross = n1.x * n2.y - n1.y * n2.x;
+
+        if (givenRadius > Precision::Confusion() && fabs(cross) > Precision::Confusion()) {
+            // n1·p + c1 = n2·p + c2 = givenRadius
+            const double r1 = givenRadius - c1;
+            const double r2 = givenRadius - c2;
+            centerPoint = Base::Vector2d((r1 * n2.y - n1.y * r2) / cross, (n1.x * r2 - r1 * n2.x) / cross);
+            radius = givenRadius;
+            return;
+        }
+
+        const Base::Vector2d q = n1 - n2;  // the halfway line: q·p + (c1 - c2) = 0
+        if (q.Length() < Precision::Confusion()) {
+            return;  // parallel, the pointer outside both
+        }
+        centerPoint = pointer - ((q * pointer + c1 - c2) / (q * q)) * q;
+        const double distance = n1 * centerPoint + c1;
+        radius = distance > Precision::Confusion() ? distance : 0.0;
+    }
+
+    /// ThreeTangent: of the circles touching the three lines (a triangle's inscribed and escribed
+    /// ones), the one touching each within its segment if any, else the one nearest the pointer.
+    void placeThreeTangentCircle(int third, Base::Vector2d pointer)
+    {
+        radius = 0.0;
+        Line2d lines[3];
+        if (tangentLines.size() < 2 || !lineOf(tangentLines[0], lines[0])
+            || !lineOf(tangentLines[1], lines[1]) || !lineOf(third, lines[2])) {
+            return;
+        }
+        auto det3 = [](double a1, double b1, double c1, double a2, double b2, double c2, double a3, double b3, double c3) {
+            return a1 * (b2 * c3 - b3 * c2) - b1 * (a2 * c3 - a3 * c2) + c1 * (a2 * b3 - a3 * b2);
+        };
+        auto onSegments = [&lines](const Base::Vector2d& p) {
+            for (const auto& line : lines) {
+                const Base::Vector2d along = line.b - line.a;
+                const double t = ((p - line.a) * along) / (along * along);
+                if (t < -Precision::Confusion() || t > 1 + Precision::Confusion()) {
+                    return false;
+                }
+            }
+            return true;
+        };
+        bool bestInside = false;
+        double bestDistance = 0.0;
+        for (int signs = 0; signs < 8; ++signs) {  // which side of each line the center is on
+            double s[3];
+            for (int i = 0; i < 3; ++i) {
+                s[i] = (signs & (1 << i)) ? -1.0 : 1.0;
+            }
+            // n_i·p + c_i = s_i r  ->  [n_i.x  n_i.y  -s_i] (x y r) = -c_i
+            const auto& l = lines;
+            const double d = det3(l[0].n.x, l[0].n.y, -s[0], l[1].n.x, l[1].n.y, -s[1], l[2].n.x, l[2].n.y, -s[2]);
+            if (fabs(d) < Precision::Confusion()) {
+                continue;
+            }
+            const double x = det3(-l[0].c, l[0].n.y, -s[0], -l[1].c, l[1].n.y, -s[1], -l[2].c, l[2].n.y, -s[2]) / d;
+            const double y = det3(l[0].n.x, -l[0].c, -s[0], l[1].n.x, -l[1].c, -s[1], l[2].n.x, -l[2].c, -s[2]) / d;
+            const double r = det3(l[0].n.x, l[0].n.y, -l[0].c, l[1].n.x, l[1].n.y, -l[1].c, l[2].n.x, l[2].n.y, -l[2].c) / d;
+            if (r < Precision::Confusion()) {
+                continue;
+            }
+            const Base::Vector2d center(x, y);
+            const bool inside = onSegments(center);
+            const double distance = (center - pointer).Length();
+            if (radius == 0.0 || (inside && !bestInside)
+                || (inside == bestInside && distance < bestDistance)) {
+                centerPoint = center;
+                radius = r;
+                bestInside = inside;
+                bestDistance = distance;
+            }
+        }
     }
 
 private:
     Base::Vector2d centerPoint, firstPoint, secondPoint;
     double radius;
     bool isDiameter;
+
+    // Tangent methods: the lines picked so far, and the one under the pointer
+    std::vector<int> tangentLines;
+    int hoveredLine = Sketcher::GeoEnum::GeoUndef;
 };
 
 template<>
 auto DSHCircleControllerBase::getState(int labelindex) const
 {
+    using Method = DrawSketchHandlerCircle::ConstructionMethod;
+
+    // Tangent methods: the size once the lines are picked (TwoTangent), none for ThreeTangent
+    if (handler->isTangentMethod()) {
+        switch (labelindex) {
+            case OnViewParameter::First:
+            case OnViewParameter::Second:
+                return SelectMode::SeekFirst;  // not used: the first step picks a line
+            case OnViewParameter::Third:
+                return handler->constructionMethod() == Method::TwoTangent ? SelectMode::SeekThird
+                                                                           : SelectMode::End;
+            default:
+                THROWM(Base::ValueError, "OnViewParameter index without an associated machine state")
+        }
+    }
 
     // Center and TwoRim: a point, then a size
     if (handler->constructionMethod() != DrawSketchHandlerCircle::ConstructionMethod::ThreeRim) {
@@ -445,9 +699,20 @@ void DSHCircleController::configureToolWidget()
         QStringList names = {
             QApplication::translate("Sketcher_CreateCircle", "Center"),
             QApplication::translate("Sketcher_CreateCircle", "3 rim points"),
-            QApplication::translate("Sketcher_CreateCircle", "2 rim points (diameter)")
+            QApplication::translate("Sketcher_CreateCircle", "2 rim points (diameter)"),
+            QApplication::translate("Sketcher_CreateCircle", "Tangent to 2 lines"),
+            QApplication::translate("Sketcher_CreateCircle", "Tangent to 3 lines")
         };
         toolWidget->setComboboxElements(WCombobox::FirstCombo, names);
+        for (int i : {3, 4}) {
+            toolWidget->setComboboxItemIcon(
+                WCombobox::FirstCombo,
+                i,
+                Gui::BitmapFactory().iconFromTheme(
+                    handler->isConstructionMode() ? "Sketcher_CreateCircle_Constr" : "Sketcher_CreateCircle"
+                )
+            );
+        }
 
         if (handler->isConstructionMode()) {
             toolWidget->setComboboxItemIcon(
@@ -531,6 +796,25 @@ void DSHCircleController::configureToolWidget()
 template<>
 void DSHCircleControllerBase::doEnforceControlParameters(Base::Vector2d& onSketchPos)
 {
+    if (handler->isTangentMethod()) {
+        // Lines are picked, not typed. TwoTangent's typed size puts the center where a circle of
+        // that size touches both lines, in the corner the pointer is in.
+        auto& thirdParam = onViewParameters[OnViewParameter::Third];
+        if (handler->constructionMethod() == DrawSketchHandlerCircle::ConstructionMethod::TwoTangent
+            && handler->state() == SelectMode::SeekThird && thirdParam->isSet) {
+            const double size = thirdParam->getValue();
+            if (size < Precision::Confusion() && thirdParam->hasFinishedEditing) {
+                unsetOnViewParameter(thirdParam.get());
+                return;
+            }
+            handler->placeTwoTangentCircle(onSketchPos, handler->isDiameter ? size / 2 : size);
+            if (handler->radius > Precision::Confusion()) {
+                onSketchPos = handler->centerPoint;  // on the halfway line: stays there
+            }
+        }
+        return;
+    }
+
     switch (handler->state()) {
         case SelectMode::SeekFirst: {
             auto& firstParam = onViewParameters[OnViewParameter::First];
@@ -624,6 +908,26 @@ void DSHCircleControllerBase::doEnforceControlParameters(Base::Vector2d& onSketc
 template<>
 void DSHCircleController::adaptParameters(Base::Vector2d onSketchPos)
 {
+    if (handler->isTangentMethod()) {
+        // TwoTangent shows the size while it's placed; nothing else to show while picking lines
+        auto& thirdParam = onViewParameters[OnViewParameter::Third];
+        if (handler->constructionMethod() == DrawSketchHandlerCircle::ConstructionMethod::TwoTangent
+            && handler->state() == SelectMode::SeekThird && handler->radius > Precision::Confusion()) {
+            if (!thirdParam->isSet) {
+                setOnViewParameterValue(
+                    OnViewParameter::Third,
+                    handler->radius * (handler->isDiameter ? 2 : 1)
+                );
+            }
+            const Base::Vector2d out(handler->radius, 0.0);
+            thirdParam->setPoints(
+                toVector3d(handler->isDiameter ? handler->centerPoint - out : handler->centerPoint),
+                toVector3d(handler->centerPoint + out)
+            );
+        }
+        return;
+    }
+
     switch (handler->state()) {
         case SelectMode::SeekFirst: {
             auto& firstParam = onViewParameters[OnViewParameter::First];
@@ -723,6 +1027,17 @@ void DSHCircleController::adaptParameters(Base::Vector2d onSketchPos)
 template<>
 void DSHCircleController::computeNextDrawSketchHandlerMode()
 {
+    if (handler->isTangentMethod()) {
+        // lines are picked with clicks; TwoTangent ends when its size is typed
+        if (handler->constructionMethod() == DrawSketchHandlerCircle::ConstructionMethod::TwoTangent
+            && handler->state() == SelectMode::SeekThird
+            && onViewParameters[OnViewParameter::Third]->hasFinishedEditing
+            && handler->radius > Precision::Confusion()) {
+            handler->setNextState(SelectMode::End);
+        }
+        return;
+    }
+
     switch (handler->state()) {
         case SelectMode::SeekFirst: {
             auto& firstParam = onViewParameters[OnViewParameter::First];
@@ -878,7 +1193,8 @@ void DSHCircleController::addConstraints()
             }
         }
     }
-    else if (handler->constructionMethod() == DrawSketchHandlerCircle::ConstructionMethod::TwoRim) {
+    else if (handler->constructionMethod() == DrawSketchHandlerCircle::ConstructionMethod::TwoRim
+             || handler->constructionMethod() == DrawSketchHandlerCircle::ConstructionMethod::TwoTangent) {
         // A typed diameter (or radius) becomes one, unless the clicked points already set it.
         if (!onViewParameters[OnViewParameter::Third]->isSet) {
             return;

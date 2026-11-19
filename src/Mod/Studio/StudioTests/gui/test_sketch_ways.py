@@ -270,6 +270,55 @@ class DrawingWays(SketchInput):
         self.finish()
         self.assertEqual(self.arcs(), [])
 
+    def corner(self):
+        """Two lines meeting square at (-0.5, -0.5): along the bottom and up the left."""
+        self.line((-0.5, -0.5), (3, -0.5))
+        self.line((-0.5, -0.5), (-0.5, 2.5))
+
+    def test_a_2_tangent_circle(self):
+        # Fusion's 2-Tangent Circle: pick two lines, then where it sits (and its size).
+        self.corner()
+        self.pick("Circle", "2-Tangent Circle")
+        self.click(1.5, -0.5)  # the bottom line
+        self.click(-0.5, 1)  # the left one
+        self.click(0.5, 0.5)  # in the corner, on the line halfway between them
+        self.finish()
+        self.assertEqual(len(self.circles()), 1)
+        circle = self.circles()[0]
+        self.assertNear((circle.Center.x / INCH, circle.Center.y / INCH), (0.5, 0.5))
+        self.assertAlmostEqual(circle.Radius / INCH, 1, delta=self.near())
+        self.assertEqual(len(self.constraints("Tangent")), 2)
+
+    def test_a_2_tangent_circle_takes_a_typed_size(self):
+        self.corner()
+        self.pick("Circle", "2-Tangent Circle")
+        self.click(1.5, -0.5)
+        self.click(-0.5, 1)
+        self.move(0.5, 0.5)
+        self.type("1{Return}")  # its diameter
+        self.finish()
+        circle = self.circles()[0]
+        self.assertAlmostEqual(circle.Radius / INCH, 0.5, places=6)
+        self.assertNear((circle.Center.x / INCH, circle.Center.y / INCH), (0, 0))
+        self.assertIn(("Diameter", round(1 * INCH, 4)), self.dimensions())
+
+    def test_a_3_tangent_circle_inside_a_triangle(self):
+        # Fusion's 3-Tangent Circle and Inventor's Tangent Circle: pick three lines.
+        self.line((0, 0), (3, 0))
+        self.line((3, 0), (1.5, 1.5 * math.sqrt(3)))
+        self.line((1.5, 1.5 * math.sqrt(3)), (0, 0))
+        self.pick("Circle", "3-Tangent Circle")
+        self.click(1.5, 0)
+        self.click(2.25, 0.75 * math.sqrt(3))
+        self.click(0.75, 0.75 * math.sqrt(3))
+        self.finish()
+        self.assertEqual(len(self.circles()), 1)
+        circle = self.circles()[0]
+        inradius = 1.5 / math.sqrt(3)
+        self.assertNear((circle.Center.x / INCH, circle.Center.y / INCH), (1.5, inradius))
+        self.assertAlmostEqual(circle.Radius / INCH, inradius, delta=self.near())
+        self.assertEqual(len(self.constraints("Tangent")), 3)
+
     def test_the_button_draws_the_way_picked_last(self):
         self.pick("Rectangle", "Center Rectangle")
         self.finish()

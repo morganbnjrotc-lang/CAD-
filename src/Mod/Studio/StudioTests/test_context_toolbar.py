@@ -150,7 +150,8 @@ class Ways(unittest.TestCase):
             "Line": ["Line", "Lines and Arcs", "Center Point Line"],
             "Rectangle": ["2-Point Rectangle", "Center Rectangle", "3-Point Rectangle", "3-Point Center Rectangle",
                           "Rounded Rectangle"],
-            "Circle": ["Center Diameter Circle", "3-Point Circle", "2-Point Circle"],
+            "Circle": ["Center Diameter Circle", "3-Point Circle", "2-Point Circle", "2-Tangent Circle",
+                       "3-Tangent Circle"],
             "Arc": ["Center Point Arc", "3-Point Arc", "Tangent Arc"],
             "Polygon": ["Inscribed Polygon", "Triangle", "Square", "Hexagon", "Circumscribed Polygon",
                         "Edge Polygon"],
@@ -175,6 +176,8 @@ class Ways(unittest.TestCase):
         self.assertEqual(line["Center Point Line"], ("Sketcher_CreateLine", 3))  # added to FreeCAD's Line
         circle = {w.label: (w.command, w.method) for w in self.button("Circle").ways}
         self.assertEqual(circle["2-Point Circle"], ("Sketcher_CreateCircle", 2))  # added to FreeCAD's Circle
+        self.assertEqual(circle["2-Tangent Circle"], ("Sketcher_CreateCircle", 3))
+        self.assertEqual(circle["3-Tangent Circle"], ("Sketcher_CreateCircle", 4))
         polygon = {w.label: (w.command, w.method) for w in self.button("Polygon").ways}
         self.assertEqual(polygon["Circumscribed Polygon"], ("Sketcher_CreateHexagon", 1))
         self.assertEqual(polygon["Edge Polygon"], ("Sketcher_CreateHexagon", 2))

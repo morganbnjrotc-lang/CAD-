@@ -71,7 +71,9 @@ WAYS = {
     "Sketcher_CreateCircle": (Way("Sketcher_CreateCircle", "Center Diameter Circle"),
                               Way("Sketcher_Create3PointCircle", "3-Point Circle"),
                               # added to FreeCAD's Circle (CORE_PATCHES.md)
-                              Way("Sketcher_CreateCircle", "2-Point Circle", 2, "circle-2-point")),
+                              Way("Sketcher_CreateCircle", "2-Point Circle", 2, "circle-2-point"),
+                              Way("Sketcher_CreateCircle", "2-Tangent Circle", 3, "circle-2-tangent"),
+                              Way("Sketcher_CreateCircle", "3-Tangent Circle", 4, "circle-3-tangent")),
     "Sketcher_CreateArc": (Way("Sketcher_CreateArc", "Center Point Arc"),
                            Way("Sketcher_Create3PointArc", "3-Point Arc"),
                            # added to FreeCAD's Arc (CORE_PATCHES.md): from the end of a line or arc

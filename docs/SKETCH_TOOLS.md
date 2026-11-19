@@ -14,7 +14,7 @@ FreeCAD's sketch tools (2026-11-19, approved by the user; [CORE_PATCHES.md](CORE
 |---|---|---|---|---|---|
 | Line | Line; drag off an end for a tangent arc | Line; drag off an end for an arc | Line, Polyline | Line; Lines and Arcs (M switches the next segment to an arc); Center Point Line (added: SolidWorks' Midpoint Line, which the user asked for) | — |
 | Rectangle | 2-Point, 3-Point, Center | Two Point, Three Point, Two Point Center, Three Point Center | Rectangle (two corners; chamfered, filleted) | 2-Point, Center, 3-Point, 3-Point Center, Rounded | — |
-| Circle | Center Diameter, 2-Point, 3-Point, 2-Tangent, 3-Tangent | Center Point, Tangent (to three lines) | Center Radius, Center Diameter, 2-Point, 3-Point, Tan Tan Radius, Tan Tan Tan | Center Diameter, 3-Point; 2-Point (added) | **2-Tangent, 3-Tangent** |
+| Circle | Center Diameter, 2-Point, 3-Point, 2-Tangent, 3-Tangent | Center Point, Tangent (to three lines) | Center Radius, Center Diameter, 2-Point, 3-Point, Tan Tan Radius, Tan Tan Tan | Center Diameter, 3-Point; 2-Point, 2-Tangent, 3-Tangent (added) | — |
 | Arc | 3-Point, Center Point, Tangent | Three Point, Center Point, Tangent | 11 ways (start, center, end, angle, length, radius, direction; Continue) | Center Point, 3-Point; Tangent (added: from the end of a line or arc) | — |
 | Polygon | Circumscribed, Inscribed, Edge | Inscribed, Circumscribed | Inscribed, Circumscribed, Edge | Inscribed (any number of sides); Triangle, Square, Hexagon; Circumscribed and Edge (added; six sides to start, U and J change it) | — |
 | Slot | Center to Center, Overall, Center Point, Three Point Arc, Center Point Arc | the same five | — | Center to Center, Center Point Arc; Overall and Center Point (added) | **Three Point Arc** |
@@ -38,6 +38,11 @@ undo like the others. Studio's own module can't build them: the framework's pane
   typed length is the whole line.
 - **2-Point Circle:** the clicks are a diameter's ends; a typed size is the diameter (or the radius, if
   FreeCAD's preferences dimension circles by radius).
+- **2-Tangent Circle:** pick two lines (or an axis), then where the circle sits: its center is on the line
+  halfway between them, in the corner the pointer is in, nearest the pointer; a typed size sets it there.
+  Two Tangent constraints hold it.
+- **3-Tangent Circle:** pick three lines. Of the circles touching all three (a triangle's inscribed and
+  escribed ones), it takes one touching each line within its segment, else the one nearest the pointer.
 - **Tangent Arc:** the first click must be the end of a line or an arc; the arc carries on its direction
   and turns towards the second click. One Tangent constraint, end to end, holds it (and makes them meet).
   Typed: radius and sweep.
@@ -50,5 +55,5 @@ undo like the others. Studio's own module can't build them: the framework's pane
   overall length. **Center Point Slot:** the middle, then one end's center; a construction point in the
   middle, the arcs' centers symmetric about it.
 
-Still missing: the 2-Tangent and 3-Tangent circles (picked lines, not points: a different kind of tool)
-and the Three Point Arc slot.
+Still missing: the Three Point Arc slot. Tangent circles touch lines only (as Fusion's); tangency to
+circles and arcs could come later.
