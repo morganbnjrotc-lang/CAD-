@@ -68,6 +68,48 @@ class TypedLength(Extruding):
         self.assertFalse(FreeCADGui.Control.activeDialog(), "Return should finish the extrude")
 
 
+class FinishOrCancel(Extruding):
+    """While Extrude's panel is open the toolbar showed the tools for an empty selection; now it finishes
+    or cancels the panel (PLAN 3.5)."""
+
+    def open_extrude(self):
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(self.sketch)
+        FreeCADGui.runCommand("PartDesign_Pad", 0)
+        settle(500)
+
+    def toolbar_action(self, label):
+        from studio.shell import window
+
+        actions = {a.text(): a for a in window.current().tools.actions()}
+        self.assertIn(label, actions, f"toolbar shows {list(actions)}")
+        return actions[label]
+
+    def pads(self):
+        return [o for o in self.doc.Objects if o.TypeId == "PartDesign::Pad"]
+
+    def test_the_toolbar_shows_finish_and_cancel(self):
+        from studio.shell import window
+
+        self.open_extrude()
+        self.assertEqual([a.text() for a in window.current().tools.actions()], ["Finish", "Cancel"])
+
+    def test_finish_keeps_the_extrude(self):
+        self.open_extrude()
+        self.toolbar_action("Finish").trigger()
+        settle(500)
+        self.assertFalse(FreeCADGui.Control.activeDialog(), "Finish should close the panel")
+        self.assertEqual(len(self.pads()), 1)
+        self.assertGreater(self.pads()[0].Shape.Volume, 0)
+
+    def test_cancel_takes_the_extrude_away(self):
+        self.open_extrude()
+        self.toolbar_action("Cancel").trigger()
+        settle(500)
+        self.assertFalse(FreeCADGui.Control.activeDialog(), "Cancel should close the panel")
+        self.assertEqual(self.pads(), [])
+
+
 class StaysInStudio(Extruding):
     """Part Design asks to switch to its workbench when its panel opens. Studio came straight back, and
     the round trip took the window out of full screen (maximized: the user's report)."""

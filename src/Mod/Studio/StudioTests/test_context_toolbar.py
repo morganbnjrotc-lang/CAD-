@@ -22,18 +22,23 @@ SKETCH, PAD, BODY = "Sketcher::SketchObject", "PartDesign::Pad", "PartDesign::Bo
 
 
 class Kinds(unittest.TestCase):
-    def kind(self, *selected, editing=None):
-        return selection_kind([Selected(*s) for s in selected], editing)
+    def kind(self, *selected, editing=None, task=False):
+        return selection_kind([Selected(*s) for s in selected], editing, task)
 
     def test_nothing_selected(self):
         self.assertEqual(self.kind(), "nothing")
 
     def test_editing_a_sketch_wins_over_any_selection(self):
         self.assertEqual(self.kind((PAD, ("Face3",)), editing=SKETCH), "editing")
-        self.assertEqual(self.kind(editing=SKETCH), "editing")
+        self.assertEqual(self.kind(editing=SKETCH, task=True), "editing")
 
-    def test_other_objects_in_edit_do_not_count_as_sketching(self):
-        self.assertEqual(self.kind(editing=PAD), "nothing")
+    def test_a_feature_being_edited_is_a_task(self):
+        # Extrude's panel is open (PLAN 3.5): the toolbar finishes or cancels it, whatever is selected.
+        self.assertEqual(self.kind(editing=PAD), "task")
+        self.assertEqual(self.kind((SKETCH,), editing=PAD, task=True), "task")
+
+    def test_a_panel_open_without_an_object_in_edit_is_a_task(self):
+        self.assertEqual(self.kind((PAD, ("Face3",)), task=True), "task")  # e.g. Measure
 
     def test_sketches(self):
         self.assertEqual(self.kind((SKETCH,)), "sketch")
@@ -95,6 +100,7 @@ class Buttons(unittest.TestCase):
         self.assertEqual(self.labels("edge"), ["Fillet", "Chamfer", "Measure", "Fit Selection"])
         self.assertEqual(self.labels("geometry"), ["Fillet", "Chamfer", "Measure", "Fit Selection"])
         self.assertEqual(self.labels("feature"), ["Pattern", "Fit Selection"])
+        self.assertEqual(self.labels("task"), ["Finish", "Cancel"])
         self.assertEqual(self.labels("editing"),
                          ["Line", "Rectangle", "Circle", "Arc", "Polygon", "Slot", "Spline", "Ellipse", "Point",
                           "Text", "Pattern", "Construction", "Dimension", "Fully Constrain", "Close Sketch"])
@@ -122,6 +128,11 @@ class Buttons(unittest.TestCase):
         for kind in TOOLS:
             with self.subTest(kind=kind):
                 self.assertTrue(self.toolbar.hint(kind))
+
+    def test_the_task_hint_says_what_finish_and_cancel_do(self):
+        hint = self.toolbar.hint("task")
+        self.assertIn("Finish", hint)
+        self.assertIn("Cancel", hint)
 
     def test_the_sketch_hint_names_the_key_extrude_is_on(self):
         self.assertIn("E", self.toolbar.hint("sketch"))

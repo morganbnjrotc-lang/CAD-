@@ -93,6 +93,14 @@ def freecad_panels():
     return _panels
 
 
+def _reload_style_tokens():
+    try:
+        import StudioGui
+    except ImportError:  # Studio's C++ helpers not built
+        return
+    StudioGui.reload_style_tokens()
+
+
 class Appearance:
     def __init__(self, settings, colors, system_is_dark=_system_is_dark, freecad_stylesheet=_freecad_stylesheet,
                  panels=freecad_panels):
@@ -116,6 +124,7 @@ class Appearance:
             if panels is not None:
                 panels.style(p)
         self._colors.apply(p)  # FreeCAD's 3D views and sketches pick these up live
+        _reload_style_tokens()  # the drag arrows' colors, which FreeCAD keeps once worked out
         self.mode = mode
         self.look = p if own_colors else None
         for follower in list(self._followers):

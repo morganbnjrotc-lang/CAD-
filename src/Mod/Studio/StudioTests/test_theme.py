@@ -192,6 +192,23 @@ class FreeCADColorSettings(unittest.TestCase):
             self.colors.apply(p)
             self.assertEqual(output.GetUnsigned("colorText", 0), theme.rgba(p.text), p.name)
 
+    def test_drag_arrows_use_the_accent(self):
+        # Part Design's drag arrows (Extrude's length, PLAN 3.5) are FreeCAD's red and yellow; its style
+        # tokens set them, as "#RRGGBB" text (the user's layer: Themes/UserParameters).
+        tokens = FreeCAD.ParamGet(f"{self.root}/Themes/UserParameters")
+        for p in (theme.LIGHT, theme.DARK):
+            self.colors.apply(p)
+            for arrow in ("LinearGizmo", "RotationGizmo"):
+                self.assertEqual(tokens.GetString(f"{arrow}BaseColor", ""), theme.hex6(p.accent), p.name)
+                self.assertEqual(tokens.GetString(f"{arrow}ActiveColor", ""), theme.hex6(p.preselect), p.name)
+
+    def test_a_drag_arrow_color_the_user_changed_stays(self):
+        tokens = FreeCAD.ParamGet(f"{self.root}/Themes/UserParameters")
+        self.colors.apply(theme.LIGHT)
+        tokens.SetString("LinearGizmoBaseColor", "#FF00FF")
+        self.colors.apply(theme.DARK)
+        self.assertEqual(tokens.GetString("LinearGizmoBaseColor", ""), "#FF00FF")
+
     def test_switching_mode_rewrites_the_colors(self):
         self.colors.apply(theme.LIGHT)
         self.colors.apply(theme.DARK)

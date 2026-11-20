@@ -27,6 +27,7 @@
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTextEdit>
+#include <QTimer>
 #include <QToolButton>
 #include <QTreeView>
 
@@ -35,6 +36,7 @@
 #include <Base/Exception.h>
 #include <Base/Interpreter.h>
 #include <Base/PyObjectBase.h>  // PyMOD_INIT_FUNC
+#include <Base/ServiceProvider.h>
 #include <Base/Type.h>
 #include <Inventor/SbViewportRegion.h>
 #include <Inventor/SoRenderManager.h>
@@ -47,6 +49,7 @@
 #include <Gui/MainWindow.h>
 #include <Gui/NaviCube.h>
 #include <Gui/QuantitySpinBox.h>
+#include <Gui/StyleParameters/ParameterManager.h>
 #include <Gui/TaskView/TaskView.h>
 #include <Gui/View3DInventor.h>
 #include <Gui/View3DInventorViewer.h>
@@ -276,6 +279,55 @@ private:
     Py::Object callback;
 };
 
+/// Calls back once the left mouse button has been let go in the main window and the release has been
+/// handled: by then Part Design's drag arrow has finished its drag (PLAN 3.5, extrude or cut by
+/// direction). One call per release, however many widgets the release passes through.
+class MouseReleaseWatch: public QObject
+{
+public:
+    explicit MouseReleaseWatch(const Py::Object& callback)
+        : callback(callback)
+    {}
+
+    bool eventFilter(QObject* watched, QEvent* event) override
+    {
+        if (event->type() == QEvent::MouseButtonRelease && !pending && watched->isWidgetType()
+            && static_cast<QMouseEvent*>(event)->button() == Qt::LeftButton
+            && static_cast<QWidget*>(watched)->window() == Gui::getMainWindow()) {
+            pending = true;
+            QTimer::singleShot(0, this, [this] { tell(); });
+        }
+        return false;
+    }
+
+    /// Lets go of the callback now, from Python (the GIL held): the watch itself is deleted later, from
+    /// Qt's event loop, where dropping a Python object would be without the GIL.
+    void release()
+    {
+        callback = Py::None();
+    }
+
+private:
+    void tell()
+    {
+        pending = false;
+        Base::PyGILStateLocker lock;
+        if (callback.isNone()) {
+            return;  // stopped since the release
+        }
+        try {
+            Py::Callable(callback).apply(Py::Tuple());
+        }
+        catch (Py::Exception&) {
+            Base::PyException error;  // takes the pending Python error
+            error.reportException();
+        }
+    }
+
+    Py::Object callback;
+    bool pending = false;
+};
+
 /// Construction on and off while sketching (PLAN 3.13; Fusion's X). It runs FreeCAD's
 /// Sketcher_ToggleConstruction: with sketch geometry selected that switches the geometry to or from
 /// construction, otherwise it switches what gets drawn next. Python can't read whether construction
@@ -396,6 +448,19 @@ public:
             "remove_key_filter(id): removes a filter installed by add_key_filter()."
         );
         add_varargs_method(
+            "watch_mouse_release",
+            &Module::watchMouseRelease,
+            "watch_mouse_release(callback) -> int\n\n"
+            "callback() once the left mouse button has been let go in the main window and the release\n"
+            "handled (a drag arrow's drag has finished by then); once per release. Returns an id for\n"
+            "unwatch_mouse_release()."
+        );
+        add_varargs_method(
+            "unwatch_mouse_release",
+            &Module::unwatchMouseRelease,
+            "unwatch_mouse_release(id): stops a watch_mouse_release()."
+        );
+        add_varargs_method(
             "declared_shortcut",
             &Module::declaredShortcut,
             "declared_shortcut(name) -> str\n\n"
@@ -495,6 +560,14 @@ public:
             "when it opens a task (a size field gets its number selected). Raises KeyError if none."
         );
         add_varargs_method(
+            "set_field",
+            &Module::setField,
+            "set_field(object_name, value) -> bool\n\n"
+            "Sets the main window's visible size box with that object name (a task panel's \"lengthEdit\")\n"
+            "to `value`, in its unit's base (millimeters for a length), as typing it would: the panel\n"
+            "takes it. False if no such box shows."
+        );
+        add_varargs_method(
             "focus_widget",
             &Module::focusWidget,
             "focus_widget() -> (class name, is a size box in the 3D view, its text) or None\n\n"
@@ -525,6 +598,20 @@ public:
             "(a pattern's Elements is 1). False if no tool panel shows that box."
         );
         add_varargs_method(
+            "style_color",
+            &Module::styleColor,
+            "style_color(token) -> '#RRGGBB' or None\n\n"
+            "The color a FreeCAD style token gives, as FreeCAD's own users of it read it (e.g. Part\n"
+            "Design's drag arrows, LinearGizmoBaseColor); None if no source defines the token."
+        );
+        add_varargs_method(
+            "reload_style_tokens",
+            &Module::reloadStyleTokens,
+            "reload_style_tokens()\n\n"
+            "FreeCAD keeps each style token's color once it has worked it out: makes it work them out\n"
+            "again, after Studio changed the tokens (a switch between light and dark)."
+        );
+        add_varargs_method(
             "tasks_room",
             &Module::tasksRoom,
             "tasks_room() -> (area_height, cube)\n\n"
@@ -543,6 +630,7 @@ public:
 
 private:
     std::map<long, KeyEventGate*> gates;
+    std::map<long, MouseReleaseWatch*> releaseWatches;
     long nextGateId = 1;
     SizeBoxTyping* sizeBoxTyping = nullptr;
 
@@ -560,6 +648,38 @@ private:
         const long id = nextGateId++;
         gates[id] = gate;
         return Py::Long(id);
+    }
+
+    Py::Object watchMouseRelease(const Py::Tuple& args)
+    {
+        PyObject* callback = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "O", &callback)) {
+            throw Py::Exception();
+        }
+        if (!PyCallable_Check(callback)) {
+            throw Py::TypeError("watch_mouse_release() needs a callable");
+        }
+        auto* watch = new MouseReleaseWatch(Py::Object(callback));
+        qApp->installEventFilter(watch);
+        const long id = nextGateId++;
+        releaseWatches[id] = watch;
+        return Py::Long(id);
+    }
+
+    Py::Object unwatchMouseRelease(const Py::Tuple& args)
+    {
+        long id = 0;
+        if (!PyArg_ParseTuple(args.ptr(), "l", &id)) {
+            throw Py::Exception();
+        }
+        auto found = releaseWatches.find(id);
+        if (found != releaseWatches.end()) {
+            qApp->removeEventFilter(found->second);
+            found->second->release();
+            found->second->deleteLater();  // it may be the one calling back now
+            releaseWatches.erase(found);
+        }
+        return Py::None();
     }
 
     Py::Object declaredShortcut(const Py::Tuple& args)
@@ -968,6 +1088,32 @@ private:
         return Py::False();
     }
 
+    Py::Object styleColor(const Py::Tuple& args)
+    {
+        char* name = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "s", &name)) {
+            throw Py::Exception();
+        }
+        auto* manager = Base::provideService<Gui::StyleParameters::ParameterManager>();
+        if (manager == nullptr || !manager->parameter(name)) {
+            return Py::None();
+        }
+        // As FreeCAD's own users of a color token read it (e.g. Gui::LinearGizmo::updateColorTheme).
+        const Gui::StyleParameters::ParameterDefinition<Base::Color> token {name, Base::Color(0.0F, 0.0F, 0.0F)};
+        return Py::String(manager->resolve(token).asHexString());
+    }
+
+    Py::Object reloadStyleTokens(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        if (auto* manager = Base::provideService<Gui::StyleParameters::ParameterManager>()) {
+            manager->reload();
+        }
+        return Py::None();
+    }
+
     Py::Object tasksRoom(const Py::Tuple& args)
     {
         if (!PyArg_ParseTuple(args.ptr(), "")) {
@@ -1018,6 +1164,24 @@ private:
             return Py::None();
         }
         throw Py::KeyError(std::string("no visible field named ") + name);
+    }
+
+    Py::Object setField(const Py::Tuple& args)
+    {
+        char* name = nullptr;
+        double value = 0.0;
+        if (!PyArg_ParseTuple(args.ptr(), "sd", &name, &value)) {
+            throw Py::Exception();
+        }
+        Gui::MainWindow* main = Gui::getMainWindow();
+        for (auto* box : main->findChildren<Gui::QuantitySpinBox*>(QString::fromUtf8(name))) {
+            if (!box->isVisible()) {
+                continue;
+            }
+            box->setValue(value);  // in the box's unit's base (mm for a length); the panel follows it
+            return Py::True();
+        }
+        return Py::False();
     }
 
     Py::Object focusWidget(const Py::Tuple& args)

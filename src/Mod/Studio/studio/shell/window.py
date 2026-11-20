@@ -72,6 +72,7 @@ class StudioWindow:
         self._icons = {}
         self._look = None  # Studio's palette once the look applies (restyle)
         self._pending = False
+        self._shown_task = False  # whether the tools shown are for an open task panel
         self.kind = None
         self.extra_menus = []  # Studio's own menus after FreeCAD's in ☰ (e.g. Appearance)
         self._model_panel = None
@@ -212,7 +213,11 @@ class StudioWindow:
 
     def refresh(self):
         self._pending = False
-        self.show_tools_for(self._selection(), self._editing())
+        self.show_tools_for(self._selection(), self._editing(), self._task_open())
+
+    @staticmethod
+    def _task_open():
+        return bool(FreeCADGui.Control.activeDialog())
 
     @staticmethod
     def _selection():
@@ -225,8 +230,9 @@ class StudioWindow:
         target = getattr(view_provider, "Object", None)
         return getattr(target, "TypeId", None)
 
-    def show_tools_for(self, selected, editing):
-        kind = selection_kind(selected, editing)
+    def show_tools_for(self, selected, editing, task=False):
+        kind = selection_kind(selected, editing, task)
+        self._shown_task = task
         contexts = self._contexts()
         self.tools.clear()
         for widget in self._tool_widgets:
@@ -298,6 +304,8 @@ class StudioWindow:
                    for s in FreeCADGui.Selection.getSelectionEx())
 
     def _update_enabled(self):
+        if self._task_open() != self._shown_task:  # a panel opened or closed without an edit (Measure)
+            self.schedule_refresh()
         for action in self.tools.actions():
             command = action.data()
             if command:

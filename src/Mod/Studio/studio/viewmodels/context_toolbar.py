@@ -33,6 +33,8 @@ TOOLS = {
     "geometry": [("PartDesign_Fillet", None), ("PartDesign_Chamfer", None), ("Std_Measure", None),
                  ("Std_ViewFitSelection", None)],
     "feature": [("PartDesign_LinearPattern", "Pattern"), ("Std_ViewFitSelection", None)],
+    # A panel is open (Extrude, Fillet, Measure…): its OK and Cancel, on the toolbar (PLAN 3.5).
+    "task": [("Studio_Finish", None), ("Studio_Cancel", None)],
     "editing": [("Sketcher_CreateLine", None), ("Sketcher_CreateRectangle", None), ("Sketcher_CreateCircle", "Circle"),
                 ("Sketcher_CreateArc", "Arc"), ("Sketcher_CreateRegularPolygon", "Polygon"),
                 ("Sketcher_CreateSlot", None), ("Sketcher_CreateBSplineByInterpolation", "Spline"),
@@ -132,10 +134,13 @@ def _sub_kind(sub: str) -> str:
     return "other"
 
 
-def selection_kind(selected, editing=None) -> str:
-    """One of TOOLS' kinds for the selection and the type of the object in edit (or None)."""
+def selection_kind(selected, editing=None, task=False) -> str:
+    """One of TOOLS' kinds for the selection, the type of the object in edit (or None) and whether a
+    task panel is open (some open without an object in edit: Measure)."""
     if editing == SKETCH:
         return "editing"
+    if editing or task:
+        return "task"
     if not selected:
         return "nothing"
     if all(s.type_id == SKETCH for s in selected):
@@ -231,4 +236,5 @@ class ContextToolbar:
             "edge": "Fillet rounds the selected edges; Chamfer bevels them",
             "geometry": "Fillet and Chamfer work on the selected edges and faces",
             "feature": "Mirror or pattern the selected feature",
+            "task": "Finish keeps the changes; Cancel takes them back",
         }[kind]

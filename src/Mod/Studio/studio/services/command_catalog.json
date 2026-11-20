@@ -1545,6 +1545,14 @@
    "icon": "src/Gui/Icons/freecad.svg"
   },
   {
+   "name": "Studio_Cancel",
+   "workbench": null,
+   "menu_text": "Cancel",
+   "tooltip": "Closes the panel and takes the changes back",
+   "shortcut": "",
+   "icon": "src/Mod/Studio/Resources/icons/line/cancel.svg"
+  },
+  {
    "name": "Studio_CommandPalette",
    "workbench": null,
    "menu_text": "Command Palette",
@@ -1559,6 +1567,14 @@
    "tooltip": "Draws construction geometry from now on, or turns the selected sketch geometry into construction geometry and back",
    "shortcut": "",
    "icon": "src/Mod/Sketcher/Gui/Resources/icons/geometry/Sketcher_ToggleConstruction.svg"
+  },
+  {
+   "name": "Studio_Finish",
+   "workbench": null,
+   "menu_text": "Finish",
+   "tooltip": "Closes the panel and keeps the changes",
+   "shortcut": "",
+   "icon": "src/Mod/Studio/Resources/icons/line/finish.svg"
   },
   {
    "name": "Studio_FullyConstrain",

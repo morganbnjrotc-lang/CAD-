@@ -131,6 +131,11 @@ def rgba(color: str) -> int:
     return (r << 24) | (g << 16) | (b << 8) | 0xFF
 
 
+def hex6(color: str) -> str:
+    """"#RRGGBB" in capitals, as FreeCAD writes colors in its style tokens."""
+    return "#" + "".join(f"{c:02X}" for c in _channels(color))
+
+
 def mix(a: str, b: str, t: float) -> str:
     """`a` moved a fraction `t` of the way to `b`."""
     return "#" + "".join(f"{round(x + (y - x) * t):02X}" for x, y in zip(_channels(a), _channels(b)))
@@ -153,7 +158,8 @@ def contrast(a: str, b: str) -> float:
 
 # -- FreeCAD's settings -------------------------------------------------------------------------
 def freecad_settings(p: Palette) -> list:
-    """(group, name, value) for each FreeCAD setting the palette sets; value is a bool or a color."""
+    """(group, name, value) for each FreeCAD setting the palette sets; value is a bool, a color stored
+    as a number, or a Token (a color stored as text)."""
     view = [
         ("Simple", False), ("Gradient", True), ("RadialGradient", False), ("UseBackgroundColorMid", False),
         ("BackgroundColor", p.view_flat), ("BackgroundColor2", p.view_top), ("BackgroundColor3", p.view_bottom),
@@ -173,11 +179,22 @@ def freecad_settings(p: Palette) -> list:
     # Messages in the status bar and the Report view (FreeCAD's default is black). Warnings and errors
     # keep FreeCAD's orange and red.
     output = [("colorText", p.text)]
+    # Part Design's drag arrows (Extrude's length and taper, PLAN 3.5): FreeCAD's red and yellow, set by
+    # its style tokens; the user's layer of them (Themes/UserParameters) comes before the built-in ones.
+    arrows = [(f"{arrow}{state}", Token(hex6(color))) for arrow in ("LinearGizmo", "RotationGizmo")
+              for state, color in (("BaseColor", p.accent), ("ActiveColor", p.preselect))]
     return ([("View", n, v) for n, v in view] + [("Mod/Sketcher/General", n, v) for n, v in sketcher]
-            + [("TreeView", n, v) for n, v in tree] + [("OutputWindow", n, v) for n, v in output])
+            + [("TreeView", n, v) for n, v in tree] + [("OutputWindow", n, v) for n, v in output]
+            + [("Themes/UserParameters", n, v) for n, v in arrows])
+
+
+class Token(str):
+    """A FreeCAD style token's value: stored as text, where the other colors are numbers."""
 
 
 def _as_text(value) -> str:
+    if isinstance(value, Token):
+        return str(value)
     if isinstance(value, bool):
         return "true" if value else "false"
     return f"#{rgba(value):08X}"
@@ -185,6 +202,8 @@ def _as_text(value) -> str:
 
 def _read(group, name: str, value):
     """The stored value as text, or None if FreeCAD has none yet."""
+    if isinstance(value, Token):
+        return group.GetString(name, "") or None
     if isinstance(value, bool):
         if group.GetBool(name, True) != group.GetBool(name, False):
             return None
@@ -195,7 +214,9 @@ def _read(group, name: str, value):
 
 
 def _write(group, name: str, value) -> None:
-    if isinstance(value, bool):
+    if isinstance(value, Token):
+        group.SetString(name, str(value))
+    elif isinstance(value, bool):
         group.SetBool(name, value)
     else:
         group.SetUnsigned(name, rgba(value))

@@ -226,6 +226,21 @@ class SessionAppearance(unittest.TestCase):
         self.assertTrue(view.GetBool("Gradient", False))
         self.assertEqual(view.GetUnsigned("SelectionColor", 0), theme.rgba(p.accent))
 
+    def test_drag_arrows_use_the_accent_in_both_modes(self):
+        # Extrude's drag arrow (PLAN 3.5): FreeCAD resolves its color when the arrow is made and keeps
+        # what it resolved, so a switch has to make it look again.
+        import StudioGui
+        from studio.shell import appearance
+
+        session = appearance.current()
+        original = Settings().get(theme.MODE)
+        self.addCleanup(session.set_mode, original)
+        for mode in ("dark", "light"):
+            session.set_mode(mode)
+            p = theme.palette(mode)
+            self.assertEqual(StudioGui.style_color("LinearGizmoBaseColor"), theme.hex6(p.accent), mode)
+            self.assertEqual(StudioGui.style_color("RotationGizmoBaseColor"), theme.hex6(p.accent), mode)
+
     def test_the_menu_offers_appearance(self):
         from studio.shell import window
 
