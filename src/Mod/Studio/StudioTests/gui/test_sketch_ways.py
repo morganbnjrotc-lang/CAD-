@@ -253,6 +253,54 @@ class DrawingWays(ToolbarDrawing):
         self.assertSlot([(0.5, 1), (2.5, 1)], 0.4)
         self.assertEqual(len(self.constraints("Symmetric")), 1)
 
+    def arc_slot(self):
+        """The four arcs of an arc slot, sorted by radius: the two ends, the inner side, the outer side."""
+        arcs = sorted((g for g in self.sketch.Geometry if g.TypeId == "Part::GeomArcOfCircle"),
+                      key=lambda a: a.Radius)
+        self.assertEqual(len(arcs), 4, [a.Radius / INCH for a in arcs])
+        return arcs
+
+    def test_a_three_point_arc_slot(self):
+        # Fusion's Three Point Arc Slot: the ends' centers, a point the slot's middle passes through,
+        # then its width. Through (0, 0), (1, 1) and (2, 0): an arc around (1, 0), 1 in from it.
+        self.pick("Slot", "Three Point Arc Slot")
+        self.click(0, 0)
+        self.click(2, 0)
+        self.click(1, 1)
+        self.click(2.2, 0)  # the width's half: 0.2 in out from the end's center
+        self.finish()
+        arcs = self.arc_slot()
+        ends, inner, outer = arcs[:2], arcs[2], arcs[3]
+        self.assertEqual(sorted(self.near_point(a.Center) for a in ends), [(0, 0), (2, 0)])
+        for arc in ends:
+            self.assertAlmostEqual(arc.Radius / INCH, 0.2, delta=self.near())
+        for arc, radius in ((inner, 0.8), (outer, 1.2)):
+            self.assertNear((arc.Center.x / INCH, arc.Center.y / INCH), (1, 0))
+            self.assertAlmostEqual(arc.Radius / INCH, radius, delta=self.near())
+        middle = outer.value((outer.FirstParameter + outer.LastParameter) / 2)
+        self.assertGreater(middle.y, 0, "the slot should bend through the third point, above its ends")
+        self.assertEqual(self.sketch.solve(), 0)
+
+    def near_point(self, v):
+        return (round(v.x / INCH), round(v.y / INCH))
+
+    def test_a_three_point_arc_slot_takes_typed_sizes(self):
+        self.pick("Slot", "Three Point Arc Slot")
+        self.click(0, 0)
+        self.click(2, 0)
+        self.move(1, 0.6)
+        self.type("1.25{Return}")  # the arc's radius, bending toward the pointer
+        self.move(2.2, 0)
+        self.type("0.25{Return}")  # the ends' radius
+        self.finish()
+        self.assertIn(("Radius", round(0.25 * INCH, 4)), self.dimensions())
+        self.assertIn(("Distance", round(1.25 * INCH, 4)), self.dimensions())
+        inner, outer = self.arc_slot()[2], self.arc_slot()[3]
+        self.assertAlmostEqual(outer.Radius / INCH, 1.5, places=4)
+        self.assertAlmostEqual(inner.Radius / INCH, 1.0, places=4)
+        middle = outer.value((outer.FirstParameter + outer.LastParameter) / 2)
+        self.assertGreater(middle.y, 0, "the slot should bend toward the pointer")
+
     def test_a_tangent_arc_goes_on_from_the_end_of_a_line(self):
         # Fusion's and Inventor's Tangent Arc: start at the end of a line or arc, carry on its direction.
         self.line((0, 0), (1, 0))

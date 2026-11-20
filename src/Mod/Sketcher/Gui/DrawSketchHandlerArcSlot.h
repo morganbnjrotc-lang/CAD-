@@ -52,7 +52,8 @@ enum class ArcSlotConstructionMethod
 {
     ArcSlot,
     RectangleSlot,
-    End  // Must be the last one
+    ThreePoint,  // the ends' centers, a point the slot's middle passes through, the width (Fusion's)
+    End          // Must be the last one
 };
 
 }  // namespace ConstructionMethods
@@ -61,11 +62,11 @@ using DSHArcSlotController = DrawSketchDefaultWidgetController<
     DrawSketchHandlerArcSlot,
     StateMachines::FourSeekEnd,
     /*PAutoConstraintSize =*/3,                     // NOLINT
-    /*OnViewParametersT =*/OnViewParameters<6, 6>,  // NOLINT
-    /*WidgetParametersT =*/WidgetParameters<0, 0>,  // NOLINT
-    /*WidgetCheckboxesT =*/WidgetCheckboxes<0, 0>,  // NOLINT
-    /*WidgetComboboxesT =*/WidgetComboboxes<1, 1>,  // NOLINT
-    /*WidgetLineEditsT =*/WidgetLineEdits<0, 0>,
+    /*OnViewParametersT =*/OnViewParameters<6, 6, 6>,  // NOLINT
+    /*WidgetParametersT =*/WidgetParameters<0, 0, 0>,  // NOLINT
+    /*WidgetCheckboxesT =*/WidgetCheckboxes<0, 0, 0>,  // NOLINT
+    /*WidgetComboboxesT =*/WidgetComboboxes<1, 1, 1>,  // NOLINT
+    /*WidgetLineEditsT =*/WidgetLineEdits<0, 0, 0>,
     ConstructionMethods::ArcSlotConstructionMethod,
     /*bool PFirstComboboxIsConstructionMethod =*/true>;
 
@@ -100,6 +101,22 @@ public:
 
         const Gui::InputHint switchModeHint {.message = tr("%1 switch mode"), .sequences = {KeyM}};
 
+        if (constructionMethod() == ConstructionMethod::ThreePoint) {
+            return Gui::lookupHints<SelectMode>(
+                state(),
+                {
+                    {.state = SelectMode::SeekFirst,
+                     .hints = {{tr("%1 pick slot start"), {MouseLeft}}, switchModeHint}},
+                    {.state = SelectMode::SeekSecond,
+                     .hints = {{tr("%1 pick slot end"), {MouseLeft}}, switchModeHint}},
+                    {.state = SelectMode::SeekThird,
+                     .hints = {{tr("%1 pick a point the slot passes through"), {MouseLeft}}, switchModeHint}},
+                    {.state = SelectMode::SeekFourth,
+                     .hints = {{tr("%1 pick slot width"), {MouseLeft}}, switchModeHint}},
+                }
+            );
+        }
+
         return Gui::lookupHints<SelectMode>(state(),
                                             {
                                                 {.state = SelectMode::SeekFirst,
@@ -132,6 +149,10 @@ public:
 private:
     void updateDataAndDrawToPosition(Base::Vector2d onSketchPos) override
     {
+        if (constructionMethod() == ConstructionMethod::ThreePoint) {
+            updateThreePoint(onSketchPos);
+            return;
+        }
         switch (state()) {
             case SelectMode::SeekFirst: {
                 toolWidgetManager.drawPositionAtCursor(onSketchPos);
@@ -195,6 +216,104 @@ private:
         }
     }
 
+    /// Three Point: the start end's center, the far end's center, a point the slot's middle passes
+    /// through (the arc around the slot's center goes through all three), the width.
+    void updateThreePoint(Base::Vector2d onSketchPos)
+    {
+        switch (state()) {
+            case SelectMode::SeekFirst: {
+                toolWidgetManager.drawPositionAtCursor(onSketchPos);
+                startPoint = onSketchPos;
+                seekAndRenderAutoConstraint(sugConstraints[0], onSketchPos, Base::Vector2d(0.f, 0.f));
+            } break;
+            case SelectMode::SeekSecond: {
+                toolWidgetManager.drawPositionAtCursor(onSketchPos);
+                endPoint = onSketchPos;
+                CreateAndDrawShapeGeometry();
+                seekAndRenderAutoConstraint(sugConstraints[1], onSketchPos, Base::Vector2d(0.f, 0.f));
+            } break;
+            case SelectMode::SeekThird: {
+                if (!arcThroughThreePoints(onSketchPos)) {
+                    radius = 0.;  // in a line with the ends: no arc, nothing drawn
+                    CreateAndDrawShapeGeometry();
+                    return;
+                }
+                const double scale = 10;
+                r = radius / scale;
+                CreateAndDrawShapeGeometry();
+                toolWidgetManager.drawDoubleAtCursor(onSketchPos, radius);
+            } break;
+            case SelectMode::SeekFourth: {
+                r = std::min(radius, fabs(radius - (onSketchPos - centerPoint).Length()));
+                toolWidgetManager.drawDoubleAtCursor(onSketchPos, r);
+                CreateAndDrawShapeGeometry();
+            } break;
+            default:
+                break;
+        }
+    }
+
+    /// The arc from startPoint through `through` to endPoint: its center, radius and angles. False if
+    /// the three points are in a line.
+    bool arcThroughThreePoints(const Base::Vector2d& through)
+    {
+        const Base::Vector2d& a = startPoint;
+        const Base::Vector2d& b = through;
+        const Base::Vector2d& c = endPoint;
+        const double d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
+        const double size = std::max((b - a).Length(), (c - a).Length());
+        if (fabs(d) < Precision::Confusion() * std::max(size, 1.0)) {
+            return false;
+        }
+        const double a2 = a.Sqr();
+        const double b2 = b.Sqr();
+        const double c2 = c.Sqr();
+        centerPoint.x = (a2 * (b.y - c.y) + b2 * (c.y - a.y) + c2 * (a.y - b.y)) / d;
+        centerPoint.y = (a2 * (c.x - b.x) + b2 * (a.x - c.x) + c2 * (b.x - a.x)) / d;
+        radius = (a - centerPoint).Length();
+        if (radius < Precision::Confusion()) {
+            return false;
+        }
+        const double twoPi = 2 * std::numbers::pi;
+        auto turn = [twoPi](double from, double to) {  // counterclockwise, in [0, 2 pi)
+            double angle = fmod(to - from, twoPi);
+            return angle < 0 ? angle + twoPi : angle;
+        };
+        const double start = (a - centerPoint).Angle();
+        const double toEnd = turn(start, (c - centerPoint).Angle());
+        const double toThrough = turn(start, (b - centerPoint).Angle());
+        arcAngle = toThrough < toEnd ? toEnd : toEnd - twoPi;
+        startAngle = start;
+        startAngleBackup = start;
+        reverseIfNecessary();
+        return true;
+    }
+
+    /// The point the arc passes through halfway between the ends, for an arc of radius `arcRadius`
+    /// bending toward `pointer` (the shorter of the two such arcs).
+    Base::Vector2d arcMiddleForRadius(double arcRadius, const Base::Vector2d& pointer) const
+    {
+        const Base::Vector2d chord = endPoint - startPoint;
+        const double half = chord.Length() / 2;
+        const Base::Vector2d middle = startPoint + chord * 0.5;
+        Base::Vector2d normal = chord.Perpendicular();
+        if (normal.Length() < Precision::Confusion()) {
+            return pointer;
+        }
+        normal.Normalize();
+        if ((pointer - middle) * normal < 0) {
+            normal = normal * -1.0;  // bend toward the pointer
+        }
+        arcRadius = std::max(arcRadius, half);
+        const double sagitta = arcRadius - std::sqrt(arcRadius * arcRadius - half * half);
+        return middle + normal * sagitta;
+    }
+
+    bool arcEnds() const
+    {
+        return constructionMethod() != ConstructionMethod::RectangleSlot;
+    }
+
     void executeCommands() override
     {
         try {
@@ -229,6 +348,15 @@ private:
     {
         auto& ac2 = sugConstraints[1];
         auto& ac3 = sugConstraints[2];
+
+        if (constructionMethod() == ConstructionMethod::ThreePoint) {
+            // the clicks were the ends' centers; the third, on the arc, is no point of the slot's
+            generateAutoConstraintsOnElement(sugConstraints[0], getHighestCurveIndex() - 2, Sketcher::PointPos::mid);
+            generateAutoConstraintsOnElement(ac2, getHighestCurveIndex() - 1, Sketcher::PointPos::mid);
+            ac3.clear();
+            removeRedundantAutoConstraints();
+            return;
+        }
 
         generateAutoConstraintsOnElement(
             sugConstraints[0],
@@ -276,7 +404,7 @@ private:
 
     QString getCrosshairCursorSVGName() const override
     {
-        if (constructionMethod() == DrawSketchHandlerArcSlot::ConstructionMethod::ArcSlot) {
+        if (arcEnds()) {
             return QStringLiteral("Sketcher_Pointer_Create_ArcSlot");
         }
         else {
@@ -306,15 +434,25 @@ private:
 
     bool canGoToNextMode() override
     {
+        if (constructionMethod() == ConstructionMethod::ThreePoint) {
+            if (state() == SelectMode::SeekSecond
+                && (endPoint - startPoint).Length() < Precision::Confusion()) {
+                return false;  // the ends in one place
+            }
+            if (state() == SelectMode::SeekThird
+                && (radius < Precision::Confusion() || fabs(arcAngle) < Precision::Confusion())) {
+                return false;  // in a line with the ends
+            }
+        }
         // Prevent validation of null arc.
-        if (state() == SelectMode::SeekSecond && radius < Precision::Confusion()) {
+        else if (state() == SelectMode::SeekSecond && radius < Precision::Confusion()) {
             return false;
         }
         if (state() == SelectMode::SeekThird && fabs(arcAngle) < Precision::Confusion()) {
             return false;
         }
         if (state() == SelectMode::SeekFourth) {
-            if (constructionMethod() == DrawSketchHandlerArcSlot::ConstructionMethod::ArcSlot) {
+            if (arcEnds()) {
                 if (r < Precision::Confusion()) {
                     return false;
                 }
@@ -330,6 +468,15 @@ private:
 
     void angleSnappingControl() override
     {
+        if (constructionMethod() == ConstructionMethod::ThreePoint) {
+            if (state() == SelectMode::SeekSecond) {
+                setAngleSnapping(true, startPoint);
+            }
+            else {
+                setAngleSnapping(false);
+            }
+            return;
+        }
         if (state() == SelectMode::SeekSecond || state() == SelectMode::SeekThird) {
             setAngleSnapping(true, centerPoint);
         }
@@ -343,6 +490,13 @@ private:
         using std::numbers::pi;
 
         ShapeGeometry.clear();
+
+        if (constructionMethod() == ConstructionMethod::ThreePoint && state() == SelectMode::SeekSecond) {
+            if ((endPoint - startPoint).Length() > Precision::Confusion()) {  // from end to end, so far
+                addLineToShapeGeometry(toVector3d(startPoint), toVector3d(endPoint), isConstructionMode());
+            }
+            return;
+        }
 
         if (radius < Precision::Confusion()) {
             return;
@@ -360,7 +514,7 @@ private:
                 return;
             }
 
-            if (constructionMethod() == DrawSketchHandlerArcSlot::ConstructionMethod::ArcSlot) {
+            if (arcEnds()) {
                 addArcToShapeGeometry(
                     toVector3d(centerPoint),
                     startAngle,
@@ -435,7 +589,7 @@ private:
         if (!onlyeditoutline) {
             int firstCurve = getHighestCurveIndex() + 1;
 
-            if (constructionMethod() == DrawSketchHandlerArcSlot::ConstructionMethod::ArcSlot) {
+            if (arcEnds()) {
                 bool allArcs = fabs(radius - r) > Precision::Confusion();
 
                 Sketcher::PointPos pos1 = angleReversed ? Sketcher::PointPos::start
@@ -608,7 +762,8 @@ void DSHArcSlotController::configureToolWidget()
     if (!init) {  // Code to be executed only upon initialisation
         QStringList names = {
             QApplication::translate("Sketcher_CreateArcSlot", "Arc ends"),
-            QApplication::translate("Sketcher_CreateArcSlot", "Flat ends")
+            QApplication::translate("Sketcher_CreateArcSlot", "Flat ends"),
+            QApplication::translate("Sketcher_CreateArcSlot", "Three points")
         };
         toolWidget->setComboboxElements(WCombobox::FirstCombo, names);
 
@@ -623,6 +778,11 @@ void DSHArcSlotController::configureToolWidget()
                 1,
                 Gui::BitmapFactory().iconFromTheme("Sketcher_CreateRectangleSlot_Constr")
             );
+            toolWidget->setComboboxItemIcon(
+                WCombobox::FirstCombo,
+                2,
+                Gui::BitmapFactory().iconFromTheme("Sketcher_CreateArcSlot_Constr")
+            );
         }
         else {
             toolWidget->setComboboxItemIcon(
@@ -635,11 +795,30 @@ void DSHArcSlotController::configureToolWidget()
                 1,
                 Gui::BitmapFactory().iconFromTheme("Sketcher_CreateRectangleSlot")
             );
+            toolWidget->setComboboxItemIcon(
+                WCombobox::FirstCombo,
+                2,
+                Gui::BitmapFactory().iconFromTheme("Sketcher_CreateArcSlot")
+            );
         }
     }
 
     onViewParameters[OnViewParameter::First]->setLabelType(Gui::SoDatumLabel::DISTANCEX);
     onViewParameters[OnViewParameter::Second]->setLabelType(Gui::SoDatumLabel::DISTANCEY);
+    if (handler->constructionMethod() == DrawSketchHandlerArcSlot::ConstructionMethod::ThreePoint) {
+        // the far end's position, then the radius of the arc through the third point, then the width
+        onViewParameters[OnViewParameter::Third]->setLabelType(Gui::SoDatumLabel::DISTANCEX);
+        onViewParameters[OnViewParameter::Fourth]->setLabelType(Gui::SoDatumLabel::DISTANCEY);
+        onViewParameters[OnViewParameter::Fifth]->setLabelType(
+            Gui::SoDatumLabel::RADIUS,
+            Gui::EditableDatumLabel::Function::Dimensioning
+        );
+        onViewParameters[OnViewParameter::Sixth]->setLabelType(
+            Gui::SoDatumLabel::RADIUS,
+            Gui::EditableDatumLabel::Function::Dimensioning
+        );
+        return;
+    }
     onViewParameters[OnViewParameter::Third]->setLabelType(
         Gui::SoDatumLabel::RADIUS,
         Gui::EditableDatumLabel::Function::Dimensioning
@@ -653,7 +832,7 @@ void DSHArcSlotController::configureToolWidget()
         Gui::EditableDatumLabel::Function::Dimensioning
     );
 
-    if (handler->constructionMethod() == DrawSketchHandlerArcSlot::ConstructionMethod::ArcSlot) {
+    if (handler->arcEnds()) {
         onViewParameters[OnViewParameter::Sixth]->setLabelType(
             Gui::SoDatumLabel::RADIUS,
             Gui::EditableDatumLabel::Function::Dimensioning
@@ -670,6 +849,36 @@ void DSHArcSlotController::configureToolWidget()
 template<>
 void DSHArcSlotControllerBase::doEnforceControlParameters(Base::Vector2d& onSketchPos)
 {
+    if (handler->constructionMethod() == DrawSketchHandlerArcSlot::ConstructionMethod::ThreePoint) {
+        switch (handler->state()) {
+            case SelectMode::SeekSecond: {  // the far end, as the first
+                auto& thirdParam = onViewParameters[OnViewParameter::Third];
+                auto& fourthParam = onViewParameters[OnViewParameter::Fourth];
+                if (thirdParam->isSet) {
+                    onSketchPos.x = thirdParam->getValue();
+                }
+                if (fourthParam->isSet) {
+                    onSketchPos.y = fourthParam->getValue();
+                }
+                return;
+            }
+            case SelectMode::SeekThird: {  // a typed radius: the arc of that radius bending to the pointer
+                auto& fifthParam = onViewParameters[OnViewParameter::Fifth];
+                if (fifthParam->isSet) {
+                    const double arcRadius = fifthParam->getValue();
+                    const double half = (handler->endPoint - handler->startPoint).Length() / 2;
+                    if (arcRadius < half + Precision::Confusion() && fifthParam->hasFinishedEditing) {
+                        unsetOnViewParameter(fifthParam.get());  // too small to reach both ends
+                        return;
+                    }
+                    onSketchPos = handler->arcMiddleForRadius(arcRadius, onSketchPos);
+                }
+                return;
+            }
+            default:
+                break;  // the first end and the width as Arc ends takes them
+        }
+    }
 
     switch (handler->state()) {
         case SelectMode::SeekFirst: {
@@ -734,9 +943,7 @@ void DSHArcSlotControllerBase::doEnforceControlParameters(Base::Vector2d& onSket
 
             if (sixthParam->isSet) {
                 double radius2 = sixthParam->getValue();
-                if (((fabs(radius2) < Precision::Confusion()
-                      && handler->constructionMethod()
-                          == DrawSketchHandlerArcSlot::ConstructionMethod::ArcSlot)
+                if (((fabs(radius2) < Precision::Confusion() && handler->arcEnds())
                      || (fabs(handler->radius - radius2) < Precision::Confusion()
                          && handler->constructionMethod()
                              == DrawSketchHandlerArcSlot::ConstructionMethod::RectangleSlot))
@@ -757,6 +964,38 @@ void DSHArcSlotControllerBase::doEnforceControlParameters(Base::Vector2d& onSket
 template<>
 void DSHArcSlotController::adaptParameters(Base::Vector2d onSketchPos)
 {
+    if (handler->constructionMethod() == DrawSketchHandlerArcSlot::ConstructionMethod::ThreePoint) {
+        switch (handler->state()) {
+            case SelectMode::SeekSecond: {
+                auto& thirdParam = onViewParameters[OnViewParameter::Third];
+                auto& fourthParam = onViewParameters[OnViewParameter::Fourth];
+                if (!thirdParam->isSet) {
+                    setOnViewParameterValue(OnViewParameter::Third, onSketchPos.x);
+                }
+                if (!fourthParam->isSet) {
+                    setOnViewParameterValue(OnViewParameter::Fourth, onSketchPos.y);
+                }
+                bool sameSign = onSketchPos.x * onSketchPos.y > 0.;
+                thirdParam->setLabelAutoDistanceReverse(!sameSign);
+                fourthParam->setLabelAutoDistanceReverse(sameSign);
+                thirdParam->setPoints(Base::Vector3d(), toVector3d(onSketchPos));
+                fourthParam->setPoints(Base::Vector3d(), toVector3d(onSketchPos));
+                return;
+            }
+            case SelectMode::SeekThird: {
+                auto& fifthParam = onViewParameters[OnViewParameter::Fifth];
+                if (!fifthParam->isSet) {
+                    setOnViewParameterValue(OnViewParameter::Fifth, handler->radius);
+                }
+                Base::Vector3d center = toVector3d(handler->centerPoint);
+                fifthParam->setPoints(center, toVector3d(handler->startPoint));
+                return;
+            }
+            default:
+                break;  // the first end and the width as Arc ends shows them
+        }
+    }
+
     switch (handler->state()) {
         case SelectMode::SeekFirst: {
             auto& firstParam = onViewParameters[OnViewParameter::First];
@@ -881,6 +1120,51 @@ void DSHArcSlotController::addConstraints()
     int firstCurve = handler->getHighestCurveIndex() - 3;
     using namespace Sketcher;
 
+    if (handler->constructionMethod() == DrawSketchHandlerArcSlot::ConstructionMethod::ThreePoint) {
+        // Typed: the ends' centers (First, Second; Third, Fourth), the arc's radius (Fifth: from the
+        // slot's center to an end's center), the ends' radius (Sixth). A position only where an
+        // automatic constraint left the point free to move that way.
+        const bool checkFreedom = !handler->AutoConstraints.empty();
+        auto place = [&](int geoId, auto& xParam, auto& yParam) {
+            if (xParam->isSet
+                && (!checkFreedom || handler->getPointInfo(GeoElementId(geoId, PointPos::mid)).isXDoF())) {
+                ConstraintToAttachment(GeoElementId(geoId, PointPos::mid), GeoElementId::VAxis, xParam->getValue(), obj);
+                if (checkFreedom) {
+                    handler->diagnoseWithAutoConstraints();
+                }
+            }
+            if (yParam->isSet
+                && (!checkFreedom || handler->getPointInfo(GeoElementId(geoId, PointPos::mid)).isYDoF())) {
+                ConstraintToAttachment(GeoElementId(geoId, PointPos::mid), GeoElementId::HAxis, yParam->getValue(), obj);
+                if (checkFreedom) {
+                    handler->diagnoseWithAutoConstraints();
+                }
+            }
+        };
+        place(firstCurve + 1, onViewParameters[OnViewParameter::First], onViewParameters[OnViewParameter::Second]);
+        place(firstCurve + 2, onViewParameters[OnViewParameter::Third], onViewParameters[OnViewParameter::Fourth]);
+        if (onViewParameters[OnViewParameter::Fifth]->isSet) {
+            Gui::cmdAppObjectArgs(
+                obj,
+                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%d,%f)) ",
+                firstCurve,
+                3,
+                firstCurve + 2,
+                3,
+                fabs(onViewParameters[OnViewParameter::Fifth]->getValue())
+            );
+        }
+        if (onViewParameters[OnViewParameter::Sixth]->isSet) {
+            Gui::cmdAppObjectArgs(
+                obj,
+                "addConstraint(Sketcher.Constraint('Radius',%d,%f)) ",
+                firstCurve + 2,
+                fabs(onViewParameters[OnViewParameter::Sixth]->getValue())
+            );
+        }
+        return;
+    }
+
     auto x0 = onViewParameters[OnViewParameter::First]->getValue();
     auto y0 = onViewParameters[OnViewParameter::Second]->getValue();
     auto radius = onViewParameters[OnViewParameter::Third]->getValue();
@@ -901,7 +1185,7 @@ void DSHArcSlotController::addConstraints()
     };
 
     auto constraintRadius = [&]() {
-        if (handler->constructionMethod() == DrawSketchHandlerArcSlot::ConstructionMethod::ArcSlot) {
+        if (handler->arcEnds()) {
             Gui::cmdAppObjectArgs(
                 obj,
                 "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%d,%f)) ",
@@ -932,7 +1216,7 @@ void DSHArcSlotController::addConstraints()
     };
 
     auto constraintSlotRadius = [&]() {
-        if (handler->constructionMethod() == DrawSketchHandlerArcSlot::ConstructionMethod::ArcSlot) {
+        if (handler->arcEnds()) {
             Gui::cmdAppObjectArgs(
                 obj,
                 "addConstraint(Sketcher.Constraint('Radius',%d,%f)) ",
@@ -1021,7 +1305,7 @@ void DSHArcSlotController::addConstraints()
         DoFs = startpointinfo.getDoFs();
         DoFs += endpointinfo.getDoFs();
 
-        if (handler->constructionMethod() == DrawSketchHandlerArcSlot::ConstructionMethod::ArcSlot) {
+        if (handler->arcEnds()) {
             midpointinfo = handler->getPointInfo(GeoElementId(firstCurve + 2, PointPos::mid));
             DoFs += midpointinfo.getDoFs();
         }

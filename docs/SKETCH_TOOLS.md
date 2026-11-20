@@ -17,7 +17,7 @@ FreeCAD's sketch tools (2026-11-19, approved by the user; [CORE_PATCHES.md](CORE
 | Circle | Center Diameter, 2-Point, 3-Point, 2-Tangent, 3-Tangent | Center Point, Tangent (to three lines) | Center Radius, Center Diameter, 2-Point, 3-Point, Tan Tan Radius, Tan Tan Tan | Center Diameter, 3-Point; 2-Point, 2-Tangent, 3-Tangent (added) | — |
 | Arc | 3-Point, Center Point, Tangent | Three Point, Center Point, Tangent | 11 ways (start, center, end, angle, length, radius, direction; Continue) | Center Point, 3-Point; Tangent (added: from the end of a line or arc) | — |
 | Polygon | Circumscribed, Inscribed, Edge | Inscribed, Circumscribed | Inscribed, Circumscribed, Edge | Inscribed (any number of sides); Triangle, Square, Hexagon; Circumscribed and Edge (added; six sides to start, U and J change it) | — |
-| Slot | Center to Center, Overall, Center Point, Three Point Arc, Center Point Arc | the same five | — | Center to Center, Center Point Arc; Overall and Center Point (added) | **Three Point Arc** |
+| Slot | Center to Center, Overall, Center Point, Three Point Arc, Center Point Arc | the same five | — | Center to Center, Center Point Arc; Overall, Center Point and Three Point Arc (added) | — |
 | Spline | Fit Point, Control Point | Interpolation, Control Vertex; Equation Curve, Bridge Curve | Fit, Control Vertices | Fit Point, Control Point | Equation and bridge curves (later) |
 | Ellipse | Ellipse (center, axes) | Ellipse | Center, Axis End, Elliptical Arc | Center, 3-Point, Elliptical Arc | — |
 | Conic | Conic Curve (ends, apex, rho) | — | — | (hyperbolic and parabolic arcs, in Search tools) | Conic Curve (later) |
@@ -55,5 +55,8 @@ undo like the others. Studio's own module can't build them: the framework's pane
   overall length. **Center Point Slot:** the middle, then one end's center; a construction point in the
   middle, the arcs' centers symmetric about it.
 
-Still missing: the Three Point Arc slot. Tangent circles touch lines only (as Fusion's); tangency to
-circles and arcs could come later.
+- **Three Point Arc Slot** (added 2026-11-20): the two ends' centers, then a point the slot's middle passes
+  through, then the width. Typed: the ends' positions, the arc's radius (bending toward the pointer), the
+  ends' radius.
+
+Tangent circles touch lines only (as Fusion's); tangency to circles and arcs could come later.

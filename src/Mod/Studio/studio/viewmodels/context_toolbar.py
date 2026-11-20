@@ -99,7 +99,9 @@ WAYS = {
                             Way("Sketcher_CreateArcSlot", "Center Point Arc Slot"),
                             # added to FreeCAD's Slot (CORE_PATCHES.md)
                             Way("Sketcher_CreateSlot", "Overall Slot", 1, "slot-overall"),
-                            Way("Sketcher_CreateSlot", "Center Point Slot", 2, "slot-center")),
+                            Way("Sketcher_CreateSlot", "Center Point Slot", 2, "slot-center"),
+                            # added to FreeCAD's Arc Slot (CORE_PATCHES.md): its third way
+                            Way("Sketcher_CreateArcSlot", "Three Point Arc Slot", 2, "slot-arc-3-point")),
     "Sketcher_CreateBSplineByInterpolation": (Way("Sketcher_CreateBSplineByInterpolation", "Fit Point Spline"),
                                               Way("Sketcher_CreateBSpline", "Control Point Spline")),
     "Sketcher_CreateEllipseByCenter": (Way("Sketcher_CreateEllipseByCenter", "Center Ellipse"),

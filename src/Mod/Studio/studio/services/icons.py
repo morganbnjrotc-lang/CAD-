@@ -147,7 +147,8 @@ STUDIO_ONLY = {"Studio": "search", "fully-constrain": "fully-constrain",
                "line-center": "line-center", "circle-2-point": "circle-2-point",
                "polygon-circumscribed": "polygon-circumscribed", "polygon-edge": "polygon-edge",
                "slot-overall": "slot-overall", "slot-center": "slot-center", "arc-tangent": "arc-tangent",
-               "circle-2-tangent": "circle-2-tangent", "circle-3-tangent": "circle-3-tangent"}
+               "circle-2-tangent": "circle-2-tangent", "circle-3-tangent": "circle-3-tangent",
+               "slot-arc-3-point": "slot-arc-3-point"}
 
 
 def icon_path(drawing: str) -> str:
