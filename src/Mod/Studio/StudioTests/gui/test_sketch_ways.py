@@ -18,7 +18,8 @@ class DrawingWays(SketchInput):
         super().setUp()
         settle(200)  # the toolbar follows the sketch being edited
         for tool in ("Sketcher_CreateLine", "Sketcher_CreateRectangle", "Sketcher_CreateCircle",
-                     "Sketcher_CreateArc", "Sketcher_CreateRegularPolygon", "Sketcher_CreateSlot"):
+                     "Sketcher_CreateArc", "Sketcher_CreateRegularPolygon", "Sketcher_CreateSlot",
+                     "Sketcher_CreateEllipseByCenter"):
             self.addCleanup(tools().choose_way, tool, 0)
 
     def button(self, label):
@@ -318,6 +319,60 @@ class DrawingWays(SketchInput):
         self.assertNear((circle.Center.x / INCH, circle.Center.y / INCH), (1.5, inradius))
         self.assertAlmostEqual(circle.Radius / INCH, inradius, delta=self.near())
         self.assertEqual(len(self.constraints("Tangent")), 3)
+
+    def ellipses(self):
+        return [g for g in self.sketch.Geometry if g.TypeId in ("Part::GeomEllipse", "Part::GeomArcOfEllipse")]
+
+    def assertEllipse(self, center, major, minor):
+        ellipses = self.ellipses()
+        self.assertEqual(len(ellipses), 1, [g.TypeId for g in self.sketch.Geometry])
+        ellipse = ellipses[0]
+        self.assertNear((ellipse.Center.x / INCH, ellipse.Center.y / INCH), center)
+        self.assertAlmostEqual(ellipse.MajorRadius / INCH, major, delta=self.near())
+        self.assertAlmostEqual(ellipse.MinorRadius / INCH, minor, delta=self.near())
+
+    def test_a_center_ellipse(self):
+        # The user got an error with the ellipse (2026-11-19).
+        self.pick("Ellipse", "Center Ellipse")
+        self.click(1, 1)  # center
+        self.click(2.5, 1)  # the end of the long axis
+        self.click(1, 1.6)  # how wide
+        self.finish()
+        self.assertEllipse((1, 1), 1.5, 0.6)
+
+    def test_a_3_point_ellipse(self):
+        self.pick("Ellipse", "3-Point Ellipse")
+        self.click(-0.5, 1)  # one end of the long axis
+        self.click(2.5, 1)  # the other
+        self.click(1, 1.6)  # how wide
+        self.finish()
+        self.assertEllipse((1, 1), 1.5, 0.6)
+
+    def test_an_elliptical_arc(self):
+        self.pick("Ellipse", "Elliptical Arc")
+        self.click(1, 1)  # center
+        self.click(2.5, 1)  # the end of the long axis
+        self.click(1, 1.6)  # how wide
+        self.click(2.5, 1)  # where the arc starts
+        self.click(1, 1.6)  # where it ends
+        self.finish()
+        self.assertEllipse((1, 1), 1.5, 0.6)
+
+    def test_an_ellipse_through_points_on_a_circle_leaves_the_sketch_sound(self):
+        # The user's error (2026-11-19): a 3-point ellipse with its points on a circle. FreeCAD made the
+        # ellipse tangent to the circle, which its solver can't take ("malformed constraints").
+        self.pick("Circle", "Center Diameter Circle")
+        self.click(1, 1)
+        self.click(2, 1)
+        self.finish()
+        self.pick("Ellipse", "3-Point Ellipse")
+        self.click(2, 1)  # on the circle
+        self.click(1, 2)  # on the circle
+        self.click(0.2, 0.6)
+        self.finish()
+        self.assertEqual(len(self.ellipses()), 1)
+        self.assertEqual(self.sketch.MalformedConstraints, [])
+        self.assertEqual(self.sketch.ConflictingConstraints, [])
 
     def test_the_button_draws_the_way_picked_last(self):
         self.pick("Rectangle", "Center Rectangle")

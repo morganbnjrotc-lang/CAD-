@@ -1421,8 +1421,11 @@ bool DrawSketchHandler::generateOneAutoConstraintFromSuggestion(
 
             // 2026.01.16: Do not use swap as it did before or it breaks resultCoincident.
             // NOTE: Temporarily deactivated : ellipse tangency support using construction elements
+            // (Studio: isDerivedFrom, not is: is<GeomConic> never matched a circle or an ellipse, so
+            // an ellipse got an edge-to-edge tangency to them, which the solver reports malformed.)
             if (geom1->is<Part::GeomEllipse>()
-                && (geom2->is<Part::GeomConic>() || geom2->is<Part::GeomArcOfConic>())) {
+                && (geom2->isDerivedFrom<Part::GeomConic>()
+                    || geom2->isDerivedFrom<Part::GeomArcOfConic>())) {
                 // makeTangentToEllipseviaNewPoint(
                 //     Obj,
                 //     static_cast<const Part::GeomEllipse*>(geom1),
@@ -1433,7 +1436,8 @@ bool DrawSketchHandler::generateOneAutoConstraintFromSuggestion(
             }
             else if (
                 geom2->is<Part::GeomEllipse>()
-                && (geom1->is<Part::GeomConic>() || geom1->is<Part::GeomArcOfConic>())
+                && (geom1->isDerivedFrom<Part::GeomConic>()
+                    || geom1->isDerivedFrom<Part::GeomArcOfConic>())
             ) {
                 // makeTangentToEllipseviaNewPoint(
                 //     Obj,
@@ -1445,7 +1449,8 @@ bool DrawSketchHandler::generateOneAutoConstraintFromSuggestion(
             }
             else if (
                 geom1->is<Part::GeomArcOfEllipse>()
-                && (geom2->is<Part::GeomConic>() || geom2->is<Part::GeomArcOfConic>())
+                && (geom2->isDerivedFrom<Part::GeomConic>()
+                    || geom2->isDerivedFrom<Part::GeomArcOfConic>())
             ) {
                 // makeTangentToArcOfEllipseviaNewPoint(
                 //     Obj,
@@ -1457,7 +1462,8 @@ bool DrawSketchHandler::generateOneAutoConstraintFromSuggestion(
             }
             else if (
                 geom2->is<Part::GeomArcOfEllipse>()
-                && (geom1->is<Part::GeomConic>() || geom1->is<Part::GeomArcOfConic>())
+                && (geom1->isDerivedFrom<Part::GeomConic>()
+                    || geom1->isDerivedFrom<Part::GeomArcOfConic>())
             ) {
                 // makeTangentToArcOfEllipseviaNewPoint(
                 //     Obj,
