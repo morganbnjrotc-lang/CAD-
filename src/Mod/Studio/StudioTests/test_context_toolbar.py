@@ -89,15 +89,15 @@ class Buttons(unittest.TestCase):
         return [b.label for b in self.toolbar.buttons(kind, contexts)]
 
     def test_tools_for_each_kind(self):
-        self.assertEqual(self.labels("nothing"), ["New Sketch", "New Body", "Import", "Measure", "Search"])
+        self.assertEqual(self.labels("nothing"), ["New Sketch", "New Body", "Pattern", "Import", "Measure", "Search"])
         self.assertEqual(self.labels("sketch"), ["Extrude", "Cut", "Revolve", "Hole", "Edit Sketch"])
         self.assertEqual(self.labels("face"), ["Sketch on Face", "Fillet", "Chamfer", "Shell", "Draft", "Measure"])
         self.assertEqual(self.labels("edge"), ["Fillet", "Chamfer", "Measure", "Fit Selection"])
         self.assertEqual(self.labels("geometry"), ["Fillet", "Chamfer", "Measure", "Fit Selection"])
-        self.assertEqual(self.labels("feature"), ["Mirror", "Linear Pattern", "Polar Pattern", "Fit Selection"])
+        self.assertEqual(self.labels("feature"), ["Pattern", "Fit Selection"])
         self.assertEqual(self.labels("editing"),
                          ["Line", "Rectangle", "Circle", "Arc", "Polygon", "Slot", "Spline", "Ellipse", "Point",
-                          "Text", "Construction", "Dimension", "Fully Constrain", "Close Sketch"])
+                          "Text", "Pattern", "Construction", "Dimension", "Fully Constrain", "Close Sketch"])
 
     def test_every_tool_is_a_catalog_command(self):
         for kind, tools in TOOLS.items():
@@ -158,7 +158,29 @@ class Ways(unittest.TestCase):
             "Slot": ["Center to Center Slot", "Center Point Arc Slot", "Overall Slot", "Center Point Slot"],
             "Spline": ["Fit Point Spline", "Control Point Spline"],
             "Ellipse": ["Center Ellipse", "3-Point Ellipse", "Elliptical Arc"],
+            "Pattern": ["Rectangular Pattern", "Circular Pattern", "Mirror"],
         })
+
+    def test_patterns_in_the_model_too(self):
+        # The user asked for patterns "both in sketches and regular modeling" (2026-11-19). With nothing
+        # selected FreeCAD patterns the whole part; with a feature selected, that feature.
+        for kind in ("nothing", "feature"):
+            pattern = next(b for b in self.toolbar.buttons(kind) if b.label == "Pattern")
+            self.assertEqual([(w.command, w.label) for w in pattern.ways],
+                             [("PartDesign_LinearPattern", "Rectangular Pattern"),
+                              ("PartDesign_PolarPattern", "Circular Pattern"), ("PartDesign_Mirrored", "Mirror")])
+
+    def test_sketch_patterns_start_with_three_elements_and_need_geometry_selected(self):
+        # FreeCAD's Move and Rotate start with 1 element (a plain move); Fusion's patterns with 3. They
+        # work on the geometry selected first; without it FreeCAD stops with a warning dialog.
+        pattern = self.button("Pattern")
+        ways = {w.label: (w.command, w.settings) for w in pattern.ways}
+        self.assertEqual(ways["Rectangular Pattern"], ("Sketcher_Translate", ((1, 3),)))
+        self.assertEqual(ways["Circular Pattern"], ("Sketcher_Rotate", ((1, 3),)))
+        self.assertEqual(ways["Mirror"], ("Sketcher_Symmetry", ()))
+        self.assertTrue(pattern.needs_selection)
+        self.assertEqual(pattern.settings, ((1, 3),))  # the way it draws now
+        self.assertFalse(self.button("Line").needs_selection)
 
     def test_every_way_is_a_catalog_command(self):
         for ways in WAYS.values():

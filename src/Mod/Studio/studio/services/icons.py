@@ -48,6 +48,10 @@ FREECAD_ICONS = {
     "Sketcher_CreatePoint": "point",
     "Sketcher_CreateText": "text",
     "Sketcher_ToggleConstruction": "construction",  # also Studio's Construction switch (PLAN 3.13)
+    # The sketch's patterns, drawn as the model's (the toolbar's Pattern drop-down shows both)
+    "Sketcher_Translate": "pattern-linear",
+    "Sketcher_Rotate": "pattern-polar",
+    "Sketcher_Symmetry": "mirror",
     "Constraint_Dimension": "dimension",
     # Sketcher constraints: the sketch panel's Constraints list and the constraint tools. A driven
     # (reference) constraint shares its driving one's drawing. The Elements list keeps FreeCAD's icons:

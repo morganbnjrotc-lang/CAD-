@@ -59,14 +59,20 @@ class Toolbar(unittest.TestCase):
         self.addCleanup(self.window.tools.setVisible, True)
         for p in (theme.DARK, theme.LIGHT):
             self.window.restyle(p)
-            colors = {a.text(): ink(a.icon().pixmap(32, 32).toImage()) for a in self.window.tools.actions()}
+            colors = self.tool_colors()
             self.assertTrue(colors)
             self.assertEqual({label: c for label, c in colors.items() if not near(c, p.text)}, {}, p.name)
+
+    def tool_colors(self):
+        """{label: ink} of the toolbar's buttons as shown: a button with a drop-down of ways (Pattern) has
+        its icon on the button, not on its toolbar action."""
+        bar = self.window.tools
+        return {a.text(): ink(bar.widgetForAction(a).icon().pixmap(32, 32).toImage()) for a in bar.actions()}
 
     def test_tools_are_drawn_in_the_text_color(self):
         for p in (theme.DARK, theme.LIGHT):
             self.window.restyle(p)
-            self.window.show_tools_for([], None)  # nothing selected: New Sketch, New Body, Import...
-            colors = {a.text(): ink(a.icon().pixmap(32, 32).toImage()) for a in self.window.tools.actions()}
+            self.window.show_tools_for([], None)  # nothing selected: New Sketch, New Body, Pattern...
+            colors = self.tool_colors()
             self.assertTrue(colors)
             self.assertEqual({label: c for label, c in colors.items() if not near(c, p.text)}, {}, p.name)

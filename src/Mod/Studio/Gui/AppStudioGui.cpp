@@ -518,6 +518,13 @@ public:
             "tool panel shows that list; ValueError if the index is outside it."
         );
         add_varargs_method(
+            "set_tool_parameter",
+            &Module::setToolParameter,
+            "set_tool_parameter(number, value) -> bool\n\n"
+            "Sets the number box `number` (1 to 10) of the sketch tool's settings panel, as typing it would\n"
+            "(a pattern's Elements is 1). False if no tool panel shows that box."
+        );
+        add_varargs_method(
             "tasks_room",
             &Module::tasksRoom,
             "tasks_room() -> (area_height, cube)\n\n"
@@ -925,6 +932,37 @@ private:
                 );
             }
             methods->setCurrentIndex(index);  // the tool follows its list (FreeCAD's controller)
+            return Py::True();
+        }
+        return Py::False();
+    }
+
+    Py::Object setToolParameter(const Py::Tuple& args)
+    {
+        int number = 0;
+        double value = 0.0;
+        if (!PyArg_ParseTuple(args.ptr(), "id", &number, &value)) {
+            throw Py::Exception();
+        }
+        static const char* const names[] = {"parameterOne", "parameterTwo",   "parameterThree", "parameterFour",
+                                            "parameterFive", "parameterSix",  "parameterSeven", "parameterEight",
+                                            "parameterNine", "parameterTen"};
+        if (number < 1 || number > 10) {
+            throw Py::ValueError("parameter number is 1 to 10");
+        }
+        Gui::TaskView::TaskView* tasks = Gui::Control().taskPanel();
+        if (tasks == nullptr) {
+            return Py::False();
+        }
+        for (QWidget* panel : tasks->findChildren<QWidget*>()) {
+            if (qstrcmp(panel->metaObject()->className(), "SketcherGui::SketcherToolDefaultWidget") != 0) {
+                continue;
+            }
+            auto* box = panel->findChild<Gui::QuantitySpinBox*>(QString::fromLatin1(names[number - 1]));
+            if (box == nullptr || !box->isVisibleTo(panel)) {
+                continue;
+            }
+            box->setValue(value);  // the tool follows its panel (FreeCAD's controller)
             return Py::True();
         }
         return Py::False();

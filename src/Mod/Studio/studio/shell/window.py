@@ -20,7 +20,7 @@ from PySide import QtCore, QtGui, QtWidgets  # FreeCAD's PySide shim
 from studio.shell import icons
 from studio.shell.palette import icon_file
 from studio.shell.shortcuts import _live_is_active
-from studio.viewmodels.context_toolbar import Selected, selection_kind
+from studio.viewmodels.context_toolbar import NEEDS_SELECTION, Selected, selection_kind
 from studio.viewmodels.tool_names import clean_title
 
 Qt = QtCore.Qt
@@ -245,7 +245,8 @@ class StudioWindow:
                 if button.checked is not None:  # a switch: lit while on
                     action.setCheckable(True)
                     action.setChecked(button.checked)
-                action.triggered.connect(functools.partial(self._run, button.command, button.method))
+                action.triggered.connect(
+                    functools.partial(self._run, button.command, button.method, button.settings))
             action.setData(button.command)
             action.setEnabled(self._active(button.command))
         self.hint.setText(self._toolbar.hint(kind, contexts))
@@ -266,7 +267,7 @@ class StudioWindow:
             item.setChecked(index == button.way)
             item.triggered.connect(functools.partial(self._pick_way, button.tool, index, way))
         widget.setMenu(menu)
-        widget.clicked.connect(functools.partial(self._run, button.command, button.method))
+        widget.clicked.connect(functools.partial(self._run, button.command, button.method, button.settings))
         self._tool_widgets.append(widget)
         return widget
 
@@ -281,13 +282,20 @@ class StudioWindow:
 
     def _pick_way(self, tool, index, way, *_):
         self.choose_way(tool, index)
-        self._run(way.command, way.method)
+        self._run(way.command, way.method, way.settings)
 
     def _active(self, command):
+        if command in NEEDS_SELECTION and not self._sketch_geometry_selected():
+            return False  # it works on the geometry selected first
         try:
             return self._is_active(command)
         except Exception:
             return False
+
+    @staticmethod
+    def _sketch_geometry_selected():
+        return any(s.Object.TypeId == "Sketcher::SketchObject" and s.SubElementNames
+                   for s in FreeCADGui.Selection.getSelectionEx())
 
     def _update_enabled(self):
         for action in self.tools.actions():
@@ -295,19 +303,24 @@ class StudioWindow:
             if command:
                 action.setEnabled(self._active(command))
 
-    def _run(self, command, method=0, *_):
-        QtCore.QTimer.singleShot(0, lambda: self._run_now(command, method))
+    def _run(self, command, method=0, settings=(), *_):
+        QtCore.QTimer.singleShot(0, lambda: self._run_now(command, method, settings))
 
-    def _run_now(self, command, method=0):
+    def _run_now(self, command, method=0, settings=()):
         try:
             self._service.run(command)
         except Exception as exc:
             FreeCAD.Console.PrintError(f"Studio toolbar: {command} failed: {exc}\n")
             return
-        if method:
+        if method or settings:
             from studio.shell import sketching
 
-            QtCore.QTimer.singleShot(0, lambda: sketching.use_method(method))
+            def adjust():
+                if method:
+                    sketching.use_method(method)
+                sketching.use_settings(settings)
+
+            QtCore.QTimer.singleShot(0, adjust)
 
 
 def _top_bar_style(p):

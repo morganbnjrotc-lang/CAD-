@@ -56,16 +56,18 @@ class Names(unittest.TestCase):
                     self.assertIsNotNone(icons.line_icon(stem(catalog.get(command).icon)))
 
     def test_every_way_to_draw_has_a_line_icon_of_its_own(self):
-        # The drop-down under a sketch tool shows each way's drawing, and the button the one it draws (PLAN 3.12).
+        # The drop-down under a tool shows each way's drawing, and the button the one it draws (PLAN 3.12).
+        # Within one drop-down no two ways look alike; the same way may show in two (Mirror in the
+        # sketch's Pattern and in the model's).
         toolbar = ContextToolbar(CommandCatalog.load())
-        drawings = {}
-        for ways in WAYS.values():
+        for tool, ways in WAYS.items():
+            drawings = {}
             for way in ways:
                 with self.subTest(way=way.label):
                     drawing = icons.line_icon(stem(toolbar.way_icon(way)))
                     self.assertIsNotNone(drawing)
                     drawings.setdefault(drawing, []).append(way.label)
-        self.assertEqual({d: w for d, w in drawings.items() if len(w) > 1}, {}, "ways sharing a drawing")
+            self.assertEqual({d: w for d, w in drawings.items() if len(w) > 1}, {}, f"{tool}: ways sharing a drawing")
 
     def test_the_model_trees_feature_types_have_line_icons(self):
         names = {name for names in icons.freecad_registrations().values() for name in names}

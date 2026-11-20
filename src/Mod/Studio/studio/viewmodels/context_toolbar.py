@@ -8,7 +8,9 @@ active shortcut and FreeCAD's name in the tooltip, plus a status-bar hint. No Qt
 
 Sketch tools that draw a shape more than one way (`WAYS`, PLAN 3.12) list the ways in a drop-down, as
 Fusion and Inventor do; the button draws the way picked last (`choose`), remembered in the settings.
-Switches (`SWITCHES`: Construction, PLAN 3.13) show whether they are on.
+Switches (`SWITCHES`: Construction, PLAN 3.13) show whether they are on. Sketch tools that work on the
+geometry selected first (`NEEDS_SELECTION`: the sketch's patterns) wait for a selection; a way can preset
+numbers in its tool's panel (`Way.settings`: patterns start with three elements).
 """
 
 from dataclasses import dataclass
@@ -20,8 +22,8 @@ SKETCH = "Sketcher::SketchObject"
 
 # Kind of selection -> (command, label if the toolbar names it differently from display_title).
 TOOLS = {
-    "nothing": [("PartDesign_NewSketch", None), ("PartDesign_Body", None), ("Std_Import", None),
-                ("Std_Measure", None), ("Studio_CommandPalette", "Search")],
+    "nothing": [("PartDesign_NewSketch", None), ("PartDesign_Body", None), ("PartDesign_LinearPattern", "Pattern"),
+                ("Std_Import", None), ("Std_Measure", None), ("Studio_CommandPalette", "Search")],
     "sketch": [("PartDesign_Pad", None), ("PartDesign_Pocket", None), ("PartDesign_Revolution", None),
                ("PartDesign_Hole", None), ("Sketcher_EditSketch", None)],
     "face": [("PartDesign_NewSketch", "Sketch on Face"), ("PartDesign_Fillet", None), ("PartDesign_Chamfer", None),
@@ -30,18 +32,21 @@ TOOLS = {
              ("Std_ViewFitSelection", None)],
     "geometry": [("PartDesign_Fillet", None), ("PartDesign_Chamfer", None), ("Std_Measure", None),
                  ("Std_ViewFitSelection", None)],
-    "feature": [("PartDesign_Mirrored", None), ("PartDesign_LinearPattern", None), ("PartDesign_PolarPattern", None),
-                ("Std_ViewFitSelection", None)],
+    "feature": [("PartDesign_LinearPattern", "Pattern"), ("Std_ViewFitSelection", None)],
     "editing": [("Sketcher_CreateLine", None), ("Sketcher_CreateRectangle", None), ("Sketcher_CreateCircle", "Circle"),
                 ("Sketcher_CreateArc", "Arc"), ("Sketcher_CreateRegularPolygon", "Polygon"),
                 ("Sketcher_CreateSlot", None), ("Sketcher_CreateBSplineByInterpolation", "Spline"),
                 ("Sketcher_CreateEllipseByCenter", "Ellipse"), ("Sketcher_CreatePoint", None),
-                ("Sketcher_CreateText", None), ("Studio_Construction", None), ("Sketcher_Dimension", None),
-                ("Studio_FullyConstrain", None), ("Sketcher_LeaveSketch", "Close Sketch")],
+                ("Sketcher_CreateText", None), ("Sketcher_Translate", "Pattern"), ("Studio_Construction", None),
+                ("Sketcher_Dimension", None), ("Studio_FullyConstrain", None), ("Sketcher_LeaveSketch", "Close Sketch")],
 }
 
 # Tools that are switches: their button stays lit while on (PLAN 3.13; the shell says which are on).
 SWITCHES = frozenset({"Studio_Construction"})
+
+# Sketch tools that work on the geometry selected first (FreeCAD stops them with a warning dialog
+# otherwise): their button waits for a selection.
+NEEDS_SELECTION = frozenset({"Sketcher_Translate", "Sketcher_Rotate", "Sketcher_Symmetry"})
 
 
 @dataclass(frozen=True)
@@ -53,6 +58,7 @@ class Way:
     label: str
     method: int = 0
     icon: str = ""  # Studio's drawing, for a way FreeCAD has no command (and so no icon) for
+    settings: tuple = ()  # (parameter number, value) to set in the tool's panel once it starts
 
 
 # Tool (its command in TOOLS) -> the ways it draws, the default first; Fusion's names for them. The way
@@ -97,6 +103,15 @@ WAYS = {
     "Sketcher_CreateEllipseByCenter": (Way("Sketcher_CreateEllipseByCenter", "Center Ellipse"),
                                        Way("Sketcher_CreateEllipseBy3Points", "3-Point Ellipse"),
                                        Way("Sketcher_CreateArcOfEllipse", "Elliptical Arc")),
+    # Patterns, in the sketch and in the model (the user asked for both, 2026-11-19), with Fusion's
+    # names. FreeCAD's Move / Array and Rotate / Polar tools start with one element (a plain move or
+    # turn); Fusion's patterns with three: their first panel number, Elements.
+    "Sketcher_Translate": (Way("Sketcher_Translate", "Rectangular Pattern", settings=((1, 3),)),
+                           Way("Sketcher_Rotate", "Circular Pattern", settings=((1, 3),)),
+                           Way("Sketcher_Symmetry", "Mirror")),
+    "PartDesign_LinearPattern": (Way("PartDesign_LinearPattern", "Rectangular Pattern"),
+                                 Way("PartDesign_PolarPattern", "Circular Pattern"),
+                                 Way("PartDesign_Mirrored", "Mirror")),
 }
 
 
@@ -145,6 +160,8 @@ class ToolButton:
     way: int = 0
     tool: str = ""  # the tool's command in TOOLS, for `choose`
     checked: bool | None = None  # a switch (SWITCHES): whether it is on; None: not a switch
+    settings: tuple = ()  # Way.settings of the way the button draws
+    needs_selection: bool = False  # NEEDS_SELECTION: waits for sketch geometry to be selected
 
 
 class ContextToolbar:
@@ -178,10 +195,11 @@ class ContextToolbar:
         for tool, label in TOOLS[kind]:
             label = label or display_title(self._catalog.get(tool))
             ways, way = WAYS.get(tool, ()), 0
-            command, method, title = tool, 0, label
+            command, method, title, settings = tool, 0, label, ()
             if ways:
                 way = self._chosen(tool)
                 command, method, title = ways[way].command, ways[way].method, ways[way].label
+                settings = ways[way].settings
             info = self._catalog.get(command)
             icon = self.way_icon(ways[way]) if ways else info.icon
             freecad_name = clean_title(info.menu_text)
@@ -191,8 +209,10 @@ class ContextToolbar:
             checked = None
             if command in SWITCHES:
                 checked = bool(self._is_on(command)) if self._is_on is not None else False
+            if command in NEEDS_SELECTION:
+                tooltip += "\nSelect the sketch geometry first"
             result.append(ToolButton(command, label, icon, self._key(command, contexts), tooltip,
-                                     method, ways, way, tool, checked))
+                                     method, ways, way, tool, checked, settings, command in NEEDS_SELECTION))
         return result
 
     def hint(self, kind: str, contexts=()) -> str:

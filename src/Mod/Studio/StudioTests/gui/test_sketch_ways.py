@@ -13,13 +13,15 @@ def tools():
     return window.current()
 
 
-class DrawingWays(SketchInput):
+class ToolbarDrawing(SketchInput):
+    """Drawing with the sketch toolbar's tools and their drop-downs; the ways picked are put back after."""
+
     def setUp(self):
         super().setUp()
         settle(200)  # the toolbar follows the sketch being edited
         for tool in ("Sketcher_CreateLine", "Sketcher_CreateRectangle", "Sketcher_CreateCircle",
                      "Sketcher_CreateArc", "Sketcher_CreateRegularPolygon", "Sketcher_CreateSlot",
-                     "Sketcher_CreateEllipseByCenter"):
+                     "Sketcher_CreateEllipseByCenter", "Sketcher_Translate"):
             self.addCleanup(tools().choose_way, tool, 0)
 
     def button(self, label):
@@ -51,6 +53,8 @@ class DrawingWays(SketchInput):
         for got, wanted in zip(lengths, sorted(expected)):
             self.assertAlmostEqual(got, wanted, delta=self.near(), msg=f"{lengths} != {sorted(expected)}")
 
+
+class DrawingWays(ToolbarDrawing):
     def test_the_rectangle_lists_its_ways(self):
         self.assertEqual([a.text() for a in self.button("Rectangle").menu().actions()],
                          ["2-Point Rectangle", "Center Rectangle", "3-Point Rectangle", "3-Point Center Rectangle",

@@ -55,6 +55,19 @@ def use_method(method: int) -> bool:
     return False
 
 
+def use_settings(settings) -> bool:
+    """Sets numbers in the panel of the sketch tool just started: (parameter number, value) pairs, e.g.
+    ((1, 3),) for three elements in a pattern."""
+    import StudioGui
+
+    done = True
+    for number, value in settings:
+        if not StudioGui.set_tool_parameter(number, value):
+            FreeCAD.Console.PrintWarning(f"Studio: no sketch tool panel to set its number {number}\n")
+            done = False
+    return done
+
+
 def fully_constrain():
     global last_message
     sketch = sketch_in_edit()
