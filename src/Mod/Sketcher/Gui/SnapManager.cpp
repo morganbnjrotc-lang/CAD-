@@ -262,6 +262,15 @@ bool SnapManager::snapToObject(Base::Vector2d inputPos, Base::Vector2d& snapPos,
         return true;
     }
     else if (static_cast<int>(mask) & static_cast<int>(SnapType::Edge)) {
+        if (CrsId == 1 || CrsId == 2) {  // Studio: where an axis crosses a curve
+            const int axis = CrsId == 1 ? GeoEnum::HAxis : GeoEnum::VAxis;
+            Base::Vector3d special;
+            if (snapToSpecialPoint(axis, Obj->getGeometry(axis), inputPos, special)) {
+                snapPos.x = special.x;
+                snapPos.y = special.y;
+                return true;
+            }
+        }
         if (CrsId == 1) {  // H_Axis
             snapPos.y = 0;
             // dont return true, allow grid snap to handle X coordinate
@@ -290,14 +299,20 @@ bool SnapManager::snapToObject(Base::Vector2d inputPos, Base::Vector2d& snapPos,
                     return false;
                 }
 
+                // Studio (PLAN 3.15): a crossing, a quadrant or a center near the pointer first
+                Base::Vector3d special;
+                if (snapToSpecialPoint(CrvId, geo, inputPos, special)) {
+                    pointToOverride = special;
+                }
+
                 // If it is a line, then we check if we need to snap to the middle.
-                if (geo->is<Part::GeomLineSegment>()) {
+                else if (geo->is<Part::GeomLineSegment>()) {
                     const Part::GeomLineSegment* line = static_cast<const Part::GeomLineSegment*>(geo);
                     snapToLineMiddle(pointToOverride, line);
                 }
 
                 // If it is an arc, then we check if we need to snap to the middle (not the center).
-                if (geo->is<Part::GeomArcOfCircle>()) {
+                else if (geo->is<Part::GeomArcOfCircle>()) {
                     const Part::GeomArcOfCircle* arc = static_cast<const Part::GeomArcOfCircle*>(geo);
                     snapToArcMiddle(pointToOverride, arc);
                 }
@@ -309,7 +324,250 @@ bool SnapManager::snapToObject(Base::Vector2d inputPos, Base::Vector2d& snapPos,
             }
         }
     }
+
+    // Studio: nothing under the pointer, near the center of a circle or arc whose edge was hovered
+    if ((static_cast<int>(mask) & static_cast<int>(SnapType::Point)) && VtId < 0 && CrsId < 0
+        && !(CrvId >= 0 || CrvId <= Sketcher::GeoEnum::RefExt)) {
+        return snapToHoveredCenter(inputPos, snapPos);
+    }
     return false;
+}
+
+namespace
+{
+
+// Studio (PLAN 3.15): where two lines, circles or arcs cross, analytically. A line counts as its
+// segment, except the sketch's axes (unbounded); an arc as its part of the circle.
+struct Shape
+{
+    bool round = false;
+    Base::Vector2d a, b;  // a line's ends
+    Base::Vector2d center;
+    double radius = 0.0;
+    const Part::GeomArcOfCircle* arc = nullptr;
+    bool unbounded = false;
+};
+
+bool shapeOf(int geoId, const Part::Geometry* geo, Shape& shape)
+{
+    if (!geo) {
+        return false;
+    }
+    if (geo->is<Part::GeomLineSegment>()) {
+        auto* line = static_cast<const Part::GeomLineSegment*>(geo);
+        const Base::Vector3d s = line->getStartPoint();
+        const Base::Vector3d e = line->getEndPoint();
+        shape.a = Base::Vector2d(s.x, s.y);
+        shape.b = Base::Vector2d(e.x, e.y);
+        shape.unbounded = geoId == GeoEnum::HAxis || geoId == GeoEnum::VAxis;
+        return (shape.b - shape.a).Length() > Precision::Confusion();
+    }
+    if (geo->is<Part::GeomCircle>() || geo->is<Part::GeomArcOfCircle>()) {
+        shape.round = true;
+        Base::Vector3d c;
+        if (geo->is<Part::GeomCircle>()) {
+            auto* circle = static_cast<const Part::GeomCircle*>(geo);
+            c = circle->getCenter();
+            shape.radius = circle->getRadius();
+        }
+        else {
+            shape.arc = static_cast<const Part::GeomArcOfCircle*>(geo);
+            c = shape.arc->getCenter();
+            shape.radius = shape.arc->getRadius();
+        }
+        shape.center = Base::Vector2d(c.x, c.y);
+        return shape.radius > Precision::Confusion();
+    }
+    return false;
+}
+
+bool onShape(const Shape& shape, const Base::Vector2d& p)
+{
+    const double slack = 1e-9;
+    if (!shape.round) {
+        if (shape.unbounded) {
+            return true;
+        }
+        const Base::Vector2d along = shape.b - shape.a;
+        const double t = ((p - shape.a) * along) / (along * along);
+        return t >= -slack && t <= 1 + slack;
+    }
+    if (!shape.arc) {
+        return true;
+    }
+    double u, v;
+    shape.arc->getRange(u, v, true);
+    double angle = (p - shape.center).Angle();
+    while (angle < u - slack) {
+        angle += 2 * std::numbers::pi;
+    }
+    while (v < u) {
+        v += 2 * std::numbers::pi;
+    }
+    return angle <= v + slack;
+}
+
+void crossings(const Shape& s1, const Shape& s2, std::vector<Base::Vector2d>& points)
+{
+    std::vector<Base::Vector2d> found;
+    if (!s1.round && !s2.round) {
+        const Base::Vector2d u = s1.b - s1.a;
+        const Base::Vector2d v = s2.b - s2.a;
+        const double cross = u.x * v.y - u.y * v.x;
+        if (fabs(cross) < 1e-12) {
+            return;  // parallel
+        }
+        const Base::Vector2d w = s2.a - s1.a;
+        const double t = (w.x * v.y - w.y * v.x) / cross;
+        found.push_back(s1.a + t * u);
+    }
+    else if (s1.round != s2.round) {
+        const Shape& line = s1.round ? s2 : s1;
+        const Shape& round = s1.round ? s1 : s2;
+        const Base::Vector2d u = line.b - line.a;
+        const Base::Vector2d f = line.a - round.center;
+        const double a = u * u;
+        const double b = 2 * (u * f);
+        const double c = f * f - round.radius * round.radius;
+        const double disc = b * b - 4 * a * c;
+        if (disc < 0) {
+            return;
+        }
+        for (double sign : {-1.0, 1.0}) {
+            found.push_back(line.a + ((-b + sign * sqrt(disc)) / (2 * a)) * u);
+        }
+    }
+    else {
+        const Base::Vector2d between = s2.center - s1.center;
+        const double d = between.Length();
+        if (d < Precision::Confusion() || d > s1.radius + s2.radius
+            || d < fabs(s1.radius - s2.radius)) {
+            return;
+        }
+        const double along = (s1.radius * s1.radius - s2.radius * s2.radius + d * d) / (2 * d);
+        const double h = sqrt(std::max(0.0, s1.radius * s1.radius - along * along));
+        const Base::Vector2d unit = between / d;
+        const Base::Vector2d foot = s1.center + along * unit;
+        const Base::Vector2d across(-unit.y, unit.x);
+        found.push_back(foot + h * across);
+        found.push_back(foot - h * across);
+    }
+    for (const auto& p : found) {
+        if (onShape(s1, p) && onShape(s2, p)) {
+            points.push_back(p);
+        }
+    }
+}
+
+}  // namespace
+
+double SnapManager::snapDistance() const
+{
+    return 0.5 * viewProvider.getScaleFactor();
+}
+
+bool SnapManager::passesThrough(int geoId, const Part::Geometry* geo, Base::Vector2d point, double tolerance)
+{
+    Shape shape;
+    if (!shapeOf(geoId, geo, shape) || !onShape(shape, point)) {
+        return false;
+    }
+    if (shape.round) {
+        return fabs((point - shape.center).Length() - shape.radius) < tolerance;
+    }
+    const Base::Vector2d along = shape.b - shape.a;
+    const Base::Vector2d off = point - shape.a;
+    return fabs(along.x * off.y - along.y * off.x) / along.Length() < tolerance;
+}
+
+bool SnapManager::snapToSpecialPoint(
+    int geoId,
+    const Part::Geometry* geo,
+    Base::Vector2d inputPos,
+    Base::Vector3d& snapped
+)
+{
+    Shape hovered;
+    if (!shapeOf(geoId, geo, hovered)) {
+        return false;
+    }
+    if (hovered.round) {  // remembered: its center snaps for a while (snapToHoveredCenter)
+        std::erase(hoveredCircles, geoId);
+        hoveredCircles.insert(hoveredCircles.begin(), geoId);
+        if (hoveredCircles.size() > 6) {
+            hoveredCircles.pop_back();
+        }
+    }
+
+    std::vector<Base::Vector2d> candidates;
+    if (hovered.round) {  // quadrants
+        for (int quarter = 0; quarter < 4; ++quarter) {
+            const double angle = quarter * std::numbers::pi / 2;
+            const Base::Vector2d p = hovered.center + hovered.radius * Base::Vector2d(cos(angle), sin(angle));
+            if (onShape(hovered, p)) {
+                candidates.push_back(p);
+            }
+        }
+    }
+
+    Sketcher::SketchObject* sketch = viewProvider.getSketchObject();
+    auto consider = [&](int otherId) {
+        if (otherId == geoId) {
+            return;
+        }
+        Shape other;
+        if (shapeOf(otherId, sketch->getGeometry(otherId), other)) {
+            crossings(hovered, other, candidates);
+        }
+    };
+    consider(GeoEnum::HAxis);
+    consider(GeoEnum::VAxis);
+    for (int id = 0; id <= sketch->getHighestCurveIndex(); ++id) {
+        consider(id);
+    }
+    for (int i = 0; i < sketch->getExternalGeometryCount(); ++i) {
+        consider(GeoEnum::RefExt - i);
+    }
+    for (int circleId : hoveredCircles) {  // the centers of circles hovered lately
+        Shape circle;
+        if (circleId != geoId && shapeOf(circleId, sketch->getGeometry(circleId), circle) && circle.round) {
+            candidates.push_back(circle.center);
+        }
+    }
+
+    double best = snapDistance();
+    bool found = false;
+    for (const auto& p : candidates) {
+        const double distance = (p - inputPos).Length();
+        if (distance < best) {
+            best = distance;
+            snapped = Base::Vector3d(p.x, p.y, 0.);
+            found = true;
+        }
+    }
+    return found;
+}
+
+bool SnapManager::snapToHoveredCenter(Base::Vector2d inputPos, Base::Vector2d& snapPos)
+{
+    Sketcher::SketchObject* sketch = viewProvider.getSketchObject();
+    // Twice as far as other snaps: finding a center is the point, and FreeCAD's own pick of the
+    // center dot reaches about 8 pixels already.
+    double best = 2 * snapDistance();
+    bool found = false;
+    for (int circleId : hoveredCircles) {
+        Shape circle;
+        if (!shapeOf(circleId, sketch->getGeometry(circleId), circle) || !circle.round) {
+            continue;
+        }
+        const double distance = (circle.center - inputPos).Length();
+        if (distance < best) {
+            best = distance;
+            snapPos = circle.center;
+            found = true;
+        }
+    }
+    return found;
 }
 
 bool SnapManager::snapToGrid(Base::Vector2d inputPos, Base::Vector2d& snapPos)
@@ -346,8 +604,11 @@ bool SnapManager::snapToLineMiddle(Base::Vector3d& pointToOverride, const Part::
     Base::Vector3d endPoint = line->getEndPoint();
     Base::Vector3d midPoint = (startPoint + endPoint) / 2;
 
-    // Check if we are at middle of the line and if so snap to it.
-    if ((pointToOverride - midPoint).Length() < (endPoint - startPoint).Length() * 0.05) {
+    // Check if we are at middle of the line and if so snap to it. Studio (PLAN 3.15): easier to
+    // catch than 5 % of the length: the snap distance, or 10 %, up to a fifth of the line.
+    const double length = (endPoint - startPoint).Length();
+    const double zone = std::min(std::max(0.1 * length, snapDistance()), 0.2 * length);
+    if ((pointToOverride - midPoint).Length() < zone) {
         pointToOverride = midPoint;
         return true;
     }
@@ -386,7 +647,9 @@ bool SnapManager::snapToArcMiddle(Base::Vector3d& pointToOverride, const Part::G
      * (mouse cursor - center) to the angle of the middle of the arc. If it's less than 10% of the
      * arc angle, then we snap.
      */
-    if (fabs(pVec.Angle() - (revert * mVec).Angle()) < 0.10 * angle) {
+    // Studio (PLAN 3.15): at least the snap distance along the arc, up to a fifth of it.
+    const double zone = std::min(std::max(0.10 * angle, snapDistance() / arc->getRadius()), 0.2 * angle);
+    if (fabs(pVec.Angle() - (revert * mVec).Angle()) < zone) {
         pointToOverride = centerPoint + middleVec * revert;
         return true;
     }

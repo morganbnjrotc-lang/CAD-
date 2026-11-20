@@ -30,8 +30,11 @@
 #include <Base/Tools2D.h>
 #include <Base/Vector3D.h>
 
+#include <vector>
+
 namespace Part
 {
+class Geometry;
 class GeomLineSegment;
 class GeomArcOfCircle;
 }  // namespace Part
@@ -119,6 +122,18 @@ public:
     bool snapToLineMiddle(Base::Vector3d& pointToOverride, const Part::GeomLineSegment* line);
     bool snapToArcMiddle(Base::Vector3d& pointToOverride, const Part::GeomArcOfCircle* arc);
 
+    /** Studio (PLAN 3.15): snaps beyond FreeCAD's, while the pointer is on a curve: where it crosses
+     * another line, circle or arc; a circle's or arc's quadrants; the center of a circle or arc whose
+     * edge was hovered lately (also with nothing under the pointer, from twice as far). Within
+     * snapDistance() of the pointer, the nearest wins. */
+    bool snapToSpecialPoint(int geoId, const Part::Geometry* geo, Base::Vector2d inputPos, Base::Vector3d& snapped);
+    bool snapToHoveredCenter(Base::Vector2d inputPos, Base::Vector2d& snapPos);
+    /// How near the pointer a special point snaps: about 12 pixels, at any zoom.
+    double snapDistance() const;
+    /// Whether a line (its segment; the axes unbounded), circle or arc passes within `tolerance` of
+    /// `point`: for keeping a snapped point on every curve it was snapped onto.
+    static bool passesThrough(int geoId, const Part::Geometry* geo, Base::Vector2d point, double tolerance);
+
     void setAngleSnapping(bool enable, Base::Vector2d referencepoint);
 
     struct SnapHandle
@@ -147,6 +162,10 @@ private:
     double lastMouseAngle;
 
     double snapAngle;
+
+    /// Studio: circles and arcs whose edge the pointer was on lately, most recent first; their
+    /// centers snap (snapToHoveredCenter).
+    std::vector<int> hoveredCircles;
 
     /// Observer to track all the needed parameters.
     std::unique_ptr<SnapManager::ParameterObserver> pObserver;

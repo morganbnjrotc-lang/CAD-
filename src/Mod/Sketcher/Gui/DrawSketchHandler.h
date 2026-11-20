@@ -395,6 +395,14 @@ protected:
         AutoConstraint::TargetType type
     );
 
+    /// Studio (PLAN 3.15): a point snapped where curves cross, or to a circle's center from hovering
+    /// its edge (SnapManager), keeps to all of them, not only to what is under the pointer.
+    void seekSnappedAutoConstraint(
+        std::vector<AutoConstraint>& constraints,
+        const Base::Vector2d& Pos,
+        AutoConstraint::TargetType type
+    );
+
     bool seekLineExtensionAutoConstraint(
         std::vector<AutoConstraint>& constraints,
         const Base::Vector2d& Pos,

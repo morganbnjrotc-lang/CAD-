@@ -1278,6 +1278,7 @@ int DrawSketchHandler::seekAutoConstraint(
     }
 
     seekPreselectionAutoConstraint(suggestedConstraints, Pos, Dir, type);
+    seekSnappedAutoConstraint(suggestedConstraints, Pos, type);
     seekLineExtensionAutoConstraint(suggestedConstraints, Pos, type);
 
     if (Dir.Length() > 1e-8 && type != AutoConstraint::CURVE) {
@@ -1293,6 +1294,60 @@ int DrawSketchHandler::seekAutoConstraint(
     }
 
     return suggestedConstraints.size();
+}
+
+void DrawSketchHandler::seekSnappedAutoConstraint(
+    std::vector<AutoConstraint>& suggestedConstraints,
+    const Base::Vector2d& Pos,
+    AutoConstraint::TargetType type
+)
+{
+    if (type == AutoConstraint::CURVE) {
+        // A rim point (a 3-point circle's, an ellipse's) is the new curve's, not a point of its own: a
+        // point-on-curve suggestion would become a curve-on-curve constraint, which is malformed.
+        return;
+    }
+    // Snapped points are computed exactly: only they land this close to a center or a crossing.
+    const double tolerance = 10 * Precision::Confusion();
+    if (std::ranges::any_of(suggestedConstraints, [](const AutoConstraint& ac) {
+            return ac.Type == Sketcher::Coincident;
+        })) {
+        return;  // on a point already
+    }
+    SketchObject* obj = sketchgui->getSketchObject();
+    const int highest = obj->getHighestCurveIndex();
+
+    // the center of a circle or arc, snapped to from hovering its edge
+    for (int id = 0; id <= highest; ++id) {
+        const Part::Geometry* geo = obj->getGeometry(id);
+        if (geo && (geo->is<Part::GeomCircle>() || geo->is<Part::GeomArcOfCircle>())) {
+            const Base::Vector3d center = obj->getPoint(id, PointPos::mid);
+            if ((Base::Vector2d(center.x, center.y) - Pos).Length() < tolerance) {
+                suggestedConstraints.push_back({Sketcher::Coincident, id, PointPos::mid});
+                return;
+            }
+        }
+    }
+
+    // every other line, circle or arc through the point (where curves cross)
+    auto considered = [&](int id) {
+        return std::ranges::any_of(suggestedConstraints, [id](const AutoConstraint& ac) {
+            return ac.GeoId == id;
+        });
+    };
+    auto consider = [&](int id) {
+        if (!considered(id) && SnapManager::passesThrough(id, obj->getGeometry(id), Pos, tolerance)) {
+            suggestedConstraints.push_back({Sketcher::PointOnObject, id, PointPos::none});
+        }
+    };
+    consider(GeoEnum::HAxis);
+    consider(GeoEnum::VAxis);
+    for (int id = 0; id <= highest; ++id) {
+        consider(id);
+    }
+    for (int i = 0; i < obj->getExternalGeometryCount(); ++i) {
+        consider(GeoEnum::RefExt - i);
+    }
 }
 
 // TODO: Figure out and explain what it actually returns
