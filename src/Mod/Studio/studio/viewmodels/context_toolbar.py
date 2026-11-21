@@ -23,11 +23,13 @@ SKETCH = "Sketcher::SketchObject"
 # Kind of selection -> (command, label if the toolbar names it differently from display_title).
 TOOLS = {
     "nothing": [("PartDesign_NewSketch", None), ("PartDesign_Body", None), ("PartDesign_LinearPattern", "Pattern"),
-                ("Std_Import", None), ("Std_Measure", None), ("Studio_CommandPalette", "Search")],
+                ("Std_Import", None), ("Std_Measure", None), ("Studio_Section", None),
+                ("Studio_CommandPalette", "Search")],
     "sketch": [("PartDesign_Pad", None), ("PartDesign_Pocket", None), ("PartDesign_Revolution", None),
                ("PartDesign_Hole", None), ("Sketcher_EditSketch", None)],
     "face": [("PartDesign_NewSketch", "Sketch on Face"), ("PartDesign_Fillet", None), ("PartDesign_Chamfer", None),
-             ("PartDesign_Thickness", None), ("PartDesign_Draft", None), ("Std_Measure", None)],
+             ("PartDesign_Thickness", None), ("PartDesign_Draft", None), ("Std_Measure", None),
+             ("Studio_Section", None)],
     "edge": [("PartDesign_Fillet", None), ("PartDesign_Chamfer", None), ("Std_Measure", None),
              ("Std_ViewFitSelection", None)],
     "geometry": [("PartDesign_Fillet", None), ("PartDesign_Chamfer", None), ("Std_Measure", None),
@@ -43,8 +45,8 @@ TOOLS = {
                 ("Sketcher_Dimension", None), ("Studio_FullyConstrain", None), ("Sketcher_LeaveSketch", "Close Sketch")],
 }
 
-# Tools that are switches: their button stays lit while on (PLAN 3.13; the shell says which are on).
-SWITCHES = frozenset({"Studio_Construction"})
+# Tools that are switches: their button stays lit while on (PLAN 3.13, 3.7; the shell says which are on).
+SWITCHES = frozenset({"Studio_Construction", "Studio_Section"})
 
 # Sketch tools that work on the geometry selected first (FreeCAD stops them with a warning dialog
 # otherwise): their button waits for a selection.

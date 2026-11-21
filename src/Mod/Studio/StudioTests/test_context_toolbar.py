@@ -94,9 +94,11 @@ class Buttons(unittest.TestCase):
         return [b.label for b in self.toolbar.buttons(kind, contexts)]
 
     def test_tools_for_each_kind(self):
-        self.assertEqual(self.labels("nothing"), ["New Sketch", "New Body", "Pattern", "Import", "Measure", "Search"])
+        self.assertEqual(self.labels("nothing"),
+                         ["New Sketch", "New Body", "Pattern", "Import", "Measure", "Section", "Search"])
         self.assertEqual(self.labels("sketch"), ["Extrude", "Cut", "Revolve", "Hole", "Edit Sketch"])
-        self.assertEqual(self.labels("face"), ["Sketch on Face", "Fillet", "Chamfer", "Shell", "Draft", "Measure"])
+        self.assertEqual(self.labels("face"),
+                         ["Sketch on Face", "Fillet", "Chamfer", "Shell", "Draft", "Measure", "Section"])
         self.assertEqual(self.labels("edge"), ["Fillet", "Chamfer", "Measure", "Fit Selection"])
         self.assertEqual(self.labels("geometry"), ["Fillet", "Chamfer", "Measure", "Fit Selection"])
         self.assertEqual(self.labels("feature"), ["Pattern", "Fit Selection"])
@@ -279,6 +281,14 @@ class Switches(unittest.TestCase):
         self.assertIs(self.button("Construction", toolbar).checked, False)
         self.on.add("Studio_Construction")
         self.assertIs(self.button("Construction", toolbar).checked, True)
+
+    def test_section_is_a_switch_too(self):
+        # PLAN 3.7: lit while the 3D view is cut
+        toolbar = ContextToolbar(self.catalog, is_on=lambda command: command in self.on)
+        section = next(b for b in toolbar.buttons("nothing") if b.label == "Section")
+        self.assertIs(section.checked, False)
+        self.on.add("Studio_Section")
+        self.assertIs(next(b for b in toolbar.buttons("nothing") if b.label == "Section").checked, True)
 
     def test_other_tools_are_not_switches(self):
         toolbar = ContextToolbar(self.catalog, is_on=lambda command: True)

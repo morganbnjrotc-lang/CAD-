@@ -40,8 +40,16 @@
 #include <Base/PyObjectBase.h>  // PyMOD_INIT_FUNC
 #include <Base/ServiceProvider.h>
 #include <Base/Type.h>
+#include <Inventor/SbPlane.h>
 #include <Inventor/SbViewportRegion.h>
+#include <Inventor/SoPath.h>
 #include <Inventor/SoRenderManager.h>
+#include <Inventor/actions/SoSearchAction.h>
+#include <Inventor/nodes/SoClipPlane.h>
+#include <Inventor/nodes/SoGroup.h>
+
+#include <Base/Placement.h>
+#include <Base/Rotation.h>
 
 #include <Gui/Action.h>
 #include <Gui/Application.h>
@@ -50,7 +58,9 @@
 #include <Gui/Control.h>
 #include <Gui/MainWindow.h>
 #include <Gui/NaviCube.h>
+#include <Gui/Inventor/Draggers/SoLinearDragger.h>
 #include <Gui/PrefWidgets.h>
+#include <Gui/Utilities.h>  // Base::Color as Coin's SbColor
 #include <Gui/QuantitySpinBox.h>
 #include <Gui/StyleParameters/ParameterManager.h>
 #include <Gui/TaskView/TaskView.h>
@@ -453,6 +463,140 @@ private:
     Py::Object chosen;
 };
 
+/// One-click section view (PLAN 3.7): FreeCAD's clipping plane in a 3D view (toggleClippingPlane, no
+/// manipulator), with the arrow Extrude drags (Gui::SoLinearDraggerContainer) on it to move the plane
+/// along its normal. The view keeps the side the plane's normal points to; the arrow points the other
+/// way, out of what is kept. The arrow goes just before the clipping plane in the view's scene, so it
+/// isn't cut away itself.
+class SectionView
+{
+public:
+    bool on(Gui::View3DInventor* target, const SbVec3f& point, const SbVec3f& normal, float size)
+    {
+        off();
+        Gui::View3DInventorViewer* viewer = target->getViewer();
+        keep = normal;
+        keep.normalize();
+        base = point;
+        viewer->toggleClippingPlane(1, false, true, placement(point));
+        if (!findClipPlane(viewer)) {
+            viewer->toggleClippingPlane(0);
+            return false;
+        }
+        update(0.0F);
+        view = target;
+
+        arrow = new Gui::SoLinearDraggerContainer;
+        arrow->ref();
+        arrow->translation = base;
+        arrow->setPointerDirection(-keep);
+        Gui::SoLinearDragger* dragger = arrow->getDragger();
+        dragger->labelVisible = false;
+        dragger->instantiateBaseGeometry();
+        const float scale = std::max(size / 20.0F, 0.05F);
+        dragger->geometryScale = SbVec3f(scale, scale, scale);
+        dragger->translationIncrement = std::max(size / 400.0F, 0.001F);  // smooth, not 1 mm steps
+        auto* manager = Base::provideService<Gui::StyleParameters::ParameterManager>();
+        if (manager) {  // the accent, as Extrude's arrow (Gui::LinearGizmo::updateColorTheme)
+            const Gui::StyleParameters::ParameterDefinition<Base::Color> base {"LinearGizmoBaseColor", Base::Color(1.0F, 0.0F, 0.0F)};
+            const Gui::StyleParameters::ParameterDefinition<Base::Color> active {"LinearGizmoActiveColor", Base::Color(1.0F, 1.0F, 0.0F)};
+            dragger->color = manager->resolve(base).asValue<SbColor>();
+            dragger->activeColor = manager->resolve(active).asValue<SbColor>();
+        }
+        dragger->addMotionCallback(&SectionView::dragged, this);
+        parent->insertChild(arrow, parent->findChild(clip));
+        return true;
+    }
+
+    void off()
+    {
+        if (view) {
+            if (arrow && parent && parent->findChild(arrow) >= 0) {
+                parent->removeChild(arrow);
+            }
+            view->getViewer()->toggleClippingPlane(0);
+        }
+        if (arrow) {
+            arrow->getDragger()->removeMotionCallback(&SectionView::dragged, this);
+            arrow->unref();
+        }
+        arrow = nullptr;
+        clip = nullptr;
+        parent = nullptr;
+        view = nullptr;
+    }
+
+    bool isOn()
+    {
+        if (!view && (arrow || clip)) {
+            off();  // its view was closed: FreeCAD deleted the plane with the view's scene
+        }
+        return view && clip;
+    }
+
+    SbVec3f point() const
+    {
+        return current;
+    }
+
+    SbVec3f normal() const
+    {
+        return keep;
+    }
+
+    /// As dragging the arrow by `distance` along itself would (tests).
+    void drag(float distance)
+    {
+        if (arrow) {
+            arrow->getDragger()->translation = SbVec3f(0.0F, distance, 0.0F);
+            update(distance);
+        }
+    }
+
+private:
+    static void dragged(void* data, SoDragger* dragger)
+    {
+        auto* self = static_cast<SectionView*>(data);
+        self->update(static_cast<Gui::SoLinearDragger*>(dragger)->translation.getValue()[1]);
+    }
+
+    void update(float along)
+    {
+        current = base - keep * along;  // the arrow points along -keep
+        if (clip) {
+            clip->plane.setValue(SbPlane(keep, current));
+        }
+    }
+
+    /// The plane FreeCAD's toggleClippingPlane makes keeps the side of rotation * (0, 0, -1).
+    Base::Placement placement(const SbVec3f& at) const
+    {
+        Base::Rotation turn(Base::Vector3d(0, 0, -1), Base::Vector3d(keep[0], keep[1], keep[2]));
+        return Base::Placement(Base::Vector3d(at[0], at[1], at[2]), turn);
+    }
+
+    bool findClipPlane(Gui::View3DInventorViewer* viewer)
+    {
+        SoSearchAction search;
+        search.setType(SoClipPlane::getClassTypeId());
+        search.setInterest(SoSearchAction::FIRST);
+        search.apply(viewer->getSceneGraph());
+        SoPath* path = search.getPath();
+        if (!path || path->getLength() < 2) {
+            return false;
+        }
+        clip = static_cast<SoClipPlane*>(path->getTail());
+        parent = dynamic_cast<SoGroup*>(path->getNodeFromTail(1));
+        return parent != nullptr;
+    }
+
+    QPointer<Gui::View3DInventor> view;
+    Gui::SoLinearDraggerContainer* arrow = nullptr;
+    SoClipPlane* clip = nullptr;  // FreeCAD's, owned by the viewer
+    SoGroup* parent = nullptr;
+    SbVec3f base, keep, current;
+};
+
 /// Construction on and off while sketching (PLAN 3.13; Fusion's X). It runs FreeCAD's
 /// Sketcher_ToggleConstruction: with sketch geometry selected that switches the geometry to or from
 /// construction, otherwise it switches what gets drawn next. Python can't read whether construction
@@ -584,6 +728,33 @@ public:
             "unwatch_mouse_release",
             &Module::unwatchMouseRelease,
             "unwatch_mouse_release(id): stops a watch_mouse_release()."
+        );
+        add_varargs_method(
+            "section",
+            &Module::section,
+            "section(px, py, pz, nx, ny, nz, size) -> bool\n\n"
+            "Cuts the active 3D view with the plane through (px, py, pz) keeping the side the normal\n"
+            "(nx, ny, nz) points to, and puts Extrude's arrow on it to drag it (PLAN 3.7); `size` (mm,\n"
+            "the model's) sizes the arrow. Replaces a section already on. False without a 3D view."
+        );
+        add_varargs_method(
+            "section_off",
+            &Module::sectionOff,
+            "section_off(): ends the section view."
+        );
+        add_varargs_method(
+            "section_plane",
+            &Module::sectionPlane,
+            "section_plane() -> ((px, py, pz), (nx, ny, nz)) or None\n\n"
+            "Where the section plane is now (dragged or not) and the side it keeps; None while off\n"
+            "(also once its view closed)."
+        );
+        add_varargs_method(
+            "section_drag",
+            &Module::sectionDrag,
+            "section_drag(distance)\n\n"
+            "For tests: moves the section as dragging its arrow by `distance` mm along itself would\n"
+            "(negative: back into what is kept)."
         );
         add_varargs_method(
             "add_field_menu",
@@ -780,6 +951,7 @@ private:
     std::map<long, KeyEventGate*> gates;
     std::map<long, MouseReleaseWatch*> releaseWatches;
     FieldMenuGate* fieldMenu = nullptr;
+    SectionView sectionView;
     long nextGateId = 1;
     SizeBoxTyping* sizeBoxTyping = nullptr;
 
@@ -828,6 +1000,54 @@ private:
             found->second->deleteLater();  // it may be the one calling back now
             releaseWatches.erase(found);
         }
+        return Py::None();
+    }
+
+    Py::Object section(const Py::Tuple& args)
+    {
+        float px = 0, py = 0, pz = 0, nx = 0, ny = 0, nz = 0, size = 0;
+        if (!PyArg_ParseTuple(args.ptr(), "fffffff", &px, &py, &pz, &nx, &ny, &nz, &size)) {
+            throw Py::Exception();
+        }
+        auto* view = qobject_cast<Gui::View3DInventor*>(Gui::getMainWindow()->activeWindow());
+        if (!view || SbVec3f(nx, ny, nz).length() < 1e-9F) {
+            return Py::False();
+        }
+        return Py::Boolean(sectionView.on(view, SbVec3f(px, py, pz), SbVec3f(nx, ny, nz), size));
+    }
+
+    Py::Object sectionOff(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        sectionView.off();
+        return Py::None();
+    }
+
+    Py::Object sectionPlane(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        if (!sectionView.isOn()) {
+            return Py::None();
+        }
+        const SbVec3f p = sectionView.point();
+        const SbVec3f n = sectionView.normal();
+        return Py::TupleN(
+            Py::TupleN(Py::Float(p[0]), Py::Float(p[1]), Py::Float(p[2])),
+            Py::TupleN(Py::Float(n[0]), Py::Float(n[1]), Py::Float(n[2]))
+        );
+    }
+
+    Py::Object sectionDrag(const Py::Tuple& args)
+    {
+        float distance = 0;
+        if (!PyArg_ParseTuple(args.ptr(), "f", &distance)) {
+            throw Py::Exception();
+        }
+        sectionView.drag(distance);
         return Py::None();
     }
 

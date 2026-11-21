@@ -157,6 +157,38 @@ class _PanelButton:
             dialog.accept() if self.accept else dialog.reject()
 
 
+class _Section:
+    """Cuts the 3D view with a plane to see inside the model, an arrow to drag it (PLAN 3.7)."""
+
+    def GetResources(self):
+        import os
+
+        import FreeCAD
+
+        return {
+            "MenuText": "Section",
+            "ToolTip": "Cuts the view of the model to see inside: on the face picked, or through the middle. "
+                       "Drag the arrow to move the cut; click again to end it",
+            "Pixmap": os.path.join(FreeCAD.getHomePath(), "Mod", "Studio", "Resources", "icons", "line",
+                                   "section.svg"),
+        }
+
+    def IsActive(self):
+        import FreeCADGui
+
+        document = FreeCADGui.ActiveDocument
+        if document is None or not hasattr(document.ActiveView, "getViewDirection"):
+            return False
+        editing = document.getInEdit()
+        return getattr(getattr(editing, "Object", None), "TypeId", "") != "Sketcher::SketchObject"
+
+    def Activated(self):
+        from studio.shell import section
+
+        section.toggle()
+
+
+FreeCADGui.addCommand("Studio_Section", _Section())
 FreeCADGui.addCommand("Studio_Finish", _PanelButton(accept=True))
 FreeCADGui.addCommand("Studio_Cancel", _PanelButton(accept=False))
 

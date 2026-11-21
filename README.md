@@ -32,7 +32,7 @@ Inspiration: the feature set shown in [this FizCAD demo](https://www.youtube.com
 | Patterns (rectangular, circular, mirror) in sketches and in the model | Has — Part Design patterns and the sketcher's Move/Rotate copies, but spread over workbench toolbars; the sketch ones need a selection first and start as plain moves | One Pattern button in both ✅ |
 | Snaps while sketching: ends, middles, centers, quadrants, intersections | Partial — ends, centers, along curves; middles only very near them | Intersections, quadrants, centers found from hovering the edge, easier middles ✅ |
 | Sketch → extrude, single-key shortcuts (`E` extrude) | Partial — Sketcher + PartDesign Pad, but multi-step, workbench-bound; Pad and Pocket are separate tools | `E` extrudes the selected sketch with a typed or dragged length ✅; dragged into the part it cuts, dragged out it extrudes, like Fusion ✅; Finish and Cancel on the toolbar ✅ |
-| Section view | Has — Std ClippingPlane / Part Section | Single clean toggle with draggable plane |
+| Section view | Has — Std ClippingPlane / Part Section, through a dialog of X, Y and Z planes and offsets | One Section button with an arrow to drag the plane ✅; filled cut faces later |
 | Sketch on curved surfaces (wraps around) | Missing — sketches are planar; wrap only via Curves addon | New: surface-mapped sketches |
 | Rich text tool (box / area / centered area, system fonts) | Partial — Draft ShapeString (single line, font file path) | Word-processor-style text editor in sketches |
 | Fonts embedded in the file | Missing — ShapeString references a font path | Embed font data in the document |

@@ -369,6 +369,8 @@ def _switch_is_on(command):
     """Whether a toolbar switch (context_toolbar.SWITCHES) is on."""
     import StudioGui
 
+    if command == "Studio_Section":
+        return StudioGui.section_plane() is not None
     return command == "Studio_Construction" and StudioGui.construction_mode()
 
 

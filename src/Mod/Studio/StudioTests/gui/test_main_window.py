@@ -133,7 +133,7 @@ class FollowsSelection(unittest.TestCase):
                                     "Point", "Text", "Pattern", "Construction", "Dimension", "Fully Constrain",
                                 "Close Sketch"])
         window.show_tools_for([], None)
-        self.assertEqual(labels(), ["New Sketch", "New Body", "Pattern", "Import", "Measure", "Search"])
+        self.assertEqual(labels(), ["New Sketch", "New Body", "Pattern", "Import", "Measure", "Section", "Search"])
 
     def test_selecting_faces_and_edges_of_a_real_model(self):
         doc = FreeCAD.newDocument("StudioWindowTest")

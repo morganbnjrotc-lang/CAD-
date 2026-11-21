@@ -142,6 +142,7 @@ FREECAD_ICONS = {
 # Only on Studio's surfaces: the command palette's icon is called "Studio", like the workbench.
 STUDIO_ONLY = {"Studio": "search", "fully-constrain": "fully-constrain",
                "finish": "finish", "cancel": "cancel",  # a task panel's buttons on the toolbar (PLAN 3.5)
+               "section": "section",  # the section view (PLAN 3.7)
                # ways to draw FreeCAD has no command for (studio.viewmodels.context_toolbar.WAYS)
                "rectangle-3-point": "rectangle-3-point", "rectangle-3-point-center": "rectangle-3-point-center",
                "line-center": "line-center", "circle-2-point": "circle-2-point",

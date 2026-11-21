@@ -21,6 +21,7 @@ from StudioTests.gui.test_shortcuts import (  # noqa: F401
 )
 from StudioTests.gui.test_sketch_constraints import FullyConstrainTool, WhileDrawing  # noqa: F401
 from StudioTests.gui.test_sketch_sizes import TypedSizes  # noqa: F401
+from StudioTests.gui.test_section import Section  # noqa: F401
 from StudioTests.gui.test_snaps import Snaps  # noqa: F401
 from StudioTests.gui.test_sketch_ways import DrawingWays  # noqa: F401
 from StudioTests.gui.test_units import SavedInMillimeters, SessionUnits  # noqa: F401
