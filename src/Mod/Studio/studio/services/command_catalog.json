@@ -1585,6 +1585,14 @@
    "icon": "src/Mod/Studio/Resources/icons/line/fully-constrain.svg"
   },
   {
+   "name": "Studio_HoleChamfer",
+   "workbench": null,
+   "menu_text": "Chamfer Hole",
+   "tooltip": "Bevels the openings of the selected hole, sized for the hole; adjust it in the panel",
+   "shortcut": "",
+   "icon": "src/Mod/Studio/Resources/icons/line/hole-chamfer.svg"
+  },
+  {
    "name": "Studio_Section",
    "workbench": null,
    "menu_text": "Section",

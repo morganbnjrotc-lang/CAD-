@@ -37,6 +37,11 @@ class Kinds(unittest.TestCase):
         self.assertEqual(self.kind(editing=PAD), "task")
         self.assertEqual(self.kind((SKETCH,), editing=PAD, task=True), "task")
 
+    def test_a_hole_picked_in_the_tree(self):
+        # PLAN 3.9: a hole offers its one-click chamfer
+        self.assertEqual(self.kind(("PartDesign::Hole",)), "hole")
+        self.assertEqual(self.kind(("PartDesign::Hole",), (PAD,)), "feature")
+
     def test_a_panel_open_without_an_object_in_edit_is_a_task(self):
         self.assertEqual(self.kind((PAD, ("Face3",)), task=True), "task")  # e.g. Measure
 
@@ -103,6 +108,7 @@ class Buttons(unittest.TestCase):
         self.assertEqual(self.labels("geometry"), ["Fillet", "Chamfer", "Measure", "Fit Selection"])
         self.assertEqual(self.labels("feature"), ["Pattern", "Fit Selection"])
         self.assertEqual(self.labels("task"), ["Finish", "Cancel"])
+        self.assertEqual(self.labels("hole"), ["Chamfer Hole", "Pattern", "Fit Selection"])
         self.assertEqual(self.labels("editing"),
                          ["Line", "Rectangle", "Circle", "Arc", "Polygon", "Slot", "Spline", "Ellipse", "Point",
                           "Text", "Pattern", "Construction", "Dimension", "Fully Constrain", "Close Sketch"])

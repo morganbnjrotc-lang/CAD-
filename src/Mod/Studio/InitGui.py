@@ -191,6 +191,35 @@ class _Section:
 
 
 FreeCADGui.addCommand("Studio_Section", _Section())
+
+
+class _HoleChamfer:
+    """Chamfers the openings of the hole picked in the model tree, in one click (PLAN 3.9)."""
+
+    def GetResources(self):
+        import os
+
+        import FreeCAD
+
+        return {
+            "MenuText": "Chamfer Hole",
+            "ToolTip": "Bevels the openings of the selected hole, sized for the hole; adjust it in the panel",
+            "Pixmap": os.path.join(FreeCAD.getHomePath(), "Mod", "Studio", "Resources", "icons", "line",
+                                   "hole-chamfer.svg"),
+        }
+
+    def IsActive(self):
+        from studio.shell import holes
+
+        return holes.selected_hole() is not None
+
+    def Activated(self):
+        from studio.shell import holes
+
+        holes.chamfer_selected()
+
+
+FreeCADGui.addCommand("Studio_HoleChamfer", _HoleChamfer())
 FreeCADGui.addCommand("Studio_Finish", _PanelButton(accept=True))
 FreeCADGui.addCommand("Studio_Cancel", _PanelButton(accept=False))
 

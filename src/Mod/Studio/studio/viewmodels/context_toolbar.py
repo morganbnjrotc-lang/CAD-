@@ -35,6 +35,8 @@ TOOLS = {
     "geometry": [("PartDesign_Fillet", None), ("PartDesign_Chamfer", None), ("Std_Measure", None),
                  ("Std_ViewFitSelection", None)],
     "feature": [("PartDesign_LinearPattern", "Pattern"), ("Std_ViewFitSelection", None)],
+    # A hole picked in the model tree: chamfer its openings in one click (PLAN 3.9).
+    "hole": [("Studio_HoleChamfer", None), ("PartDesign_LinearPattern", "Pattern"), ("Std_ViewFitSelection", None)],
     # A panel is open (Extrude, Fillet, Measure…): its OK and Cancel, on the toolbar (PLAN 3.5).
     "task": [("Studio_Finish", None), ("Studio_Cancel", None)],
     "editing": [("Sketcher_CreateLine", None), ("Sketcher_CreateRectangle", None), ("Sketcher_CreateCircle", "Circle"),
@@ -152,6 +154,8 @@ def selection_kind(selected, editing=None, task=False) -> str:
     if all(s.subs for s in selected):
         kinds = {_sub_kind(sub) for s in selected for sub in s.subs}
         return {frozenset({"face"}): "face", frozenset({"edge"}): "edge"}.get(frozenset(kinds), "geometry")
+    if all(not s.subs and s.type_id == "PartDesign::Hole" for s in selected):
+        return "hole"
     if all(not s.subs and s.type_id.startswith("PartDesign::") and s.type_id != "PartDesign::Body" for s in selected):
         return "feature"
     return "nothing"
@@ -241,4 +245,5 @@ class ContextToolbar:
             "geometry": "Fillet and Chamfer work on the selected edges and faces",
             "feature": "Mirror or pattern the selected feature",
             "task": "Finish keeps the changes; Cancel takes them back",
+            "hole": "Chamfer Hole bevels the hole's openings",
         }[kind]
