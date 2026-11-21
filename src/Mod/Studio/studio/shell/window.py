@@ -5,7 +5,8 @@ On top of FreeCAD's main window, while Studio's workbench is active:
   top bar  ☰ menu (FreeCAD's File, Edit, View and Help menus) · panel button · "Search tools" (palette)
   toolbar  the tools for the current selection (studio.viewmodels.context_toolbar), icon and label;
            a sketch tool that draws more than one way has an arrow listing the ways (PLAN 3.12);
-           a switch (Construction, PLAN 3.13) stays lit while on
+           a switch (Construction, PLAN 3.13) stays lit while on; other parts of the shell can add a
+           widget for a kind of selection (`add_tool_widget`: the Fit box for a threaded hole, PLAN 3.9)
   status   a hint for the current selection, at the right of the status bar
 FreeCAD's menu bar is hidden; the Model panel (tree above properties) is FreeCAD's own dock.
 The bars are plain QToolBars: FreeCAD's toolbar manager only hides its own Gui::ToolBar class.
@@ -77,6 +78,8 @@ class StudioWindow:
         self.extra_menus = []  # Studio's own menus after FreeCAD's in ☰ (e.g. Appearance)
         self._model_panel = None
         self._tool_widgets = []  # the toolbar's buttons with ways, replaced on each refresh
+        self._makers = {}  # kind -> [make(parent) -> widget or None] (add_tool_widget)
+        self._extra_widgets = []  # what they made, replaced on each refresh
 
     # -- setup -------------------------------------------------------------------------------
     def install(self):
@@ -135,6 +138,17 @@ class StudioWindow:
         self._timer.setInterval(self.ENABLE_CHECK_MS)
         self._timer.timeout.connect(self._update_enabled)
         self.show()
+
+    def add_tool_widget(self, kind, make):
+        """Another part of the shell's widget on the toolbar after the tools for `kind`: `make(parent)`
+        returns it, or None when the selection doesn't call for it; made again on each refresh. A
+        `sync()` method on it is called every ENABLE_CHECK_MS (e.g. to follow an undo)."""
+        self._makers.setdefault(kind, []).append(make)
+        self.schedule_refresh()
+
+    def tool_box(self, name):
+        """The toolbar's widget added through add_tool_widget whose object name is `name`, or None."""
+        return next((w for w in self._extra_widgets if w.objectName() == name), None)
 
     def add_to_top_bar(self, widget):
         """Puts a button of another part of the shell on the top bar, after Panel (e.g. Display)."""
@@ -241,9 +255,9 @@ class StudioWindow:
         self._shown_task = task
         contexts = self._contexts()
         self.tools.clear()
-        for widget in self._tool_widgets:
+        for widget in self._tool_widgets + self._extra_widgets:
             widget.deleteLater()
-        self._tool_widgets = []
+        self._tool_widgets, self._extra_widgets = [], []
         for button in self._toolbar.buttons(kind, contexts):
             key = f" ({button.shortcut})" if button.shortcut else ""
             tooltip = f"{button.label}{key}\n{button.tooltip}"
@@ -261,6 +275,11 @@ class StudioWindow:
                     functools.partial(self._run, button.command, button.method, button.settings))
             action.setData(button.command)
             action.setEnabled(self._active(button.command))
+        for make in self._makers.get(kind, ()):
+            widget = make(self.tools)
+            if widget is not None:
+                self.tools.addWidget(widget)
+                self._extra_widgets.append(widget)
         self.hint.setText(self._toolbar.hint(kind, contexts))
         self.kind = kind
 
@@ -316,6 +335,9 @@ class StudioWindow:
             command = action.data()
             if command:
                 action.setEnabled(self._active(command))
+        for widget in self._extra_widgets:
+            if hasattr(widget, "sync"):
+                widget.sync()
 
     def _run(self, command, method=0, settings=(), *_):
         QtCore.QTimer.singleShot(0, lambda: self._run_now(command, method, settings))

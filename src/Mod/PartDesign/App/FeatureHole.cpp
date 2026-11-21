@@ -1083,13 +1083,14 @@ std::optional<double> Hole::determineDiameter() const
 
     if (Threaded.getValue()) {
 
-        if (ModelThread.getValue()) {
-            if (UseCustomThreadClearance.getValue()) {
-                clearance = CustomThreadClearance.getValue();
-            }
-            else {
-                clearance = getThreadClassClearance();
-            }
+        // Studio (CORE_PATCHES.md): a custom clearance, a fit for 3D-printed parts, also widens a
+        // cosmetic thread's drilled hole, so the fit picked on a cosmetic thread is the one it gets
+        // when modeled.
+        if (UseCustomThreadClearance.getValue()) {
+            clearance = CustomThreadClearance.getValue();
+        }
+        else if (ModelThread.getValue()) {
+            clearance = getThreadClassClearance();
         }
 
         // use normed diameters if possible
@@ -1397,7 +1398,7 @@ void Hole::onChanged(const App::Property* prop)
         ThreadDepthType.setReadOnly(isNone || !isThreaded);
         ThreadDepth.setReadOnly(isNone || !isThreaded);
         ModelThread.setReadOnly(isNone || !isThreaded);
-        UseCustomThreadClearance.setReadOnly(isNone || !isThreaded || !ModelThread.getValue());
+        UseCustomThreadClearance.setReadOnly(isNone || !isThreaded);  // Studio: cosmetic threads too
         CustomThreadClearance.setReadOnly(
             !UseCustomThreadClearance.getValue() || UseCustomThreadClearance.isReadOnly()
         );
@@ -1494,7 +1495,7 @@ void Hole::onChanged(const App::Property* prop)
     else if (prop == &ModelThread) {
         // Diameter parameter depends on this
         updateDiameterParam();
-        UseCustomThreadClearance.setReadOnly(!ModelThread.getValue());
+        // Studio: the custom clearance stays open to a cosmetic thread (it widens its drilled hole)
         if (CosmeticThread.getValue() && ModelThread.getValue()) {
             CosmeticThread.setValue(false);
         }

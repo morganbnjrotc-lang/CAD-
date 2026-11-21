@@ -182,7 +182,8 @@ TaskHoleParameters::TaskHoleParameters(ViewProviderHole* HoleView, QWidget* pare
     ui->ThreadDepthType->setCurrentIndex(pcHole->ThreadDepthType.getValue());
     ui->ThreadDepth->setValue(pcHole->ThreadDepth.getValue());
 
-    ui->CustomClearanceWidget->setVisible(isThreaded && isModeled);
+    // Studio (CORE_PATCHES.md): the custom clearance also widens a cosmetic thread's hole
+    ui->CustomClearanceWidget->setVisible(isThreaded);
     ui->CustomThreadClearance->setEnabled(ui->UseCustomThreadClearance->isChecked());
     ui->UpdateView->setChecked(false);
     ui->UpdateView->setVisible(isThreaded && isModeled);
@@ -315,8 +316,8 @@ void TaskHoleParameters::modelThreadChanged()
     ui->UpdateView->setVisible(isModeled);
     setUpdateBlocked(isModeled && !(ui->UpdateView->isChecked()));
 
-    // conditional enabling of thread modeling options
-    ui->CustomClearanceWidget->setVisible(isModeled);
+    // conditional enabling of thread modeling options (Studio: the custom clearance for any thread)
+    ui->CustomClearanceWidget->setVisible(getThreaded());
 
     recomputeFeature();
 }
@@ -349,8 +350,8 @@ void TaskHoleParameters::holeTypeChanged(int index)
     ui->UpdateView->setVisible(isModeled);
     setUpdateBlocked(isModeled && !(ui->UpdateView->isChecked()));
 
-    // conditional enabling of thread modeling options
-    ui->CustomClearanceWidget->setVisible(isModeled);
+    // conditional enabling of thread modeling options (Studio: the custom clearance for any thread)
+    ui->CustomClearanceWidget->setVisible(isThreaded);
     ui->CustomThreadClearance->setEnabled(pcHole->UseCustomThreadClearance.getValue());
 
     ui->ThreadDepthWidget->setVisible(isModeled || isCosmetic);

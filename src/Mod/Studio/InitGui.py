@@ -27,8 +27,8 @@ class StudioWorkbench(FreeCADGui.Workbench):
 
     def Activated(self):
         from studio.shell import (appearance, display, environment, export_threads, extrude_direction,
-                                  feature_panels, field_defaults, home, shortcuts, sketching, tasks_panel, units,
-                                  warmup, window)
+                                  feature_panels, field_defaults, home, shortcuts, sketching, tasks_panel,
+                                  thread_fit, units, warmup, window)
 
         # One environment (docs/adr/0009): editing a sketch no longer switches workbench.
         environment.install_once()
@@ -52,6 +52,8 @@ class StudioWorkbench(FreeCADGui.Workbench):
         field_defaults.install_once()
         # Exported files get the threads modeled; the model keeps them cosmetic (PLAN 3.9).
         export_threads.install_once()
+        # A threaded hole picked: the toolbar's Fit box loosens or tightens it (PLAN 3.9).
+        thread_fit.install_once()
         # The Tasks panel medium-sized at the right of the 3D view, following the window (PLAN 3.10).
         tasks_panel.install_once()
         # The Home page replaces FreeCAD's Start page while no document is open (PLAN 2.8).

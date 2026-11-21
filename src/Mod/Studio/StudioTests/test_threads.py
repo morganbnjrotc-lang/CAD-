@@ -94,3 +94,49 @@ class Threads(ThreadedPart):
         with threads.modeled(self.doc):
             Import.export([self.body], path)
         self.assertGreater(len(Part.read(path).Faces), cosmetic)
+
+
+TAP_DRILL = 5.0  # M6x1.0's, FreeCAD's table
+
+
+class Fit(ThreadedPart):
+    """The allowance scrubber's model (PLAN 3.9): a threaded hole's fit, in mm on its diameter, for
+    3D-printed parts. FreeCAD's thread clearance, which it applies only to modeled threads; Studio's
+    FreeCAD applies it to cosmetic ones too (their drilled hole), so one fit holds for both."""
+
+    def test_no_fit_to_start(self):
+        self.assertEqual(threads.fit(self.hole), 0)
+
+    def test_a_fit_widens_a_cosmetic_hole(self):
+        volume = self.body.Shape.Volume
+        threads.set_fit([self.hole], 0.2)
+        self.assertAlmostEqual(threads.fit(self.hole), 0.2)
+        self.assertAlmostEqual(self.hole.Diameter.Value, TAP_DRILL + 0.2)
+        self.assertLess(self.body.Shape.Volume, volume)
+
+    def test_a_negative_fit_tightens(self):
+        threads.set_fit([self.hole], -0.1)
+        self.assertAlmostEqual(self.hole.Diameter.Value, TAP_DRILL - 0.1)
+
+    def test_a_modeled_thread_gets_the_fit(self):
+        self.hole.ModelThread = True
+        self.doc.recompute()
+        threads.set_fit([self.hole], 0.2)
+        self.assertAlmostEqual(self.hole.Diameter.Value, TAP_DRILL + 0.2)
+
+    def test_an_export_keeps_the_fit(self):
+        threads.set_fit([self.hole], 0.2)
+        with threads.modeled(self.doc):
+            self.assertAlmostEqual(self.hole.Diameter.Value, TAP_DRILL + 0.2)
+        self.assertAlmostEqual(threads.fit(self.hole), 0.2)
+
+    def test_a_hole_without_a_thread_is_left_alone(self):
+        self.hole.Threaded = False
+        self.doc.recompute()
+        diameter = self.hole.Diameter.Value
+        threads.set_fit([self.hole], 0.2)
+        self.assertEqual(threads.fit(self.hole), 0)
+        self.assertAlmostEqual(self.hole.Diameter.Value, diameter)
+
+    def test_the_threaded_ones(self):
+        self.assertEqual(threads.threaded([self.hole, self.body]), [self.hole])
