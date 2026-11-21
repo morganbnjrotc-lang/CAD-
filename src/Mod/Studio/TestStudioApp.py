@@ -37,6 +37,7 @@ from StudioTests.test_field_defaults import Defaults as FieldDefaultsTest  # noq
 from StudioTests.test_section import StartingPlane  # noqa: F401
 from StudioTests.test_display import Presets  # noqa: F401
 from StudioTests.test_holes import Holes  # noqa: F401
+from StudioTests.test_threads import Threads  # noqa: F401
 from StudioTests.test_palette import ShippedCatalog as PaletteShippedCatalog  # noqa: F401
 from StudioTests.test_warmup import WarmUpPlan  # noqa: F401
 from StudioTests.test_settings import (  # noqa: F401

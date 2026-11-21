@@ -26,8 +26,9 @@ class StudioWorkbench(FreeCADGui.Workbench):
                 self.removeMenu(name)
 
     def Activated(self):
-        from studio.shell import (appearance, display, environment, extrude_direction, feature_panels,
-                                  field_defaults, home, shortcuts, sketching, tasks_panel, units, warmup, window)
+        from studio.shell import (appearance, display, environment, export_threads, extrude_direction,
+                                  feature_panels, field_defaults, home, shortcuts, sketching, tasks_panel, units,
+                                  warmup, window)
 
         # One environment (docs/adr/0009): editing a sketch no longer switches workbench.
         environment.install_once()
@@ -49,6 +50,8 @@ class StudioWorkbench(FreeCADGui.Workbench):
         extrude_direction.install_once()
         # Right-click a tool's size box → Make Default (PLAN 3.6).
         field_defaults.install_once()
+        # Exported files get the threads modeled; the model keeps them cosmetic (PLAN 3.9).
+        export_threads.install_once()
         # The Tasks panel medium-sized at the right of the 3D view, following the window (PLAN 3.10).
         tasks_panel.install_once()
         # The Home page replaces FreeCAD's Start page while no document is open (PLAN 2.8).
