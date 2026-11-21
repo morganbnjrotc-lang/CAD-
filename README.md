@@ -93,7 +93,7 @@ Inspiration: the feature set shown in [this FizCAD demo](https://www.youtube.com
 | Import feature history from other CAD | Missing | Long-term |
 | Fully offline, no telemetry | Has | Keep it that way |
 | Parts library download (McMaster-style) with auto material detection | Missing (Parts Library addon is offline files) | Optional, user-triggered; legal review needed for third-party catalogs |
-| Right-click any field → "Make default" | Missing | New |
+| Right-click any field → "Make default" | Missing — size boxes keep a list of recent values ("Save Value"), but new features always start at FreeCAD's fixed sizes | Make Default and Forget Default on the size boxes of Part Design's tools ✅ |
 
 ### Our additions
 

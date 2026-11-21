@@ -33,6 +33,7 @@ from StudioTests.test_units import Choice, FreeCADUnitSettings, Schemas  # noqa:
 from StudioTests.test_tasks_panel import FreeCADPanelSettings, Size  # noqa: F401
 from StudioTests.test_auto_constrain import Keeping, Limits, Report, Shapes  # noqa: F401
 from StudioTests.test_extrude_direction import Switching, WhenToSwitch  # noqa: F401
+from StudioTests.test_field_defaults import Defaults as FieldDefaultsTest  # noqa: F401
 from StudioTests.test_palette import ShippedCatalog as PaletteShippedCatalog  # noqa: F401
 from StudioTests.test_warmup import WarmUpPlan  # noqa: F401
 from StudioTests.test_settings import (  # noqa: F401

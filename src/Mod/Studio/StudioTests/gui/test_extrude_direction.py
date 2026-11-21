@@ -138,6 +138,20 @@ class LettingGo(OnABlock):
         self.assertEqual(self.kinds(), ["Pad"])
         self.assertAlmostEqual(self.volume(), BLOCK * BLOCK * HEIGHT, places=1)
 
+    def test_an_extrude_edited_later_switches_when_finished_not_when_let_go(self):
+        # Letting go starts the other tool on the sketch: only for the extrude its panel just made. An
+        # existing one, double-clicked, would get a second feature on its sketch.
+        self.start("PartDesign_Pad")
+        self.type("0.25{Return}")
+        pad = next(o for o in self.body.Group if o.TypeId == "PartDesign::Pad" and o != self.block)
+        pad.ViewObject.doubleClicked()
+        settle(600)
+        self.drag_to(-0.25)
+        self.assertEqual(self.in_edit(), "PartDesign::Pad", "its own panel should still be open")
+        self.finish()
+        self.assertEqual(self.kinds(), ["Pad", "Pocket"])
+        self.assertAlmostEqual(self.volume(), BLOCK * BLOCK * HEIGHT - self.cylinder(0.25 * INCH), places=1)
+
     def test_an_extrude_let_go_pointing_away_stays(self):
         self.start("PartDesign_Pad")
         self.drag_to(0.25)

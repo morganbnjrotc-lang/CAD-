@@ -74,7 +74,9 @@ class Watcher:
         obj = view_provider.Object
         doc = obj.Document
         after = doc.UndoCount + (0 if doc.HasPendingTransaction else 1)
-        self._panel = _Panel(doc.Name, obj.Name, self._created.last == (doc.Name, obj.Name), after)
+        new = self._created.last == (doc.Name, obj.Name)
+        self._created.last = None  # new only for the panel its tool opened, not when edited later
+        self._panel = _Panel(doc.Name, obj.Name, new, after)
         if self._watch is None:
             import StudioGui
 

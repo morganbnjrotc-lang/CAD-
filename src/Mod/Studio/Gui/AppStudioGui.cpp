@@ -21,7 +21,9 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QContextMenuEvent>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QStatusBar>
 #include <QSvgRenderer>
 #include <QTabBar>
@@ -48,6 +50,7 @@
 #include <Gui/Control.h>
 #include <Gui/MainWindow.h>
 #include <Gui/NaviCube.h>
+#include <Gui/PrefWidgets.h>
 #include <Gui/QuantitySpinBox.h>
 #include <Gui/StyleParameters/ParameterManager.h>
 #include <Gui/TaskView/TaskView.h>
@@ -328,6 +331,128 @@ private:
     bool pending = false;
 };
 
+/// Right-click on a size box in the task panel: FreeCAD's items, then Studio's (PLAN 3.6, Make
+/// Default). `items(field, value)` gives Studio's labels for that box (none: FreeCAD's own menu as
+/// before); `chosen(field, label, value)` is called when one is picked. Values are in the box's unit's
+/// base (mm, degrees). FreeCAD's PrefQuantitySpinBox builds its menu inside its own handler with no
+/// way to add to it, so Studio shows the menu instead: the box's recent values and Save Value, the
+/// text field's Edit menu, then Studio's items. The menu doesn't wait (popup, not exec).
+class FieldMenuGate: public QObject
+{
+public:
+    FieldMenuGate(const Py::Object& items, const Py::Object& chosen)
+        : items(items)
+        , chosen(chosen)
+    {}
+
+    bool eventFilter(QObject* watched, QEvent* event) override
+    {
+        if (event->type() != QEvent::ContextMenu || !watched->isWidgetType()) {
+            return false;
+        }
+        auto* box = qobject_cast<Gui::QuantitySpinBox*>(watched);
+        if (!box && watched->parent()) {  // the box's own text field
+            box = qobject_cast<Gui::QuantitySpinBox*>(watched->parent());
+        }
+        Gui::TaskView::TaskView* tasks = Gui::Control().taskPanel();
+        if (!box || box->objectName().isEmpty() || !tasks || !tasks->isAncestorOf(box) || items.isNone()) {
+            return false;
+        }
+        const std::string field = box->objectName().toStdString();
+        const double value = box->rawValue();
+        std::vector<std::string> labels;
+        {
+            Base::PyGILStateLocker lock;
+            try {
+                Py::Tuple args(2);
+                args.setItem(0, Py::String(field));
+                args.setItem(1, Py::Float(value));
+                Py::Sequence result(Py::Callable(items).apply(args));
+                for (Py::Sequence::size_type i = 0; i < result.length(); ++i) {
+                    labels.push_back(Py::String(result[i]).as_std_string("utf-8"));
+                }
+            }
+            catch (Py::Exception&) {
+                Base::PyException error;
+                error.reportException();
+                return false;
+            }
+        }
+        if (labels.empty()) {
+            return false;
+        }
+        showMenu(box, labels, static_cast<QContextMenuEvent*>(event)->globalPos());
+        return true;
+    }
+
+    /// Lets go of the callbacks now, the GIL held (see MouseReleaseWatch::release).
+    void release()
+    {
+        items = Py::None();
+        chosen = Py::None();
+    }
+
+private:
+    void showMenu(Gui::QuantitySpinBox* box, const std::vector<std::string>& labels, const QPoint& at)
+    {
+        auto* menu = new QMenu(box);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        QPointer<Gui::QuantitySpinBox> target(box);
+        if (auto* pref = qobject_cast<Gui::PrefQuantitySpinBox*>(box)) {
+            const QStringList history = pref->getHistory();
+            for (const QString& recent : history) {  // as FreeCAD's menu: the box takes the text
+                menu->addAction(recent, menu, [target, recent] {
+                    if (target) {
+                        if (auto* edit = target->findChild<QLineEdit*>()) {
+                            edit->setText(recent);
+                        }
+                    }
+                });
+            }
+            if (!history.isEmpty()) {
+                menu->addSeparator();
+            }
+            QPointer<Gui::PrefQuantitySpinBox> prefTarget(pref);
+            menu->addAction(QObject::tr("Save Value"), menu, [prefTarget] {
+                if (prefTarget) {
+                    prefTarget->pushToHistory();
+                }
+            });
+        }
+        if (auto* edit = box->findChild<QLineEdit*>()) {
+            QMenu* editMenu = edit->createStandardContextMenu();
+            editMenu->setTitle(QObject::tr("Edit"));
+            editMenu->setParent(menu, editMenu->windowFlags());
+            menu->addMenu(editMenu);
+        }
+        menu->addSeparator();
+        const std::string field = box->objectName().toStdString();
+        for (const std::string& label : labels) {
+            menu->addAction(QString::fromStdString(label), menu, [this, target, field, label] {
+                if (!target || chosen.isNone()) {
+                    return;
+                }
+                Base::PyGILStateLocker lock;
+                try {
+                    Py::Tuple args(3);
+                    args.setItem(0, Py::String(field));
+                    args.setItem(1, Py::String(label));
+                    args.setItem(2, Py::Float(target->rawValue()));
+                    Py::Callable(chosen).apply(args);
+                }
+                catch (Py::Exception&) {
+                    Base::PyException error;
+                    error.reportException();
+                }
+            });
+        }
+        menu->popup(at);
+    }
+
+    Py::Object items;
+    Py::Object chosen;
+};
+
 /// Construction on and off while sketching (PLAN 3.13; Fusion's X). It runs FreeCAD's
 /// Sketcher_ToggleConstruction: with sketch geometry selected that switches the geometry to or from
 /// construction, otherwise it switches what gets drawn next. Python can't read whether construction
@@ -459,6 +584,29 @@ public:
             "unwatch_mouse_release",
             &Module::unwatchMouseRelease,
             "unwatch_mouse_release(id): stops a watch_mouse_release()."
+        );
+        add_varargs_method(
+            "add_field_menu",
+            &Module::addFieldMenu,
+            "add_field_menu(items, chosen)\n\n"
+            "Right-clicking a size box in the task panel shows FreeCAD's items (recent values, Save Value,\n"
+            "Edit) and then Studio's: items(field, value) -> labels for that box (none: FreeCAD's own\n"
+            "menu); chosen(field, label, value) when one is picked. `field` is the box's object name,\n"
+            "values in its unit's base (mm, degrees). Replaces an earlier pair (PLAN 3.6)."
+        );
+        add_varargs_method(
+            "right_click_field",
+            &Module::rightClickField,
+            "right_click_field(object_name)\n\n"
+            "For tests: right-clicks the middle of the visible size box with that object name (the event\n"
+            "is posted, as the window system's are). KeyError if none shows."
+        );
+        add_varargs_method(
+            "choose_popup",
+            &Module::choosePopup,
+            "choose_popup(label) -> bool\n\n"
+            "For tests: picks the item with that text (without '&') in the menu open now, as a click\n"
+            "would. False if no menu is open or it has no such enabled item."
         );
         add_varargs_method(
             "declared_shortcut",
@@ -631,6 +779,7 @@ public:
 private:
     std::map<long, KeyEventGate*> gates;
     std::map<long, MouseReleaseWatch*> releaseWatches;
+    FieldMenuGate* fieldMenu = nullptr;
     long nextGateId = 1;
     SizeBoxTyping* sizeBoxTyping = nullptr;
 
@@ -680,6 +829,69 @@ private:
             releaseWatches.erase(found);
         }
         return Py::None();
+    }
+
+    Py::Object addFieldMenu(const Py::Tuple& args)
+    {
+        PyObject* items = nullptr;
+        PyObject* chosen = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "OO", &items, &chosen)) {
+            throw Py::Exception();
+        }
+        if (!PyCallable_Check(items) || !PyCallable_Check(chosen)) {
+            throw Py::TypeError("add_field_menu() needs two callables");
+        }
+        if (fieldMenu) {
+            qApp->removeEventFilter(fieldMenu);
+            fieldMenu->release();
+            fieldMenu->deleteLater();
+        }
+        fieldMenu = new FieldMenuGate(Py::Object(items), Py::Object(chosen));
+        qApp->installEventFilter(fieldMenu);
+        return Py::None();
+    }
+
+    Py::Object rightClickField(const Py::Tuple& args)
+    {
+        char* name = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "s", &name)) {
+            throw Py::Exception();
+        }
+        for (auto* box : Gui::getMainWindow()->findChildren<Gui::QuantitySpinBox*>(QString::fromUtf8(name))) {
+            if (!box->isVisible()) {
+                continue;
+            }
+            const QPoint local = box->rect().center();
+            // Posted, as the window system delivers it: a menu that waits (exec) then runs from the
+            // event loop, where a test's timer can still read and close it.
+            QCoreApplication::postEvent(
+                box,
+                new QContextMenuEvent(QContextMenuEvent::Mouse, local, box->mapToGlobal(local))
+            );
+            return Py::None();
+        }
+        throw Py::KeyError(std::string("no visible size box named ") + name);
+    }
+
+    Py::Object choosePopup(const Py::Tuple& args)
+    {
+        char* label = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "s", &label)) {
+            throw Py::Exception();
+        }
+        auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+        if (!menu) {
+            return Py::False();
+        }
+        const QString wanted = QString::fromUtf8(label);
+        for (QAction* action : menu->actions()) {
+            if (QString(action->text()).remove(QLatin1Char('&')) == wanted && action->isEnabled()) {
+                menu->close();
+                action->trigger();
+                return Py::True();
+            }
+        }
+        return Py::False();
     }
 
     Py::Object declaredShortcut(const Py::Tuple& args)
