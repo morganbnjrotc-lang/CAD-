@@ -168,6 +168,48 @@ class Limits(Base):
         self.assertFullyConstrained()
         self.assertLess(elapsed, 6.0, f"{elapsed:.2f} s for 40 lines")  # ~1.5 s here; CI is slower
 
+    def timed(self):
+        import time
+
+        start = time.perf_counter()
+        self.constrain()
+        elapsed = time.perf_counter() - start
+        self.assertFullyConstrained()
+        return elapsed
+
+    def test_many_shapes_take_a_second_or_two(self):
+        # 20 rectangles, 80 lines: 7.4 s when each try solved the whole sketch
+        for n in range(20):
+            x = 40 * n
+            self.polygon((x, 0), (x + 30, 0), (x + 30, 20), (x, 20))
+        elapsed = self.timed()
+        self.assertLess(elapsed, 2.0, f"{elapsed:.2f} s for 80 lines")
+
+    def test_rectangles_circles_and_arcs_take_a_second_or_two(self):
+        # 60 shapes: 6.9 s when each try solved the whole sketch
+        for n in range(10):
+            x = 40 * n
+            self.polygon((x, 0), (x + 30, 0), (x + 30, 20), (x, 20))
+            self.add(Part.Circle(V(x + 15, 10, 0), V(0, 0, 1), 4),
+                     Part.ArcOfCircle(Part.Circle(V(x + 15, 30, 0), V(0, 0, 1), 6), 0.3, 2.5))
+        elapsed = self.timed()
+        self.assertLess(elapsed, 2.0, f"{elapsed:.2f} s for 60 shapes")
+
+    def test_a_shape_tied_to_outside_geometry(self):
+        # a line held to an edge brought in from a box (external geometry), next to a free rectangle
+        box = self.doc.addObject("Part::Box", "Box")
+        self.doc.recompute()
+        self.sketch.addExternal("Box", "Edge1")
+        line = self.add(Part.LineSegment(V(0, 0, 0), V(25, 15, 0)))[0]
+        external = -3  # the first outside geometry
+        start =[p for p in (1, 2) if (self.sketch.getPoint(external, p) - V(0, 0, 0)).Length < 1e-6]
+        self.assertTrue(start, "the box's edge doesn't start at the origin")
+        self.sketch.addConstraint(Sketcher.Constraint("Coincident", line, 1, external, start[0]))
+        self.polygon((40, 5), (70, 5), (70, 25), (40, 25))
+        self.constrain()
+        self.assertFullyConstrained()
+        self.assertTrue(box.isValid())
+
 
 class Keeping(Base):
     def test_the_users_constraints_stay(self):
