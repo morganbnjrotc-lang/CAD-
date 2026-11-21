@@ -738,6 +738,13 @@ public:
             "the model's) sizes the arrow. Replaces a section already on. False without a 3D view."
         );
         add_varargs_method(
+            "draw_style",
+            &Module::drawStyle,
+            "draw_style() -> str or None\n\n"
+            "How the active 3D view draws the model: FreeCAD's draw style (\"As Is\", \"Shaded\",\n"
+            "\"Hidden Line\", \"Wireframe\"…), which its Python API can set but not read (PLAN 3.8)."
+        );
+        add_varargs_method(
             "section_off",
             &Module::sectionOff,
             "section_off(): ends the section view."
@@ -1014,6 +1021,18 @@ private:
             return Py::False();
         }
         return Py::Boolean(sectionView.on(view, SbVec3f(px, py, pz), SbVec3f(nx, ny, nz), size));
+    }
+
+    Py::Object drawStyle(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        auto* view = qobject_cast<Gui::View3DInventor*>(Gui::getMainWindow()->activeWindow());
+        if (!view) {
+            return Py::None();
+        }
+        return Py::String(view->getViewer()->getOverrideMode());
     }
 
     Py::Object sectionOff(const Py::Tuple& args)

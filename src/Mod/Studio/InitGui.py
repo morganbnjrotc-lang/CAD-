@@ -26,8 +26,8 @@ class StudioWorkbench(FreeCADGui.Workbench):
                 self.removeMenu(name)
 
     def Activated(self):
-        from studio.shell import (appearance, environment, extrude_direction, feature_panels, field_defaults, home,
-                                  shortcuts, sketching, tasks_panel, units, warmup, window)
+        from studio.shell import (appearance, display, environment, extrude_direction, feature_panels,
+                                  field_defaults, home, shortcuts, sketching, tasks_panel, units, warmup, window)
 
         # One environment (docs/adr/0009): editing a sketch no longer switches workbench.
         environment.install_once()
@@ -37,6 +37,8 @@ class StudioWorkbench(FreeCADGui.Workbench):
         window.install_once()
         # Studio's look: Fusion, its light or dark palette, 3D colors; follows Windows (docs/adr/0010).
         appearance.install_once()
+        # The top bar's Display menu: how the 3D view draws the model, perspective or not (PLAN 3.8).
+        display.install_once()
         # Inches or millimeters, everywhere; follows Windows' region unless the user picks (PLAN 3.1).
         units.install_once()
         # Sketching like Fusion: typing into a size box replaces it, unit included (PLAN 3.2).

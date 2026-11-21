@@ -35,6 +35,7 @@ from StudioTests.test_auto_constrain import Keeping, Limits, Report, Shapes  # n
 from StudioTests.test_extrude_direction import Switching, WhenToSwitch  # noqa: F401
 from StudioTests.test_field_defaults import Defaults as FieldDefaultsTest  # noqa: F401
 from StudioTests.test_section import StartingPlane  # noqa: F401
+from StudioTests.test_display import Presets  # noqa: F401
 from StudioTests.test_palette import ShippedCatalog as PaletteShippedCatalog  # noqa: F401
 from StudioTests.test_warmup import WarmUpPlan  # noqa: F401
 from StudioTests.test_settings import (  # noqa: F401

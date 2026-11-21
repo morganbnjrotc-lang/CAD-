@@ -118,8 +118,10 @@ class StudioWindow:
         self.search_button.setMinimumWidth(220)
         self.search_button.clicked.connect(lambda: self._open_palette and self._open_palette())
 
-        for widget in (self.menu_button, self.panel_button, spacer, self.search_button):
+        for widget in (self.menu_button, self.panel_button):
             self.top_bar.addWidget(widget)
+        self._spacer = self.top_bar.addWidget(spacer)
+        self.top_bar.addWidget(self.search_button)
 
         self.hint = QtWidgets.QLabel(main.statusBar())
         self.hint.setObjectName("StudioHint")
@@ -133,6 +135,10 @@ class StudioWindow:
         self._timer.setInterval(self.ENABLE_CHECK_MS)
         self._timer.timeout.connect(self._update_enabled)
         self.show()
+
+    def add_to_top_bar(self, widget):
+        """Puts a button of another part of the shell on the top bar, after Panel (e.g. Display)."""
+        self.top_bar.insertWidget(self._spacer, widget)
 
     def show(self):
         """Studio's look: our bars in, FreeCAD's menu bar out."""
