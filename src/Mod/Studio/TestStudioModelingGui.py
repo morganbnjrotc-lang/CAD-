@@ -9,6 +9,7 @@ workbenches not loaded yet; these tests extrude with Part Design, which loads it
 from StudioTests.gui.test_context_menu import RightClick  # noqa: F401
 from StudioTests.gui.test_extrude import FinishOrCancel, StaysInStudio, TypedLength  # noqa: F401
 from StudioTests.gui.test_extrude_direction import LettingGo, Typing  # noqa: F401
+from StudioTests.gui.test_extrude_regions import PickingRegions  # noqa: F401
 from StudioTests.gui.test_field_defaults import MakeDefault  # noqa: F401
 from StudioTests.gui.test_hole_chamfer import ChamferHole  # noqa: F401
 from StudioTests.gui.test_export_threads import ExportedThreads  # noqa: F401

@@ -27,8 +27,8 @@ class StudioWorkbench(FreeCADGui.Workbench):
 
     def Activated(self):
         from studio.shell import (appearance, display, environment, export_threads, extrude_direction,
-                                  feature_panels, field_defaults, home, shortcuts, sketching, tasks_panel,
-                                  thread_fit, units, warmup, window)
+                                  extrude_regions, feature_panels, field_defaults, home, shortcuts, sketching,
+                                  tasks_panel, thread_fit, units, warmup, window)
 
         # One environment (docs/adr/0009): editing a sketch no longer switches workbench.
         environment.install_once()
@@ -48,6 +48,8 @@ class StudioWorkbench(FreeCADGui.Workbench):
         feature_panels.install_once()
         # Extrude dragged into the part cuts; a cut dragged out of it extrudes (PLAN 3.5).
         extrude_direction.install_once()
+        # The sketch stays shown while Extrude is open; a click on a region adds it or takes it out (PLAN 3.16).
+        extrude_regions.install_once()
         # Right-click a tool's size box → Make Default (PLAN 3.6).
         field_defaults.install_once()
         # Exported files get the threads modeled; the model keeps them cosmetic (PLAN 3.9).

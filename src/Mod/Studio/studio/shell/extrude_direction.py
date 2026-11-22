@@ -116,20 +116,20 @@ class Watcher:
         target = extrude.becomes(feature)
         if target is None:
             return
-        sketch, length = feature.Profile[0], abs(feature.Length.Value)
+        profile, length = feature.Profile, abs(feature.Length.Value)
         self._busy = True
         # Not from inside the mouse watch's call: closing the panel stops that watch.
-        QtCore.QTimer.singleShot(0, lambda: self._accept(panel, sketch, length, target))
+        QtCore.QTimer.singleShot(0, lambda: self._accept(panel, profile, length, target))
 
-    def _accept(self, panel, sketch, length, target):
+    def _accept(self, panel, profile, length, target):
         dialog = FreeCADGui.Control.activeTaskDialog()
         if dialog is None:
             self._busy = False
             return
         dialog.accept()  # FreeCAD's OK: commits the feature as it is (nothing to see yet)
-        QtCore.QTimer.singleShot(0, lambda: self._start_other(panel, sketch, length, target))
+        QtCore.QTimer.singleShot(0, lambda: self._start_other(panel, profile, length, target))
 
-    def _start_other(self, panel, sketch, length, target):
+    def _start_other(self, panel, profile, length, target):
         try:
             doc = FreeCAD.getDocument(panel.doc)
             if FreeCADGui.Control.activeDialog() or not panel.step_is_last(doc):
@@ -138,7 +138,9 @@ class Watcher:
         finally:
             self._busy = False
         FreeCADGui.Selection.clearSelection()
-        FreeCADGui.Selection.addSelection(sketch)
+        sketch, names = profile[0], [name for name in profile[1] if name]
+        for name in names or [""]:  # the regions picked (PLAN 3.16), or the whole sketch
+            FreeCADGui.Selection.addSelection(sketch, name)
         FreeCADGui.runCommand(COMMAND[target], 0)
         QtCore.QTimer.singleShot(0, lambda: _take_length(length))
 

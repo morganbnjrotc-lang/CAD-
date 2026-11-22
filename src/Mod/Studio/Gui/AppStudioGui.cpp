@@ -83,6 +83,7 @@
 #include <Gui/OverlayManager.h>
 #include <Gui/Inventor/Draggers/SoLinearDragger.h>
 #include <Gui/PrefWidgets.h>
+#include <Gui/Selection/Selection.h>
 #include <Gui/Utilities.h>  // Base::Color as Coin's SbColor
 #include <Gui/QuantitySpinBox.h>
 #include <Gui/StyleParameters/ParameterManager.h>
@@ -1149,6 +1150,14 @@ public:
             "it is off limits (\"Use All Edges\") or already pressed. Returns True if it pressed it."
         );
         add_varargs_method(
+            "selection_gate",
+            &Module::selectionGate,
+            "selection_gate() -> bool\n\n"
+            "Whether FreeCAD limits what a click can pick (a selection gate): a task panel picking something\n"
+            "itself, as Extrude's face to extrude up to or Revolve's axis. Studio leaves those clicks to it\n"
+            "(PLAN 3.16)."
+        );
+        add_varargs_method(
             "set_drawing_method",
             &Module::setDrawingMethod,
             "set_drawing_method(index) -> bool\n\n"
@@ -1819,6 +1828,14 @@ private:
             }
         }
         return Py::False();
+    }
+
+    Py::Object selectionGate(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        return Py::Boolean(Gui::Selection().hasSelectionGate(nullptr));
     }
 
     Py::Object setDrawingMethod(const Py::Tuple& args)
