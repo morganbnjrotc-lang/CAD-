@@ -77,7 +77,7 @@ Inspiration: the feature set shown in [this FizCAD demo](https://www.youtube.com
 
 | Feature | FreeCAD today | What we need to do |
 |---|---|---|
-| Display modes: "pretty" w/ shadows, gray box, realistic, hidden line | Partial — draw styles; no shadows in this FreeCAD | Display menu: shaded with edges, shaded, hidden line, wireframe ✅; shadows, gray box, realistic: new rendering work |
+| Display modes: "pretty" w/ shadows, gray box, realistic, hidden line | Partial — draw styles; no shadows in this FreeCAD | Display menu: shaded with edges, shaded, hidden line, wireframe ✅; Pretty (shadows on a floor), Gray Box, Realistic ✅ ([ADR 0012](docs/adr/0012-display-looks.md)) |
 | Perspective / orthographic toggle | Has | On the Display menu ✅ |
 | Animation studio (play, auto-explode) | Missing (addon) | New |
 | Ray-traced render engine with studio environments | Partial — Render addon (external renderers) | Built-in path tracer |

@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 """Display presets in the app (PLAN 3.8; studio.services.display keeps the choice).
 
-A Display menu on the top bar: Shaded with Edges, Shaded, Hidden Line, Wireframe, and Perspective. The
-choice applies to every open document's 3D views and to documents opened later (when one becomes the
-active document), through FreeCAD's own viewer calls: setOverrideMode, setCameraType.
+A Display menu on the top bar: Shaded with Edges, Shaded, Hidden Line, Wireframe; the presets Pretty, Gray
+Box and Realistic; and Perspective. The choice applies to every open document's 3D views and to documents
+opened later (when one becomes the active document), through FreeCAD's own viewer calls (setOverrideMode,
+setCameraType) and, for the presets' shadows, floor and materials, StudioGui.set_look. The floor takes the
+3D background's color, also after a light/dark switch.
 """
 
 import FreeCAD
@@ -11,6 +13,8 @@ import FreeCADGui
 from PySide import QtCore, QtGui, QtWidgets  # FreeCAD's PySide shim
 
 from studio.services import display as service
+
+FLOOR = "#E7EBEF"  # under a FreeCAD stylesheet (Studio's palette doesn't apply)
 
 
 def _views():
@@ -36,6 +40,7 @@ class DisplayMenu:
 
     def __init__(self, store, parent):
         self._store = store
+        self._floor = FLOOR
         self.button = QtWidgets.QToolButton(parent)
         self.button.setText("Display")
         self.button.setToolTip("How the 3D view draws the model")
@@ -45,11 +50,13 @@ class DisplayMenu:
         group.setExclusive(True)
         self._styles = {}
         for style in service.STYLES:
+            if style == service.PRESETS[0]:
+                self.menu.addSeparator()
             action = self.menu.addAction(style.label)
             action.setCheckable(True)
             group.addAction(action)
-            action.triggered.connect(lambda _checked=False, m=style.mode: self.choose(m))
-            self._styles[style.mode] = action
+            action.triggered.connect(lambda _checked=False, key=style.key: self.choose(key))
+            self._styles[style.key] = action
         self.menu.addSeparator()
         self.perspective_action = self.menu.addAction("Perspective")
         self.perspective_action.setCheckable(True)
@@ -57,8 +64,8 @@ class DisplayMenu:
         self.button.setMenu(self.menu)
         self._sync()
 
-    def choose(self, mode):
-        self._store.set_style(mode)
+    def choose(self, key):
+        self._store.set_style(key)
         self.apply_everywhere()
 
     def set_perspective(self, on):
@@ -66,10 +73,19 @@ class DisplayMenu:
         self.apply_everywhere()
 
     def apply_everywhere(self):
-        mode, perspective = self._store.style(), self._store.perspective()
+        import StudioGui  # Studio's C++ helpers
+
+        style, perspective = self._store.current(), self._store.perspective()
         for view in _views():
-            _apply_to(view, mode, perspective)
+            _apply_to(view, style.mode, perspective)
+        look = style.look
+        StudioGui.set_look(look.shadows, look.gray, look.shiny, self._floor)
         self._sync()
+
+    def restyle(self, palette):
+        """Light or dark: the floor takes the 3D background's color (appearance.follow)."""
+        self._floor = palette.view_flat if palette is not None else FLOOR
+        self.apply_everywhere()
 
     def _sync(self):
         self._styles[self._store.style()].setChecked(True)
@@ -94,10 +110,15 @@ def install_once():
 
         if window.current() is None:
             return None
+        from studio.shell import appearance
+
         _menu = DisplayMenu(service.Display(Settings()), window.current().top_bar)
         window.current().add_to_top_bar(_menu.button)
         FreeCADGui.addDocumentObserver(_menu)
-        _menu.apply_everywhere()
+        if appearance.current() is not None:
+            appearance.current().follow(_menu.restyle)  # applies now, and on each light/dark switch
+        else:
+            _menu.apply_everywhere()
     return _menu
 
 

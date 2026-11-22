@@ -17,7 +17,9 @@ from studio.services.settings import Settings
 from studio.shell import display
 
 
-class DisplayMenu(unittest.TestCase):
+class WithDocument(unittest.TestCase):
+    """A document with a box; the Display choice put back afterwards."""
+
     def setUp(self):
         settings = Settings()
         style, perspective = settings.get(display_service.STYLE), settings.get(display_service.PERSPECTIVE)
@@ -42,10 +44,13 @@ class DisplayMenu(unittest.TestCase):
     def items(self):
         return {a.text(): a for a in display.current().menu.actions() if not a.isSeparator()}
 
+
+class DisplayMenu(WithDocument):
     def test_the_top_bar_has_a_display_menu(self):
         self.assertEqual(display.current().button.text(), "Display")
         self.assertEqual(list(self.items()),
-                         ["Shaded with Edges", "Shaded", "Hidden Line", "Wireframe", "Perspective"])
+                         ["Shaded with Edges", "Shaded", "Hidden Line", "Wireframe", "Pretty", "Gray Box",
+                          "Realistic", "Perspective"])
 
     def test_picking_a_style_draws_the_model_that_way(self):
         self.items()["Hidden Line"].trigger()
@@ -72,3 +77,60 @@ class DisplayMenu(unittest.TestCase):
         settle(300)
         self.assertEqual(StudioGui.draw_style(), "Wireframe")
         self.assertEqual(FreeCADGui.ActiveDocument.ActiveView.getCameraType(), "Perspective")
+
+
+class Looks(WithDocument):
+    """Pretty, Gray Box and Realistic (PLAN 3.8): Coin's shadows on a floor under the model, read back through
+    StudioGui.look() (shadows, gray, shiny, the floor's height or None)."""
+
+    def pick(self, label):
+        self.items()[label].trigger()
+        settle(300)
+
+    def test_pretty_draws_shadows_under_the_model_with_edges(self):
+        self.pick("Pretty")
+        shadows, gray, shiny, floor = StudioGui.look()
+        self.assertEqual((shadows, gray, shiny), (True, False, False))
+        self.assertEqual(StudioGui.draw_style(), "As Is")
+        self.assertLess(floor, 0, "the floor isn't under the box (it starts at 0)")
+        self.assertGreater(floor, -1)
+
+    def test_gray_box(self):
+        self.pick("Gray Box")
+        self.assertEqual(StudioGui.look()[:3], (True, True, False))
+        self.assertEqual(StudioGui.draw_style(), "Shaded")
+
+    def test_realistic(self):
+        self.pick("Realistic")
+        self.assertEqual(StudioGui.look()[:3], (True, False, True))
+        self.assertEqual(StudioGui.draw_style(), "Shaded")
+
+    def test_a_plain_style_takes_the_shadows_away(self):
+        self.pick("Pretty")
+        self.pick("Shaded with Edges")
+        self.assertEqual(StudioGui.look(), (False, False, False, None))
+
+    def test_the_floor_follows_the_model(self):
+        self.pick("Pretty")
+        box = self.doc.getObject("Box")
+        box.Placement.Base = FreeCAD.Vector(0, 0, -20)
+        self.doc.recompute()
+        settle(300)
+        self.assertLess(StudioGui.look()[3], -20)
+
+    def test_the_model_can_still_be_picked(self):
+        self.pick("Pretty")
+        view = FreeCADGui.ActiveDocument.ActiveView
+        view.viewIsometric()
+        view.fitAll()
+        settle(200)
+        width, height = view.getSize()
+        info = view.getObjectInfo((width // 2, height // 2))
+        self.assertIsNotNone(info, "nothing under the middle of the view")
+        self.assertEqual(info["Object"], "Box")
+
+    def test_a_document_opened_later_gets_the_look(self):
+        self.pick("Gray Box")
+        self.new_document()
+        settle(300)
+        self.assertEqual(StudioGui.look()[:3], (True, True, False))

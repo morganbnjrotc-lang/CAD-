@@ -3,7 +3,10 @@
 // StudioGui: Studio's C++ helpers for the shell, where FreeCAD offers no Python API, or where Python
 // can't safely reach (see style_panels). See docs/adr/0007-lazy-loading-command-catalog.md.
 
+#include <algorithm>
 #include <map>
+#include <memory>
+#include <optional>
 #include <set>
 #include <string>
 
@@ -11,6 +14,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QBuffer>
+#include <QColor>
 #include <QComboBox>
 #include <QIcon>
 #include <QKeyEvent>
@@ -44,18 +48,36 @@
 #include <Inventor/SbViewportRegion.h>
 #include <Inventor/SoPath.h>
 #include <Inventor/SoRenderManager.h>
+#include <Inventor/actions/SoGetBoundingBoxAction.h>
 #include <Inventor/actions/SoSearchAction.h>
+#include <Inventor/annex/FXViz/nodes/SoShadowDirectionalLight.h>
+#include <Inventor/annex/FXViz/nodes/SoShadowGroup.h>
+#include <Inventor/annex/FXViz/nodes/SoShadowStyle.h>
 #include <Inventor/nodes/SoClipPlane.h>
+#include <Inventor/nodes/SoCoordinate3.h>
+#include <Inventor/nodes/SoFaceSet.h>
 #include <Inventor/nodes/SoGroup.h>
+#include <Inventor/nodes/SoMaterial.h>
+#include <Inventor/nodes/SoMaterialBinding.h>
+#include <Inventor/nodes/SoNormal.h>
+#include <Inventor/nodes/SoNormalBinding.h>
+#include <Inventor/nodes/SoSeparator.h>
+#include <Inventor/nodes/SoShapeHints.h>
+#include <Inventor/nodes/SoSwitch.h>
+#include <Inventor/sensors/SoNodeSensor.h>
 
 #include <Base/Placement.h>
 #include <Base/Rotation.h>
+
+#include <App/Application.h>
+#include <App/Document.h>
 
 #include <Gui/Action.h>
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
 #include <Gui/Command.h>
 #include <Gui/Control.h>
+#include <Gui/Document.h>
 #include <Gui/MainWindow.h>
 #include <Gui/NaviCube.h>
 #include <Gui/OverlayManager.h>
@@ -609,6 +631,199 @@ private:
     SbVec3f base, keep, current;
 };
 
+/// Display looks (PLAN 3.8: Pretty, Gray Box, Realistic). FreeCAD's viewer draws no shadows; Coin has them
+/// (SoShadowGroup: variance shadow maps, per-pixel lighting), which FreeCAD never uses. A view's objects
+/// (FreeCAD's "ObjectGroup", which holds every view provider's scene) move into a shadow group with a
+/// directional shadow light and a floor under them that takes their shadow; a gray material, or
+/// highlights, can override theirs. FreeCAD only adds and removes the object group's children, so where it
+/// sits doesn't matter to it. Destroyed, the look puts the objects back where they were.
+class ViewLook
+{
+public:
+    enum Material
+    {
+        Own = -1,
+        Gray = 0,
+        Shiny = 1
+    };
+
+    ViewLook(SoGroup* parent, SoGroup* objects)
+        : parent(parent)
+        , objects(objects)
+    {
+        parent->ref();
+        objects->ref();
+        shadows = new SoShadowGroup;
+        shadows->ref();
+        shadows->setName("StudioLook");
+        shadows->quality = 1.0F;  // per-pixel lighting
+        shadows->precision = 0.8F;
+        shadows->intensity = 0.45F;
+        shadows->smoothBorder = 0.5F;
+        shadows->addChild(style(SoShadowStyle::NO_SHADOWING));
+        light = new SoShadowDirectionalLight;
+        light->direction.setValue(0.35F, 0.55F, -1.0F);  // from above, a little from the front left
+        light->intensity = 0.35F;
+        shadows->addChild(light);
+        shadows->addChild(style(SoShadowStyle::CASTS_SHADOW_AND_SHADOWED));
+        auto* model = new SoSeparator;  // keeps the material override off the floor
+        model->renderCaching = SoSeparator::OFF;
+        materials = new SoSwitch;
+        materials->whichChild = SO_SWITCH_NONE;
+        materials->addChild(grayMaterial());
+        materials->addChild(shinyMaterial());
+        model->addChild(materials);
+        model->addChild(objects);
+        shadows->addChild(model);
+        shadows->addChild(style(SoShadowStyle::SHADOWED));
+        auto* floorPart = new SoSeparator;
+        auto* hints = new SoShapeHints;  // one-sided: seen from below, the model shows through
+        hints->vertexOrdering = SoShapeHints::COUNTERCLOCKWISE;
+        hints->shapeType = SoShapeHints::SOLID;
+        floorPart->addChild(hints);
+        floorColor = new SoMaterial;
+        floorColor->specularColor.setValue(0.0F, 0.0F, 0.0F);
+        floorPart->addChild(floorColor);
+        floor = new SoCoordinate3;
+        floorPart->addChild(floor);
+        auto* normal = new SoNormal;
+        normal->vector.setValue(0.0F, 0.0F, 1.0F);
+        floorPart->addChild(normal);
+        auto* binding = new SoNormalBinding;
+        binding->value = SoNormalBinding::OVERALL;
+        floorPart->addChild(binding);
+        auto* face = new SoFaceSet;
+        face->numVertices.setValue(4);
+        floorPart->addChild(face);
+        shadows->addChild(floorPart);
+
+        parent->replaceChild(objects, shadows);
+        sensor = new SoNodeSensor(&ViewLook::changed, this);  // the floor follows the model
+        sensor->attach(objects);
+        fit();
+    }
+
+    ~ViewLook()
+    {
+        sensor->detach();
+        delete sensor;
+        if (parent->findChild(shadows) >= 0) {
+            parent->replaceChild(shadows, objects);
+        }
+        shadows->unref();
+        objects->unref();
+        parent->unref();
+    }
+
+    ViewLook(const ViewLook&) = delete;
+    ViewLook& operator=(const ViewLook&) = delete;
+
+    void set(Material material, const QColor& floorRgb)
+    {
+        materials->whichChild = material == Own ? SO_SWITCH_NONE : int(material);
+        // lit by the headlight and the shadow light, the floor shows about as bright as the background
+        const float dim = 0.8F;
+        floorColor->diffuseColor.setValue(dim * float(floorRgb.redF()), dim * float(floorRgb.greenF()),
+                                          dim * float(floorRgb.blueF()));
+    }
+
+    Material material() const
+    {
+        int which = materials->whichChild.getValue();
+        return which == SO_SWITCH_NONE ? Own : Material(which);
+    }
+
+    /// The floor's height, or no floor (nothing to draw).
+    std::optional<float> floorHeight() const
+    {
+        if (floor->point.getNum() == 0) {
+            return std::nullopt;
+        }
+        return floor->point[0][2];
+    }
+
+private:
+    static SoShadowStyle* style(int which)
+    {
+        auto* node = new SoShadowStyle;
+        node->style = which;
+        return node;
+    }
+
+    static SoNode* grayMaterial()
+    {
+        auto* group = new SoGroup;
+        auto* gray = new SoMaterial;  // clay: one neutral gray, a little sheen
+        gray->ambientColor.setValue(0.25F, 0.25F, 0.26F);
+        gray->diffuseColor.setValue(0.62F, 0.63F, 0.65F);  // lit tops stay apart from the floor
+        gray->specularColor.setValue(0.12F, 0.12F, 0.12F);
+        gray->shininess = 0.2F;
+        gray->emissiveColor.setIgnored(true);
+        gray->transparency.setIgnored(true);
+        gray->setOverride(true);
+        auto* once = new SoMaterialBinding;  // not per face
+        once->value = SoMaterialBinding::OVERALL;
+        once->setOverride(true);
+        group->addChild(gray);
+        group->addChild(once);
+        return group;
+    }
+
+    static SoNode* shinyMaterial()
+    {
+        auto* shine = new SoMaterial;  // highlights on the parts' own colors
+        shine->specularColor.setValue(0.45F, 0.45F, 0.45F);
+        shine->shininess = 0.55F;
+        shine->ambientColor.setIgnored(true);
+        shine->diffuseColor.setIgnored(true);
+        shine->emissiveColor.setIgnored(true);
+        shine->transparency.setIgnored(true);
+        shine->setOverride(true);
+        return shine;
+    }
+
+    static void changed(void* data, SoSensor* /*sensor*/)
+    {
+        static_cast<ViewLook*>(data)->fit();
+    }
+
+    /// The floor just under the model and well beyond it; the shadow light covers the model and its shadow.
+    void fit()
+    {
+        SoGetBoundingBoxAction measure(SbViewportRegion(100, 100));
+        measure.apply(objects);
+        const SbBox3f box = measure.getBoundingBox();
+        if (box.isEmpty()) {
+            floor->point.setNum(0);
+            return;
+        }
+        float dx = 0, dy = 0, dz = 0;
+        box.getSize(dx, dy, dz);
+        const float size = std::max({dx, dy, dz, 1e-3F});
+        const SbVec3f center = box.getCenter();
+        const float reach = 6.0F * size;
+        const float z = box.getMin()[2] - 0.002F * size;
+        const SbVec3f corners[4] = {
+            SbVec3f(center[0] - reach, center[1] - reach, z),
+            SbVec3f(center[0] + reach, center[1] - reach, z),
+            SbVec3f(center[0] + reach, center[1] + reach, z),
+            SbVec3f(center[0] - reach, center[1] + reach, z),
+        };
+        floor->point.setValues(0, 4, corners);
+        light->bboxCenter = center;
+        light->bboxSize = SbVec3f(1.6F * size, 1.6F * size, 1.6F * size);  // the shadow map is 2048 px at most
+    }
+
+    SoGroup* parent;
+    SoGroup* objects;
+    SoShadowGroup* shadows = nullptr;
+    SoShadowDirectionalLight* light = nullptr;
+    SoSwitch* materials = nullptr;
+    SoMaterial* floorColor = nullptr;
+    SoCoordinate3* floor = nullptr;
+    SoNodeSensor* sensor = nullptr;
+};
+
 /// Construction on and off while sketching (PLAN 3.13; Fusion's X). It runs FreeCAD's
 /// Sketcher_ToggleConstruction: with sketch geometry selected that switches the geometry to or from
 /// construction, otherwise it switches what gets drawn next. Python can't read whether construction
@@ -748,6 +963,20 @@ public:
             "Cuts the active 3D view with the plane through (px, py, pz) keeping the side the normal\n"
             "(nx, ny, nz) points to, and puts Extrude's arrow on it to drag it (PLAN 3.7); `size` (mm,\n"
             "the model's) sizes the arrow. Replaces a section already on. False without a 3D view."
+        );
+        add_varargs_method(
+            "set_look",
+            &Module::setLook,
+            "set_look(shadows, gray, shiny, floor_color)\n\n"
+            "Studio's look on every open 3D view, and on views opened later when called again (PLAN 3.8):\n"
+            "shadows on a floor under the model (floor_color \"#RRGGBB\"), every part in one gray, or\n"
+            "highlights on the parts' own colors. All false takes it off."
+        );
+        add_varargs_method(
+            "look",
+            &Module::look,
+            "look() -> (shadows, gray, shiny, floor height or None)\n\n"
+            "For tests: Studio's look on the active 3D view (set_look)."
         );
         add_varargs_method(
             "draw_style",
@@ -983,6 +1212,8 @@ private:
     FieldMenuGate* fieldMenu = nullptr;
     QPointer<Gui::TaskView::TaskView> followedTasks;  // follow_tasks
     SectionView sectionView;
+    // set_look: each 3D view's look, dropped when the view closes
+    std::map<Gui::View3DInventor*, std::unique_ptr<ViewLook>> looks;
     long nextGateId = 1;
     SizeBoxTyping* sizeBoxTyping = nullptr;
 
@@ -1045,6 +1276,94 @@ private:
             return Py::False();
         }
         return Py::Boolean(sectionView.on(view, SbVec3f(px, py, pz), SbVec3f(nx, ny, nz), size));
+    }
+
+    Py::Object setLook(const Py::Tuple& args)
+    {
+        PyObject* shadowsArg = nullptr;
+        PyObject* grayArg = nullptr;
+        PyObject* shinyArg = nullptr;
+        char* floorHex = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "OOOs", &shadowsArg, &grayArg, &shinyArg, &floorHex)) {
+            throw Py::Exception();
+        }
+        const bool shadows = PyObject_IsTrue(shadowsArg) != 0;
+        const auto material = PyObject_IsTrue(grayArg) ? ViewLook::Gray
+            : PyObject_IsTrue(shinyArg)                 ? ViewLook::Shiny
+                                                        : ViewLook::Own;
+        const QColor floorRgb(QString::fromUtf8(floorHex));
+        for (auto* view : allViews()) {
+            auto found = looks.find(view);
+            if (!shadows) {
+                if (found != looks.end()) {
+                    looks.erase(found);  // puts the objects back
+                }
+                continue;
+            }
+            if (found == looks.end()) {
+                auto look = makeLook(view);
+                if (!look) {
+                    continue;
+                }
+                found = looks.emplace(view, std::move(look)).first;
+                QObject::connect(view, &QObject::destroyed, [this, view]() { looks.erase(view); });
+            }
+            found->second->set(material, floorRgb);
+        }
+        return Py::None();
+    }
+
+    Py::Object look(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        auto* view = qobject_cast<Gui::View3DInventor*>(Gui::getMainWindow()->activeWindow());
+        auto found = view ? looks.find(view) : looks.end();
+        if (found == looks.end()) {
+            return Py::TupleN(Py::False(), Py::False(), Py::False(), Py::None());
+        }
+        const ViewLook& viewLook = *found->second;
+        const auto height = viewLook.floorHeight();
+        return Py::TupleN(
+            Py::True(),
+            Py::Boolean(viewLook.material() == ViewLook::Gray),
+            Py::Boolean(viewLook.material() == ViewLook::Shiny),
+            height ? Py::Object(Py::Float(*height)) : Py::None()
+        );
+    }
+
+    static std::vector<Gui::View3DInventor*> allViews()
+    {
+        std::vector<Gui::View3DInventor*> views;
+        for (App::Document* document : App::GetApplication().getDocuments()) {
+            Gui::Document* gui = Gui::Application::Instance->getDocument(document);
+            if (!gui) {
+                continue;
+            }
+            for (Gui::MDIView* view : gui->getMDIViewsOfType(Gui::View3DInventor::getClassTypeId())) {
+                views.push_back(static_cast<Gui::View3DInventor*>(view));
+            }
+        }
+        return views;
+    }
+
+    static std::unique_ptr<ViewLook> makeLook(Gui::View3DInventor* view)
+    {
+        SoSearchAction search;
+        search.setName(SbName("ObjectGroup"));  // FreeCAD's group of every view provider's scene
+        search.setInterest(SoSearchAction::FIRST);
+        search.apply(view->getViewer()->getSceneGraph());
+        SoPath* path = search.getPath();
+        if (!path || path->getLength() < 2) {
+            return nullptr;
+        }
+        auto* objects = dynamic_cast<SoGroup*>(path->getTail());
+        auto* parent = dynamic_cast<SoGroup*>(path->getNodeFromTail(1));
+        if (!objects || !parent) {
+            return nullptr;
+        }
+        return std::make_unique<ViewLook>(parent, objects);
     }
 
     Py::Object drawStyle(const Py::Tuple& args)
