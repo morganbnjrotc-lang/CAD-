@@ -121,7 +121,8 @@ changes. Studio's `Init.py` runs before the GUI starts.
   the medians were +46 ms (new profile) and +37 ms (returning) but the means −23 and −5 ms, with runs
   without the look spread from 3.12 to 4.13 s: the noise is larger than the effect. PLAN 2.10 checks
   startup on a quiet machine. The user tried steps 3 and 4 ("it looks amazing", "everything looks clean").
-- Not done in step 3: FreeCAD's Tasks panel stays an empty box over the 3D view between tasks, and after
+- Not done in step 3 (the empty box fixed 2026-11-21, PLAN 3.10: Studio makes the panel solid, and FreeCAD's
+  "Auto task" mode then hides it between tasks): FreeCAD's Tasks panel stays an empty box over the 3D view between tasks, and after
   a live switch its frame keeps the old colors until the next start. Every way of clearing it crashed
   FreeCAD on a workbench change, and holding FreeCAD's overlay widgets made the app abort at exit
   (`docs/BASELINE.md`). Lookups of FreeCAD widgets follow the rule written there: at startup, inside the

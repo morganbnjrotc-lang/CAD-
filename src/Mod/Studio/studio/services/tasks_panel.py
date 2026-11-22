@@ -10,6 +10,11 @@ FreeCAD lays its floating panels out from parameters (BaseApp/MainWindow/DockWin
 `Width`, and `Offset2`, the room it leaves free below the panel. It lays every panel out again whenever
 one of them changes, so `FreeCADTasksPanel` writes them only when they change. The width is Studio's
 once; after that it's the user's (FreeCAD saves it when the user drags the panel's edge).
+
+Between tasks the panel is empty. FreeCAD makes it see-through (`Transparent`), and its "Auto task" mode,
+the right panel's default, hides it only when it isn't (OverlayTabWidget::checkAutoHide): see-through
+needs FreeCAD's stylesheet, which Studio doesn't load (docs/adr/0010), so the empty panel was a box over
+the model. `make_solid` turns that off: the panel shows only while a task is open.
 """
 
 import FreeCAD
@@ -37,6 +42,14 @@ class FreeCADTasksPanel:
     def __init__(self, overlay: str = OVERLAY, settings: Settings | None = None):
         self._overlay = overlay
         self._settings = settings or Settings()
+
+    def make_solid(self) -> bool:
+        """Turns the panel's see-through off, so FreeCAD hides it while no task is open; True if it changed."""
+        group = FreeCAD.ParamGet(self._overlay)
+        if not group.GetBool("Transparent", True):  # FreeCAD's default for its right panel: see-through
+            return False
+        group.SetBool("Transparent", False)
+        return True
 
     def apply(self, area_height: int, cube: int) -> bool:
         """Sizes the panel for the 3D area's height; True if a parameter changed."""

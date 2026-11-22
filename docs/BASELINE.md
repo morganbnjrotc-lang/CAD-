@@ -99,6 +99,22 @@ a stylesheet on the task view, or a transparent window color in its palette (202
 gone with that one change undone. Needs a native stack (a debugger is not installed); left as is for now
 (PLAN 2.9).
 
+2026-11-21 (PLAN 3.10): the panel is made solid again (`Transparent=false` in
+`BaseApp/MainWindow/DockWindows/OverlayRight`; FreeCAD's floating-panel settings are not under `Preferences`)
+and FreeCAD's "Auto task" mode hides it between tasks. No crash in 3 full `TestStudioGui` runs and 16 runs of
+`test_command_backend.WorkbenchLoadingTest` alone (the TechDraw switch), nor in a probe switching to TechDraw
+and back with a document open. Since 2026-11-15 Studio reaches FreeCAD's panels only from C++, which may be
+why. FreeCAD's crash reporter writes `*.fcrash` reports with the native stack to the profile's
+`CrashReports` folder, so a crash like this can now be read without a debugger.
+
+### Watching: TestStudioGui hung twice in a sketch-typing test while the machine was busy
+
+On 2026-11-21, with Fully Constrain's scratch-sketch change, two full `TestStudioGui` runs in a row were killed
+after 600 s, each hanging in `TypedSizes.test_a_typed_arc_radius_and_sweep`, while the machine was busy (VS
+Code's C++ indexer). The same code then passed 7 full runs in a row on a quiet machine (183–190 s); the old code
+passed one busy run in 481 s. Not explained: if it comes back, wrap the run with
+`faulthandler.dump_traceback_later` to get the stuck thread's stack.
+
 ### Known upstream issue: "Use software OpenGL" has no effect on Windows
 
 `StartupProcess::setupApplication` always sets `Qt::AA_UseDesktopOpenGL`, and sets

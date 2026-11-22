@@ -66,3 +66,12 @@ class FreeCADPanelSettings(unittest.TestCase):
         # FreeCAD lays its floating panels out again on each write.
         self.panel.apply(760, CUBE)
         self.assertFalse(self.panel.apply(760, CUBE))
+
+    def test_made_solid_so_it_hides_with_no_task(self):
+        # FreeCAD's panel is see-through by default, and its "Auto task" mode hides it only when solid.
+        self.assertTrue(self.panel.make_solid())
+        self.assertFalse(self.overlay.GetBool("Transparent", True))
+
+    def test_made_solid_once(self):
+        self.panel.make_solid()
+        self.assertFalse(self.panel.make_solid(), "FreeCAD lays its panels out again on each write")

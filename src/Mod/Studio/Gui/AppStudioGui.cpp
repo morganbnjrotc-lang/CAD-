@@ -58,6 +58,7 @@
 #include <Gui/Control.h>
 #include <Gui/MainWindow.h>
 #include <Gui/NaviCube.h>
+#include <Gui/OverlayManager.h>
 #include <Gui/Inventor/Draggers/SoLinearDragger.h>
 #include <Gui/PrefWidgets.h>
 #include <Gui/Utilities.h>  // Base::Color as Coin's SbColor
@@ -142,6 +143,17 @@ QWidget* keyTarget()
         target = target->parentWidget();
     }
     return target;
+}
+
+// A field the user can use: on screen, or in the Tasks panel and shown with it. The panel shows only while
+// a task is open (PLAN 3.10) and slides in, so right after a task starts its fields aren't visible yet.
+bool inUse(QWidget* field)
+{
+    if (field->isVisible()) {
+        return true;
+    }
+    QWidget* tasks = Gui::Control().taskPanel();
+    return tasks && tasks->isAncestorOf(field) && field->isVisibleTo(tasks);
 }
 
 // Typing into a size box replaces its whole text, unit included, as in Fusion (PLAN 3.2, 3.5). FreeCAD
@@ -945,6 +957,17 @@ public:
             "navigation cube's size, in px: what sizing the Tasks panel takes (PLAN 3.10)."
         );
         add_varargs_method(
+            "follow_tasks",
+            &Module::followTasks,
+            "follow_tasks() -> bool\n\n"
+            "Has a solid Tasks panel (FreeCAD's \"Auto task\" mode) hide when its task ends (PLAN 3.10). FreeCAD\n"
+            "never hides a floating panel holding the keyboard focus, and a task's fields have it (Extrude's\n"
+            "length): once the task has ended the focus sits on the empty task view. It goes back to the 3D\n"
+            "view, and FreeCAD checks its panels again, which it does itself on the task view's signal only\n"
+            "when another panel shares the Tasks panel's side (OverlayManager::onTaskViewUpdate). Once; False\n"
+            "if there is no task view."
+        );
+        add_varargs_method(
             "tasks_panel_rect",
             &Module::tasksPanelRect,
             "tasks_panel_rect() -> (x, y, width, height) or None\n\n"
@@ -958,6 +981,7 @@ private:
     std::map<long, KeyEventGate*> gates;
     std::map<long, MouseReleaseWatch*> releaseWatches;
     FieldMenuGate* fieldMenu = nullptr;
+    QPointer<Gui::TaskView::TaskView> followedTasks;  // follow_tasks
     SectionView sectionView;
     long nextGateId = 1;
     SizeBoxTyping* sizeBoxTyping = nullptr;
@@ -1578,6 +1602,35 @@ private:
         return Py::TupleN(Py::Long(height), Py::Long(NaviCube::getNaviCubeSize()));
     }
 
+    Py::Object followTasks(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
+            throw Py::Exception();
+        }
+        Gui::TaskView::TaskView* tasks = Gui::Control().taskPanel();
+        if (tasks == nullptr) {
+            return Py::False();
+        }
+        if (followedTasks != tasks) {
+            followedTasks = tasks;
+            QObject::connect(tasks, &Gui::TaskView::TaskView::taskUpdate, tasks, [tasks]() {
+                QTimer::singleShot(0, tasks, [tasks]() {  // once the task view has finished changing
+                    QWidget* focus = qApp->focusWidget();
+                    if (tasks->isEmpty(false) && focus && (focus == tasks || tasks->isAncestorOf(focus))) {
+                        if (QWidget* view = Gui::getMainWindow()->activeWindow()) {
+                            view->setFocus(Qt::OtherFocusReason);
+                        }
+                        else {
+                            focus->clearFocus();
+                        }
+                    }
+                    Gui::OverlayManager::instance()->refresh();
+                });
+            });
+        }
+        return Py::True();
+    }
+
     Py::Object tasksPanelRect(const Py::Tuple& args)
     {
         if (!PyArg_ParseTuple(args.ptr(), "")) {
@@ -1605,7 +1658,7 @@ private:
         }
         Gui::MainWindow* main = Gui::getMainWindow();
         for (QWidget* field : main->findChildren<QWidget*>(QString::fromUtf8(name))) {
-            if (!field->isVisible()) {
+            if (!inUse(field)) {
                 continue;
             }
             if (auto* sizeBox = qobject_cast<Gui::QuantitySpinBox*>(field)) {
@@ -1626,7 +1679,7 @@ private:
         }
         Gui::MainWindow* main = Gui::getMainWindow();
         for (auto* box : main->findChildren<Gui::QuantitySpinBox*>(QString::fromUtf8(name))) {
-            if (!box->isVisible()) {
+            if (!inUse(box)) {
                 continue;
             }
             box->setValue(value);  // in the box's unit's base (mm for a length); the panel follows it

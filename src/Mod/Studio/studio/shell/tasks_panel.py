@@ -4,7 +4,8 @@
 The size comes from studio.services.tasks_panel; here it follows the room in the main area: once Studio is
 active, shortly after the window stops changing size (FreeCAD lays its floating panels out again each
 time one of their settings changes, so not on every step of a drag), and when documents open or close
-(the documents' tab bar, which FreeCAD's layout counts, appears with the first one).
+(the documents' tab bar, which FreeCAD's layout counts, appears with the first one). The panel is made
+solid once, so it hides between tasks instead of being an empty box over the model.
 """
 
 import FreeCADGui
@@ -56,6 +57,11 @@ _follow = None
 def install_once():
     global _follow
     if _follow is None:
-        _follow = _Follow(FreeCADGui.getMainWindow(), FreeCADTasksPanel())
+        import StudioGui  # Studio's C++ helpers
+
+        panel = FreeCADTasksPanel()
+        panel.make_solid()
+        StudioGui.follow_tasks()  # the panel hides once its task has ended
+        _follow = _Follow(FreeCADGui.getMainWindow(), panel)
         FreeCADGui.addDocumentObserver(_follow)
         QtCore.QTimer.singleShot(0, _follow.apply)
