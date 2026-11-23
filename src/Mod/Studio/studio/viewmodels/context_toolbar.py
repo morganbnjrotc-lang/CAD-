@@ -50,9 +50,18 @@ TOOLS = {
 # Tools that are switches: their button stays lit while on (PLAN 3.13, 3.7; the shell says which are on).
 SWITCHES = frozenset({"Studio_Construction", "Studio_Section"})
 
-# Sketch tools that work on the geometry selected first (FreeCAD stops them with a warning dialog
-# otherwise): their button waits for a selection.
-NEEDS_SELECTION = frozenset({"Sketcher_Translate", "Sketcher_Rotate", "Sketcher_Symmetry"})
+# Sketch tools that work on the geometry selected first (FreeCAD stops them with a warning dialog, or does
+# nothing, otherwise): their button, and their item in the tool groups, waits for a selection.
+NEEDS_SELECTION = frozenset({
+    "Sketcher_Translate", "Sketcher_Rotate", "Sketcher_Symmetry", "Sketcher_Move", "Sketcher_Copy",
+    "Sketcher_Clone", "Sketcher_Scale", "Sketcher_Offset", "Sketcher_JoinCurves", "Sketcher_RemoveAxesAlignment",
+    "Sketcher_ToggleDrivingConstraint", "Sketcher_ToggleActiveConstraint"})
+_ON_CONSTRAINTS = frozenset({"Sketcher_ToggleDrivingConstraint", "Sketcher_ToggleActiveConstraint"})
+
+
+def selection_hint(command) -> str:
+    """What a tool of NEEDS_SELECTION waits for, for its tooltip."""
+    return "Select the constraints first" if command in _ON_CONSTRAINTS else "Select the sketch geometry first"
 
 
 @dataclass(frozen=True)
@@ -175,6 +184,8 @@ class ToolButton:
     checked: bool | None = None  # a switch (SWITCHES): whether it is on; None: not a switch
     settings: tuple = ()  # Way.settings of the way the button draws
     needs_selection: bool = False  # NEEDS_SELECTION: waits for sketch geometry to be selected
+    index: int = -1  # the item of a command making several things (a pinned primitive, tool_groups)
+    pinned: bool = False  # pinned from a group to the toolbar (tool_groups)
 
 
 class ContextToolbar:
@@ -223,7 +234,7 @@ class ContextToolbar:
             if command in SWITCHES:
                 checked = bool(self._is_on(command)) if self._is_on is not None else False
             if command in NEEDS_SELECTION:
-                tooltip += "\nSelect the sketch geometry first"
+                tooltip += "\n" + selection_hint(command)
             result.append(ToolButton(command, label, icon, self._key(command, contexts), tooltip,
                                      method, ways, way, tool, checked, settings, command in NEEDS_SELECTION))
         return result

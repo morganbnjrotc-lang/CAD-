@@ -60,8 +60,8 @@ class CommandBackend:
         switching to it. Must be harmless if the workbench is already loaded."""
         raise NotImplementedError
 
-    def run(self, command: str) -> None:
-        """Run a registered FreeCAD command."""
+    def run(self, command: str, index: int = 0) -> None:
+        """Run a registered FreeCAD command (`index`: which item of a command making several things)."""
         raise NotImplementedError
 
 
@@ -81,8 +81,13 @@ class CommandService:
             self._backend.load_workbench(workbench)  # may raise: then it is tried again next time
             self._loaded.add(workbench)
 
-    def run(self, name: str) -> None:
+    def run(self, name: str, index: int = -1) -> None:
+        """Runs a command, loading its workbench first if needed; `index`: one item of a command making
+        several things (Part Design's primitives), as FreeCAD's runCommand takes it."""
         info = self.catalog.get(name)
         if info.workbench is not None:
             self.ensure_loaded(info.workbench)
-        self._backend.run(name)
+        if index >= 0:
+            self._backend.run(name, index)
+        else:
+            self._backend.run(name)

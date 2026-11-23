@@ -2,11 +2,13 @@
 """Studio's main window, layout A (docs/adr/0009).
 
 On top of FreeCAD's main window, while Studio's workbench is active:
-  top bar  ☰ menu (FreeCAD's File, Edit, View and Help menus) · panel button · "Search tools" (palette)
+  top bar  ☰ menu (FreeCAD's File, Edit, View and Help menus) · panel button · the tool groups
+           (Create, Modify…: studio.shell.tool_groups, PLAN 3.17) · Display · "Search tools" (palette)
   toolbar  the tools for the current selection (studio.viewmodels.context_toolbar), icon and label;
            a sketch tool that draws more than one way has an arrow listing the ways (PLAN 3.12);
            a switch (Construction, PLAN 3.13) stays lit while on; other parts of the shell can add a
-           widget for a kind of selection (`add_tool_widget`: the Fit box for a threaded hole, PLAN 3.9)
+           widget for a kind of selection (`add_tool_widget`: the Fit box for a threaded hole, PLAN 3.9);
+           then the tools pinned for that kind from the groups (`use_pins`; right-click one to unpin it)
   status   a hint for the current selection, at the right of the status bar
 FreeCAD's menu bar is hidden; the Model panel (tree above properties) is FreeCAD's own dock.
 The bars are plain QToolBars: FreeCAD's toolbar manager only hides its own Gui::ToolBar class.
@@ -22,6 +24,7 @@ from studio.shell import icons
 from studio.shell.palette import icon_file
 from studio.shell.shortcuts import _live_is_active
 from studio.viewmodels.context_toolbar import NEEDS_SELECTION, Selected, selection_kind
+from studio.viewmodels.tool_groups import KIND_WORDS, key_of
 from studio.viewmodels.tool_names import clean_title
 
 Qt = QtCore.Qt
@@ -80,6 +83,8 @@ class StudioWindow:
         self._tool_widgets = []  # the toolbar's buttons with ways, replaced on each refresh
         self._makers = {}  # kind -> [make(parent) -> widget or None] (add_tool_widget)
         self._extra_widgets = []  # what they made, replaced on each refresh
+        self._pins = None  # the tool groups (studio.viewmodels.tool_groups), for the tools pinned (use_pins)
+        self._refreshed = []  # called with the kind after each refresh (on_refresh)
 
     # -- setup -------------------------------------------------------------------------------
     def install(self):
@@ -151,8 +156,25 @@ class StudioWindow:
         return next((w for w in self._extra_widgets if w.objectName() == name), None)
 
     def add_to_top_bar(self, widget):
-        """Puts a button of another part of the shell on the top bar, after Panel (e.g. Display)."""
-        self.top_bar.insertWidget(self._spacer, widget)
+        """Puts a button of another part of the shell on the top bar, after Panel (e.g. Display); returns
+        the top bar's action for it (which shows and hides it)."""
+        return self.top_bar.insertWidget(self._spacer, widget)
+
+    def add_top_bar_separator(self):
+        return self.top_bar.insertSeparator(self._spacer)
+
+    def on_refresh(self, callback):
+        """`callback(kind)` after each refresh of the toolbar (the selection's kind may have changed)."""
+        self._refreshed.append(callback)
+
+    def use_pins(self, groups):
+        """Shows the tools pinned from the tool groups (`groups.pinned_buttons(kind)`) after each kind's."""
+        self._pins = groups
+        self.schedule_refresh()
+
+    def toolbar_model(self):
+        """The view-model of the tools for each selection (context_toolbar.ContextToolbar)."""
+        return self._toolbar
 
     def show(self):
         """Studio's look: our bars in, FreeCAD's menu bar out."""
@@ -215,6 +237,10 @@ class StudioWindow:
             for extra in self.extra_menus:
                 menu.addMenu(extra)
 
+    def icon(self, icon):
+        """A tool's icon as the toolbar shows it (Studio's line drawing in the text color, or FreeCAD's)."""
+        return self._icon(icon)
+
     def _icon(self, icon):
         line = icons.line_icon(icon, self._look)  # Studio's drawing in the text color
         if line is not None:
@@ -258,7 +284,11 @@ class StudioWindow:
         for widget in self._tool_widgets + self._extra_widgets:
             widget.deleteLater()
         self._tool_widgets, self._extra_widgets = [], []
-        for button in self._toolbar.buttons(kind, contexts):
+        buttons = self._toolbar.buttons(kind, contexts)
+        pinned = self._pins.pinned_buttons(kind, contexts) if self._pins is not None else []
+        for button in buttons + pinned:
+            if pinned and button is pinned[0]:
+                self.tools.addSeparator()
             key = f" ({button.shortcut})" if button.shortcut else ""
             tooltip = f"{button.label}{key}\n{button.tooltip}"
             if button.ways:
@@ -272,7 +302,9 @@ class StudioWindow:
                     action.setCheckable(True)
                     action.setChecked(button.checked)
                 action.triggered.connect(
-                    functools.partial(self._run, button.command, button.method, button.settings))
+                    functools.partial(self._run, button.command, button.method, button.settings, button.index))
+                if button.pinned:
+                    self._unpin_on_right_click(action, kind, key_of(button.command, button.index, button.method))
             action.setData(button.command)
             action.setEnabled(self._active(button.command))
         for make in self._makers.get(kind, ()):
@@ -282,6 +314,26 @@ class StudioWindow:
                 self._extra_widgets.append(widget)
         self.hint.setText(self._toolbar.hint(kind, contexts))
         self.kind = kind
+        for callback in self._refreshed:
+            callback(kind)
+
+    def _unpin_on_right_click(self, action, kind, key):
+        widget = self.tools.widgetForAction(action)
+        widget.setContextMenuPolicy(Qt.CustomContextMenu)
+        widget.customContextMenuRequested.connect(
+            lambda pos: self._unpin_menu(widget.mapToGlobal(pos), kind, key))
+
+    def _unpin_menu(self, where, kind, key):
+        """A pinned button's right-click menu."""
+        menu = QtWidgets.QMenu(self.tools)
+        menu.setObjectName("StudioPinMenu")
+        menu.addAction(f"Unpin from toolbar {KIND_WORDS[kind]}", lambda: self.unpin(kind, key))
+        menu.exec_(where)
+        menu.deleteLater()
+
+    def unpin(self, kind, key):
+        if self._pins is not None and self._pins.unpin(kind, key):
+            self.schedule_refresh()
 
     def _ways_button(self, button, tooltip):
         """A tool that draws more than one way: the button draws the way picked last, its arrow lists them."""
@@ -298,7 +350,8 @@ class StudioWindow:
             item.setChecked(index == button.way)
             item.triggered.connect(functools.partial(self._pick_way, button.tool, index, way))
         widget.setMenu(menu)
-        widget.clicked.connect(functools.partial(self._run, button.command, button.method, button.settings))
+        widget.clicked.connect(
+            functools.partial(self._run, button.command, button.method, button.settings, button.index))
         self._tool_widgets.append(widget)
         return widget
 
@@ -314,6 +367,10 @@ class StudioWindow:
     def _pick_way(self, tool, index, way, *_):
         self.choose_way(tool, index)
         self._run(way.command, way.method, way.settings)
+
+    def is_enabled(self, command):
+        """Whether a tool can run now (grayed on the toolbar and in the groups otherwise)."""
+        return self._active(command)
 
     def _active(self, command):
         if command in NEEDS_SELECTION and not self._sketch_geometry_selected():
@@ -339,12 +396,20 @@ class StudioWindow:
             if hasattr(widget, "sync"):
                 widget.sync()
 
-    def _run(self, command, method=0, settings=(), *_):
-        QtCore.QTimer.singleShot(0, lambda: self._run_now(command, method, settings))
+    def run_tool(self, command, method=0, settings=(), index=-1):
+        """Runs a tool as its button does: `method` and `settings` for a way (context_toolbar.Way), `index`
+        for one item of a command making several things (Part Design's primitives)."""
+        self._run(command, method, settings, index)
 
-    def _run_now(self, command, method=0, settings=()):
+    def _run(self, command, method=0, settings=(), index=-1, *_):
+        QtCore.QTimer.singleShot(0, lambda: self._run_now(command, method, settings, index))
+
+    def _run_now(self, command, method=0, settings=(), index=-1):
         try:
-            self._service.run(command)
+            if index >= 0:
+                self._service.run(command, index)
+            else:
+                self._service.run(command)
         except Exception as exc:
             FreeCAD.Console.PrintError(f"Studio toolbar: {command} failed: {exc}\n")
             return

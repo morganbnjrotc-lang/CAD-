@@ -1026,7 +1026,8 @@ public:
             &Module::choosePopup,
             "choose_popup(label) -> bool\n\n"
             "For tests: picks the item with that text (without '&') in the menu open now, as a click\n"
-            "would. False if no menu is open or it has no such enabled item."
+            "would (an item showing its key after a tab matches by its name too). False if no menu is open\n"
+            "or it has no such enabled item."
         );
         add_varargs_method(
             "declared_shortcut",
@@ -1476,7 +1477,9 @@ private:
         }
         const QString wanted = QString::fromUtf8(label);
         for (QAction* action : menu->actions()) {
-            if (QString(action->text()).remove(QLatin1Char('&')) == wanted && action->isEnabled()) {
+            // The name alone also matches an item showing its key after a tab ("Section\tX").
+            const QString text = QString(action->text()).remove(QLatin1Char('&'));
+            if ((text == wanted || text.section(QLatin1Char('\t'), 0, 0) == wanted) && action->isEnabled()) {
                 menu->close();
                 action->trigger();
                 return Py::True();

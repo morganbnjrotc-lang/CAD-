@@ -14,5 +14,5 @@ class FreeCADCommandBackend(CommandBackend):
 
         StudioGui.initialize_workbench(name)
 
-    def run(self, command: str) -> None:
-        FreeCADGui.runCommand(command)
+    def run(self, command: str, index: int = 0) -> None:
+        FreeCADGui.runCommand(command, index)

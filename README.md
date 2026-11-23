@@ -94,6 +94,7 @@ Inspiration: the feature set shown in [this FizCAD demo](https://www.youtube.com
 | Fully offline, no telemetry | Has | Keep it that way |
 | Parts library download (McMaster-style) with auto material detection | Missing (Parts Library addon is offline files) | Optional, user-triggered; legal review needed for third-party catalogs |
 | Right-click any field → "Make default" | Missing — size boxes keep a list of recent values ("Save Value"), but new features always start at FreeCAD's fixed sizes | Make Default and Forget Default on the size boxes of Part Design's tools ✅ |
+| Every tool easy to reach without a crowded screen | Has every tool, on a wall of toolbars and menus per workbench | A toolbar that follows the selection ✅; Fusion's groups (Create, Modify, Construct, Inspect, Insert) as menus on the top bar holding every tool ✅; pin a tool to the toolbar for a kind of selection ✅ |
 
 ### Our additions
 

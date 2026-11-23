@@ -66,6 +66,8 @@ The user was shown three layouts with mockups for each kind of selection: A, a l
 - A probe that ends the app with `os._exit` logs two "Unhandled unknown exception caught in
   GUIApplication::notify" lines with the window installed. A normal close logs none.
 
+- *Amended 2026-11-22* by [ADR 0013](0013-tool-groups-and-pins.md): the top bar also holds Fusion's tool groups (Create, Modify, Construct, Inspect, Insert; while sketching Create, Modify, Constrain, Inspect) with every tool, and a tool can be pinned to the toolbar for a kind of selection.
+
 ## Consequences
 
 - FreeCAD's module toolbars and the workbench switcher never show; a tool is reached through the toolbar,

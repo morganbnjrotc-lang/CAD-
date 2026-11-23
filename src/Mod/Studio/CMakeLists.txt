@@ -40,6 +40,13 @@ foreach(line ${Studio_ICON_LINES})
     string(REGEX REPLACE ".*\"icon\": \"src/([^\"]+)\".*" "\\1" icon "${line}")
     list(APPEND Studio_ICONS ${icon})
 endforeach()
+# Icons the tool groups show besides the catalog's (studio/viewmodels/tool_groups.py, PLAN 3.17): Part
+# Design's primitives, which one command makes each for adding and for cutting.
+foreach(kind Additive Subtractive)
+    foreach(shape Box Cylinder Sphere Cone Ellipsoid Torus Prism Wedge)
+        list(APPEND Studio_ICONS Mod/PartDesign/Gui/Resources/icons/PartDesign_${kind}${shape}.svg)
+    endforeach()
+endforeach()
 list(REMOVE_DUPLICATES Studio_ICONS)
 foreach(icon ${Studio_ICONS})
     configure_file(${CMAKE_SOURCE_DIR}/src/${icon}

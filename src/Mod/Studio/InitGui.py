@@ -28,7 +28,7 @@ class StudioWorkbench(FreeCADGui.Workbench):
     def Activated(self):
         from studio.shell import (appearance, display, environment, export_threads, extrude_direction,
                                   extrude_regions, feature_panels, field_defaults, home, shortcuts, sketching,
-                                  tasks_panel, thread_fit, units, warmup, window)
+                                  tasks_panel, thread_fit, tool_groups, units, warmup, window)
 
         # One environment (docs/adr/0009): editing a sketch no longer switches workbench.
         environment.install_once()
@@ -36,6 +36,8 @@ class StudioWorkbench(FreeCADGui.Workbench):
         shortcuts.install_once()
         # Top bar, toolbar that follows the selection, status-bar hint (docs/adr/0009).
         window.install_once()
+        # Every tool in Fusion's groups on the top bar (Create, Modify…); right-click one to pin it (PLAN 3.17).
+        tool_groups.install_once()
         # Studio's look: Fusion, its light or dark palette, 3D colors; follows Windows (docs/adr/0010).
         appearance.install_once()
         # The top bar's Display menu: how the 3D view draws the model, perspective or not (PLAN 3.8).
