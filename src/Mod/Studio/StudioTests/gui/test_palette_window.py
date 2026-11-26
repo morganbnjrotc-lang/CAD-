@@ -123,6 +123,35 @@ class Icons(unittest.TestCase):
         self.assertTrue(os.path.isfile(path), path)
         self.assertIsNone(icon_file(None))
 
+    def test_a_command_studio_has_no_drawing_for_shows_in_one_color(self):
+        # FreeCAD's icon in the text color until its phase gets a drawing (the user's pick, 2026-11-26:
+        # "the icons need to be updated to match the new aesthetic, also in the search")
+        from studio.services import theme
+        from studio.shell import palette
+
+        FreeCADGui.runCommand("Studio_CommandPalette")
+        settle()
+        window = palette.current_window()
+        self.addCleanup(window.close)
+        for look in (theme.LIGHT, theme.DARK):
+            window.restyle(look)
+            window.search.setText("")  # typed again: the rows are made in this look
+            window.search.setText("Print")  # Std_Print: FreeCAD's printer, in its colors
+            settle()
+            rows = [window.results.topLevelItem(i) for i in range(window.results.topLevelItemCount())]
+            row = next(r for r in rows if r.data(0, QtCore.Qt.UserRole) == "Std_Print")
+            # plain colors: a premultiplied image's pixels read darker where they are see-through
+            image = row.icon(0).pixmap(32, 32).toImage().convertToFormat(QtGui.QImage.Format_ARGB32)
+            pixels = [image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height())]
+            colors = {c.name() for c in pixels if c.alpha() > 160}
+            self.assertTrue(colors, "no icon")
+            # one color: shrinking the icon to 32 px rounds each pixel's by a few units, FreeCAD's printer
+            # in its own colors is far from the text color
+            from .test_appearance import near
+
+            off = {c for c in colors if not near(c, QtGui.QColor(look.text).name(), units=8)}
+            self.assertEqual(off, set(), f"{look.name}: text {look.text}, icon {sorted(colors)}")
+
 
 class Wiring(unittest.TestCase):
     def test_s_and_ctrl_k_open_the_palette_from_the_studio_command(self):

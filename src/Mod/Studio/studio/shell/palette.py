@@ -89,6 +89,8 @@ class PaletteWindow(QtWidgets.QFrame):
         path = icon_file(icon)
         if path is None or not os.path.isfile(path):
             return None
+        if self._look is not None:  # no drawing yet: FreeCAD's icon in the text color
+            return icons.one_color(path, self._look.text)
         if path not in self._icons:
             self._icons[path] = QtGui.QIcon(path)
         return self._icons[path]

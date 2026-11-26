@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 from studio.services import icons, theme
 from studio.services.commands import CommandCatalog
 from studio.viewmodels.context_toolbar import TOOLS, WAYS, ContextToolbar
+from studio.viewmodels.tool_groups import SubMenu, ToolGroups
 
 SVG = "{http://www.w3.org/2000/svg}"
 SHAPES = {f"{SVG}{tag}" for tag in ("path", "circle", "ellipse", "rect", "g")}
@@ -54,6 +55,18 @@ class Names(unittest.TestCase):
             for command, _label in tools:
                 with self.subTest(kind=kind, command=command):
                     self.assertIsNotNone(icons.line_icon(stem(catalog.get(command).icon)))
+
+    def test_every_tool_in_the_top_bars_groups_has_a_line_icon(self):
+        # The user, 2026-11-26: "inside the tabs the icons need to be updated to match the new aesthetic"
+        catalog = CommandCatalog.load()
+        groups = ToolGroups(catalog, ContextToolbar(catalog))
+        for sketching in (False, True):
+            for group in groups.groups(sketching):
+                items = [i for entry in group.items if entry is not None
+                         for i in (entry.items if isinstance(entry, SubMenu) else (entry,))]
+                for item in items:
+                    with self.subTest(group=group.label, tool=item.label):
+                        self.assertIsNotNone(icons.line_icon(stem(item.icon)), item.icon)
 
     def test_every_way_to_draw_has_a_line_icon_of_its_own(self):
         # The drop-down under a tool shows each way's drawing, and the button the one it draws (PLAN 3.12).

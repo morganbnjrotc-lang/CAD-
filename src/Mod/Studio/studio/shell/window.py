@@ -15,6 +15,7 @@ The bars are plain QToolBars: FreeCAD's toolbar manager only hides its own Gui::
 """
 
 import functools
+import os
 
 import FreeCAD
 import FreeCADGui
@@ -246,6 +247,8 @@ class StudioWindow:
         if line is not None:
             return line
         path = icon_file(icon)
+        if self._look is not None and path and os.path.isfile(path):  # no drawing yet: FreeCAD's in one color
+            return icons.one_color(path, self._look.text)
         if path not in self._icons:
             self._icons[path] = QtGui.QIcon(path) if path else QtGui.QIcon()
         return self._icons[path]

@@ -27,8 +27,8 @@ class StudioWorkbench(FreeCADGui.Workbench):
 
     def Activated(self):
         from studio.shell import (appearance, display, environment, export_threads, extrude_direction,
-                                  extrude_regions, feature_panels, field_defaults, home, shortcuts, sketching,
-                                  tasks_panel, thread_fit, tool_groups, units, warmup, window)
+                                  extrude_regions, feature_panels, field_defaults, home, new_features, shortcuts,
+                                  sketching, tasks_panel, thread_fit, tool_groups, units, warmup, window)
 
         # One environment (docs/adr/0009): editing a sketch no longer switches workbench.
         environment.install_once()
@@ -44,6 +44,8 @@ class StudioWorkbench(FreeCADGui.Workbench):
         display.install_once()
         # Inches or millimeters, everywhere; follows Windows' region unless the user picks (PLAN 3.1).
         units.install_once()
+        # Features made now get Studio's names (Extrude…); a new hole starts in the units' threads (PLAN 3.18).
+        new_features.install_once()
         # Sketching like Fusion: typing into a size box replaces it, unit included (PLAN 3.2).
         sketching.install_once()
         # Fillet and Chamfer open ready to pick more edges (PLAN 3.11).

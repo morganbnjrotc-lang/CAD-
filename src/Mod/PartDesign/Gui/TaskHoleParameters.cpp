@@ -75,10 +75,11 @@ TaskHoleParameters::TaskHoleParameters(ViewProviderHole* HoleView, QWidget* pare
     ui->ThreadType->addItem(tr("None"), QByteArray("None"));
     ui->ThreadType->addItem(tr("ISO metric regular"), QByteArray("ISO"));
     ui->ThreadType->addItem(tr("ISO metric fine"), QByteArray("ISO"));
-    ui->ThreadType->addItem(tr("UTS coarse"), QByteArray("UTS"));
-    ui->ThreadType->addItem(tr("UTS fine"), QByteArray("UTS"));
-    ui->ThreadType->addItem(tr("UTS extra fine"), QByteArray("UTS"));
-    ui->ThreadType->addItem(tr("ANSI pipes"), QByteArray("UTS"));
+    // Studio (CORE_PATCHES.md): the American standards by the names on a US drawing or bolt box
+    ui->ThreadType->addItem(tr("UNC, US coarse"), QByteArray("UTS"));
+    ui->ThreadType->addItem(tr("UNF, US fine"), QByteArray("UTS"));
+    ui->ThreadType->addItem(tr("UNEF, US extra fine"), QByteArray("UTS"));
+    ui->ThreadType->addItem(tr("NPT, US pipe"), QByteArray("UTS"));
     ui->ThreadType->addItem(tr("ISO/BSP pipes"), QByteArray("ISO"));
     ui->ThreadType->addItem(tr("BSW whitworth"), QByteArray("Other"));
     ui->ThreadType->addItem(tr("BSF whitworth fine"), QByteArray("Other"));
