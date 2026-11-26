@@ -41,8 +41,10 @@ def plain_label(feature):
     plain = PLAIN.get(getattr(feature, "TypeId", ""))
     if plain is None:
         return None
-    freecads = feature.TypeId.split("::")[1]
-    if feature.Label != feature.Name or not re.fullmatch(re.escape(freecads) + r"\d*", feature.Name):
+    # FreeCAD's own: its type, numbered or not, for both its name and its label (the label of the second "Pad"
+    # is "Pad" again once the first has become Extrude, its name "Pad001")
+    freecads = re.escape(feature.TypeId.split("::")[1]) + r"\d*"
+    if not (re.fullmatch(freecads, feature.Name) and re.fullmatch(freecads, feature.Label)):
         return None
     return plain
 

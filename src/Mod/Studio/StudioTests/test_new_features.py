@@ -45,6 +45,15 @@ class Names(_Body):
         new_features.rename(second)
         self.assertEqual((first.Label, second.Label), ("Extrude", "Extrude001"))
 
+    def test_the_second_after_the_first_was_renamed(self):
+        # "Pad" is free again once the first is Extrude: FreeCAD labels the second "Pad" (its name: Pad001)
+        first = self.make("PartDesign::Pad")
+        new_features.rename(first)
+        second = self.make("PartDesign::Pad")
+        self.assertEqual(new_features.plain_label(second), "Extrude")
+        new_features.rename(second)
+        self.assertEqual((first.Label, second.Label), ("Extrude", "Extrude001"))
+
     def test_features_freecad_names_as_the_toolbar_does_keep_their_names(self):
         for kind in ("PartDesign::Fillet", "PartDesign::Chamfer", "PartDesign::Hole", "PartDesign::Draft"):
             with self.subTest(kind=kind):

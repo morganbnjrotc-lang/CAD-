@@ -18,10 +18,11 @@ HOLE = "PartDesign::Hole"
 
 
 class _Made:
-    """FreeCAD document observer (objects made) and FreeCADGui document observer (panels opening)."""
+    """FreeCAD document observer: objects made. (FreeCADGui's observers get a slotCreatedObject too, with view
+    providers: a separate one, `_Opened`, watches the panels.)"""
 
     def __init__(self):
-        self._hole = None  # (document, name) of the hole made last, until its panel opens or another is made
+        self.hole = None  # (document, name) of the hole made last, until its panel opens or another is made
 
     def slotCreatedObject(self, obj):
         doc = obj.Document
@@ -31,11 +32,18 @@ class _Made:
             new_features.rename(obj)
         except Exception as exc:  # never in the way of making the feature
             FreeCAD.Console.PrintWarning(f"Studio: {obj.Name} keeps FreeCAD's name: {exc}\n")
-        self._hole = (doc.Name, obj.Name) if obj.TypeId == HOLE else None
+        self.hole = (doc.Name, obj.Name) if obj.TypeId == HOLE else None
+
+
+class _Opened:
+    """FreeCADGui document observer: a panel opening for the hole just made."""
+
+    def __init__(self, made):
+        self._made = made
 
     def slotInEdit(self, view_provider):
         hole = getattr(view_provider, "Object", None)
-        made, self._hole = self._hole, None
+        made, self._made.hole = self._made.hole, None
         if getattr(hole, "TypeId", "") != HOLE or made != (hole.Document.Name, hole.Name):
             return
         from studio.shell import units
@@ -58,5 +66,5 @@ def install_once():
 
         _made = _Made()
         FreeCAD.addDocumentObserver(_made)
-        FreeCADGui.addDocumentObserver(_made)
+        FreeCADGui.addDocumentObserver(_Opened(_made))
     return _made
