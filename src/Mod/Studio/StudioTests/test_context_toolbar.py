@@ -103,7 +103,7 @@ class Buttons(unittest.TestCase):
                          ["New Sketch", "New Body", "Pattern", "Import", "Measure", "Section", "Search"])
         self.assertEqual(self.labels("sketch"), ["Extrude", "Cut", "Revolve", "Hole", "Edit Sketch"])
         self.assertEqual(self.labels("face"),
-                         ["Sketch on Face", "Fillet", "Chamfer", "Shell", "Draft", "Measure", "Section"])
+                         ["Sketch on Face", "Fillet", "Chamfer", "Shell", "Draft", "Thread", "Measure", "Section"])
         self.assertEqual(self.labels("edge"), ["Fillet", "Chamfer", "Measure", "Fit Selection"])
         self.assertEqual(self.labels("geometry"), ["Fillet", "Chamfer", "Measure", "Fit Selection"])
         self.assertEqual(self.labels("feature"), ["Pattern", "Fit Selection"])

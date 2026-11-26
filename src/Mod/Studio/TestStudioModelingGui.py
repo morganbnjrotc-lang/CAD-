@@ -12,6 +12,7 @@ from StudioTests.gui.test_extrude_direction import LettingGo, Typing  # noqa: F4
 from StudioTests.gui.test_extrude_regions import PickingRegions  # noqa: F401
 from StudioTests.gui.test_preview_waits import PreviewDuringProgress  # noqa: F401
 from StudioTests.gui.test_new_features import NewFeatures  # noqa: F401
+from StudioTests.gui.test_shaft_threads import ThreadTool  # noqa: F401
 from StudioTests.gui.test_field_defaults import MakeDefault  # noqa: F401
 from StudioTests.gui.test_hole_chamfer import ChamferHole  # noqa: F401
 from StudioTests.gui.test_export_threads import ExportedThreads  # noqa: F401

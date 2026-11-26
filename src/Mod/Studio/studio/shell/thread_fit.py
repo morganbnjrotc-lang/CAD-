@@ -169,4 +169,5 @@ def install_once():
         _scrub = _Scrub()
         if window.current() is not None:
             window.current().add_tool_widget("hole", make_box)
+            window.current().add_tool_widget("feature", make_box)  # a Thread on a shaft (PLAN 3.20)
     return _scrub

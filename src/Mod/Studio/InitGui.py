@@ -27,8 +27,9 @@ class StudioWorkbench(FreeCADGui.Workbench):
 
     def Activated(self):
         from studio.shell import (appearance, display, environment, export_threads, extrude_direction,
-                                  extrude_regions, feature_panels, field_defaults, home, new_features, shortcuts,
-                                  sketching, tasks_panel, thread_fit, tool_groups, units, warmup, window)
+                                  extrude_regions, feature_panels, field_defaults, home, new_features,
+                                  shaft_threads, shortcuts, sketching, tasks_panel, thread_fit, tool_groups, units,
+                                  warmup, window)
 
         # One environment (docs/adr/0009): editing a sketch no longer switches workbench.
         environment.install_once()
@@ -58,6 +59,8 @@ class StudioWorkbench(FreeCADGui.Workbench):
         field_defaults.install_once()
         # Exported files get the threads modeled; the model keeps them cosmetic (PLAN 3.9).
         export_threads.install_once()
+        # Threads on a shaft's round face, cosmetic ones drawn with FreeCAD's thread texture (PLAN 3.20).
+        shaft_threads.install_once()
         # A threaded hole picked: the toolbar's Fit box loosens or tightens it (PLAN 3.9).
         thread_fit.install_once()
         # The Tasks panel medium-sized at the right of the 3D view, following the window (PLAN 3.10).
@@ -231,6 +234,35 @@ class _HoleChamfer:
 
 
 FreeCADGui.addCommand("Studio_HoleChamfer", _HoleChamfer())
+
+
+class _Thread:
+    """Threads the picked round face, like Fusion's Thread (PLAN 3.20, docs/adr/0014)."""
+
+    def GetResources(self):
+        import os
+
+        import FreeCAD
+
+        return {
+            "MenuText": "Thread",
+            "ToolTip": "Threads the picked round face (a shaft, a stud), sized from it: cosmetic, or modeled",
+            "Pixmap": os.path.join(FreeCAD.getHomePath(), "Mod", "Studio", "Resources", "icons", "line",
+                                   "thread.svg"),
+        }
+
+    def IsActive(self):
+        from studio.shell import shaft_threads
+
+        return shaft_threads.selected_round_face() is not None
+
+    def Activated(self):
+        from studio.shell import shaft_threads
+
+        shaft_threads.start()
+
+
+FreeCADGui.addCommand("Studio_Thread", _Thread())
 FreeCADGui.addCommand("Studio_Finish", _PanelButton(accept=True))
 FreeCADGui.addCommand("Studio_Cancel", _PanelButton(accept=False))
 

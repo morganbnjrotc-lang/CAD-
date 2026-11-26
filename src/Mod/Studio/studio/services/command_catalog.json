@@ -1601,6 +1601,14 @@
    "icon": "src/Mod/Studio/Resources/icons/line/section.svg"
   },
   {
+   "name": "Studio_Thread",
+   "workbench": null,
+   "menu_text": "Thread",
+   "tooltip": "Threads the picked round face (a shaft, a stud), sized from it: cosmetic, or modeled",
+   "shortcut": "",
+   "icon": "src/Mod/Studio/Resources/icons/line/thread.svg"
+  },
+  {
    "name": "Material_Edit",
    "workbench": "SketcherWorkbench",
    "menu_text": "Edit",

@@ -39,7 +39,7 @@ Inspiration: the feature set shown in [this FizCAD demo](https://www.youtube.com
 | Text on curved surfaces + extrude in/out | Missing | Falls out of surface sketches + text tool |
 | 3D sketches / wire routing with draggable nodes, extend by adding points | Partial — Draft BSpline/Wire + Part Sweep; Cables addon | Native 3D spline sketch with node handles + auto sweep (wires, cables, tubing) |
 | Threads: cosmetic or modeled, toggle anytime, "model all threads on export" | Partial — PartDesign Hole can model threads, per feature | Cosmetic by default (FreeCAD's) and modeled in every export ✅ |
-| Thread allowance/clearance scrubber (3D printing fits) | Partial — Hole has custom thread clearance, for modeled threads only | Fit box on the toolbar for a picked threaded hole: scroll to loosen or tighten, works on cosmetic + modeled ✅ |
+| Thread allowance/clearance scrubber (3D printing fits) | Partial — Hole has custom thread clearance, for modeled threads only | Fit box on the toolbar for a picked threaded hole: scroll to loosen or tighten, works on cosmetic + modeled ✅; threads on a shaft (Thread on a round face, cosmetic or modeled, with the fit) ✅ |
 | Auto hole chamfer | Partial — Hole countersink/countersink-ish options | One-click hole chamfer ✅ |
 | Sheet metal: unfold animation, movable fold lines, auto seam relief cutouts | Partial — SheetMetal is an external addon | Bring in built-in, add animated unfold + relief options |
 
