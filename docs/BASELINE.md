@@ -140,7 +140,7 @@ With Windows locked (LogonUI running), each round of Qt events in the GUI suite 
 which can't take focus. The last commit fails it the same way; run the GUI suite unlocked. Seen again
 2026-11-17 (100 tests, 76 s locked): also `test_warmup_runner.WarmUpRunnerTest.test_a_failed_load_is_reported_and_the_rest_still_load`
 times out waiting for the background loads; both fail the same way without that day's changes.
-Seen again 2026-11-26 with the screen unlocked: `test_palette_window.Wiring` failed in every run (the palette never became visible), also on the slim build made before that day's changes, so the machine's state rather than the code; it had passed earlier the same day. Not explained yet.
+Seen again 2026-11-26 with the screen unlocked: `test_palette_window.Wiring` failed in every run (the palette never became visible), also on the slim build made before that day's changes. The cause: a McAfee "Antivirus protection expired" window on top of everything (a screen grab showed it). With it closed, all 189 passed. Any window holding the foreground can do this: check the screen before trusting a popup test's failure.
 
 ### Known upstream issue: C++ tests fail on a fresh build folder on Windows (fixed)
 
