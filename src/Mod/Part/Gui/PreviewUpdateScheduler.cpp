@@ -23,8 +23,13 @@
 
 #include "PreviewUpdateScheduler.h"
 
+#include <QTimer>
+
+#include <App/Application.h>
+#include <App/Document.h>
 #include <Base/Console.h>
 #include <Base/Exception.h>
+#include <Base/Sequencer.h>
 
 #include <Standard_Failure.hxx>
 
@@ -54,8 +59,34 @@ void QtPreviewUpdateScheduler::schedulePreviewRecompute(App::DocumentObject* obj
     QMetaObject::invokeMethod(this, &QtPreviewUpdateScheduler::flush, Qt::QueuedConnection);
 }
 
+namespace
+{
+// Studio (CORE_PATCHES.md): whether a recompute, or a long operation showing a progress bar, is under way.
+bool busy()
+{
+    if (Base::SequencerBase::Instance().isRunning()) {
+        return true;
+    }
+    for (App::Document* doc : App::GetApplication().getDocuments()) {
+        if (doc->testStatus(App::Document::Recomputing)) {
+            return true;
+        }
+    }
+    return false;
+}
+}  // namespace
+
 void QtPreviewUpdateScheduler::flush()
 {
+    // Studio (CORE_PATCHES.md): not during a recompute or a progress bar. A long recompute's progress bar
+    // keeps the window updating, and a preview computed then starts a second OpenCASCADE boolean inside the
+    // first one, which waits for the first one's lock forever: the Hole panel's Tap drill on a filleted part
+    // froze the app. Try again shortly; `scheduled` stays set, so requests made meanwhile join this one.
+    if (busy()) {
+        QTimer::singleShot(100, this, &QtPreviewUpdateScheduler::flush);
+        return;
+    }
+
     scheduled = false;
 
     // use std::exchange to prevent race conditions on updates that could occur during a flush

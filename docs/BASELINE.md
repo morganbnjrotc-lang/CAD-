@@ -107,6 +107,12 @@ and back with a document open. Since 2026-11-15 Studio reaches FreeCAD's panels 
 why. FreeCAD's crash reporter writes `*.fcrash` reports with the native stack to the profile's
 `CrashReports` folder, so a crash like this can now be read without a debugger.
 
+### Known upstream issue: a feature's preview froze the app during a slow recompute (fixed)
+
+2026-11-26, the user: "it appears that the CAD is crashing/freezing out after changing the hole to have threads". Their app was not responding with no CPU in use; their model's unsaved changes had no recovery copy. Reproduced on a copy of their last save: a circle on the filleted top face, Hole, then the panel's type Clearance → Tap drill froze it every time; headless, the same property changes didn't. `tools/test/native_stacks.py <pid>` (dbghelp, no debugger needed, names from the RelWithDebInfo build's PDBs) showed the main thread, bottom up: `TaskHoleParameters::holeTypeChanged` → `recomputeFeature` → `Document::recompute` → `Hole::execute` (FeatureHole.cpp:2089) → the cut's OpenCASCADE progress → `ProgressBar` processing events → Part's `QtPreviewUpdateScheduler::flush` → `FeatureAddSub::updatePreviewShape` → a second boolean → waiting on a lock in `TKernel`/`MSVCP140`. Fixed in our fork: the preview waits while a progress bar or recompute runs (`docs/CORE_PATCHES.md`; test `StudioTests/gui/test_preview_waits.py`, which starts a progress bar from Python so the moment is the same every run). Worth sending upstream.
+
+While the user's frozen app was still open, `test_tasks_panel.MediumSize`'s two hide checks failed every run, with and without the fix: a not-responding window on the desktop changes which window Windows makes active, and FreeCAD never hides a floating panel holding the keyboard focus. With it closed they passed. Close hung FreeCADs before a GUI run.
+
 ### Watching: TestStudioGui hung twice in a sketch-typing test while the machine was busy
 
 On 2026-11-21, with Fully Constrain's scratch-sketch change, two full `TestStudioGui` runs in a row were killed
