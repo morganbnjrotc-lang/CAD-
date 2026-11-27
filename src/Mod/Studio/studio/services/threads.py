@@ -74,9 +74,21 @@ def _model(thread, on):
 
 
 def not_modeled(holes):
-    """Those of `holes`, inside `modeled`, whose thread couldn't be modeled (the feature failed): an export
-    has them plain."""
-    return [hole for hole in holes if not hole.isValid()]
+    """Those of `holes`, inside `modeled`, whose thread didn't reach their body's shape, so an export has them
+    plain: the thread's feature failed, or a feature of its body did (a chamfer on a threaded hole's edge
+    loses its edge), or it wasn't recomputed at all (FreeCAD skips what depends on a failed feature: the
+    sunflower's stem is drawn on the flower's hole)."""
+
+    def broken(obj):
+        return not obj.isValid() or "Touched" in obj.State
+
+    found = []
+    for hole in holes:
+        body = hole.getParentGeoFeatureGroup()
+        features = [body, *body.Group] if body is not None else []
+        if broken(hole) or any(broken(o) for o in features if o.isDerivedFrom("App::GeoFeature")):
+            found.append(hole)
+    return found
 
 
 @contextmanager
@@ -87,6 +99,8 @@ def modeled(doc):
         yield []
         return
     own_step = not doc.HasPendingTransaction  # a panel's step open: change and change back by hand
+    # FreeCAD turns a hole's thread texture off when it models the thread: put it back as it was too
+    textures = {hole.Name: hole.CosmeticThread for hole in holes if hasattr(hole, "CosmeticThread")}
     if own_step:
         doc.openTransaction("Model threads for export")
     try:
@@ -100,4 +114,6 @@ def modeled(doc):
         else:
             for hole in holes:
                 _model(hole, False)
+                if hole.Name in textures:
+                    hole.CosmeticThread = textures[hole.Name]
         doc.recompute()

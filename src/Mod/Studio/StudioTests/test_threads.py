@@ -75,6 +75,21 @@ class Threads(ThreadedPart):
         self.assertFalse(self.hole.ModelThread)
         self.assertEqual(len(self.body.Shape.Faces), self.cosmetic_faces)
 
+    def test_the_texture_comes_back_after(self):
+        # modeling a hole turns its thread texture (CosmeticThread) off; it comes back afterwards, also when
+        # a panel's undo step is open (the change is then put back by hand, not undone)
+        self.assertTrue(self.hole.CosmeticThread)
+        with threads.modeled(self.doc):
+            self.assertFalse(self.hole.CosmeticThread)
+        self.assertTrue(self.hole.CosmeticThread)
+        self.doc.openTransaction("A panel's step")
+        self.hole.Depth = 7  # the panel has changed something: its step is open
+        self.assertTrue(self.doc.HasPendingTransaction)
+        with threads.modeled(self.doc):
+            pass
+        self.assertTrue(self.hole.CosmeticThread)
+        self.doc.abortTransaction()
+
     def test_no_undo_step_is_left(self):
         undo = self.doc.UndoCount
         with threads.modeled(self.doc):

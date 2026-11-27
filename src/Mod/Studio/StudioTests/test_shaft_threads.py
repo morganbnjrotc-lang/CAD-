@@ -178,6 +178,66 @@ class OnAShaft(unittest.TestCase):
         with threads.modeled(self.doc) as made:
             self.assertEqual(threads.not_modeled(made), [])
 
+    def breaks_when_modeled(self):
+        """A feature after the thread that fails once the thread is modeled, as a chamfer on a threaded hole's
+        edge does (the edge it names is gone)."""
+        breaks = self.body.newObject("PartDesign::FeaturePython", "Breaks")
+        _BreaksWhenModeled(breaks, self.volume)
+        self.doc.recompute()
+        self.assertTrue(breaks.isValid(), breaks.getStatusString())
+        return breaks
+
+    def test_an_export_tells_when_a_feature_after_the_thread_fails(self):
+        from studio.services import threads
+
+        thread = self.thread()
+        self.breaks_when_modeled()
+        with threads.modeled(self.doc) as made:
+            self.assertTrue(thread.isValid())
+            self.assertEqual(threads.not_modeled(made), [thread])
+
+    def test_an_export_tells_when_a_thread_waits_on_a_failed_body(self):
+        # the user's stem is drawn on the flower's hole: when the flower fails, FreeCAD skips the stem, which
+        # keeps its cosmetic shape with no error of its own
+        from studio.services import threads
+
+        thread = self.thread()
+        breaks = self.breaks_when_modeled()
+        doc, other, pad, face = self.doc, None, None, None
+        other = doc.addObject("PartDesign::Body", "Other")
+        sketch = other.newObject("Sketcher::SketchObject", "Sketch")
+        sketch.AttachmentSupport = [(other.Origin.OriginFeatures[3], "")]
+        sketch.MapMode = "FlatFace"
+        sketch.addGeometry(Part.Circle(V(50, 0, 0), V(0, 0, 1), QUARTER / 2))
+        pad = other.newObject("PartDesign::Pad", "Stem")
+        pad.Profile = sketch
+        pad.Length = LENGTH
+        doc.recompute()
+        face = next(f"Face{n}" for n, f in enumerate(pad.Shape.Faces, 1)
+                    if f.Surface.__class__.__name__ == "Cylinder")
+        waits = shaft_threads.make(other, pad, face, "inches")
+        waits.FullLength = False
+        waits.setExpression("Length", f"{breaks.Name}.Size")
+        doc.recompute()
+        self.assertTrue(waits.isValid(), waits.getStatusString())
+        with threads.modeled(doc) as made:
+            self.assertEqual(set(threads.not_modeled(made)), {thread, waits})
+
+
+class _BreaksWhenModeled:
+    def __init__(self, obj, smooth_volume):
+        obj.Proxy = self
+        obj.addProperty("App::PropertyFloat", "Smooth")
+        obj.Smooth = smooth_volume
+        obj.addProperty("App::PropertyLength", "Size")
+        obj.Size = 5.0
+
+    def execute(self, obj):
+        base = obj.BaseFeature.Shape
+        if base.Volume < obj.Smooth - 1e-6:
+            raise RuntimeError("the edge it names is gone")
+        obj.Shape = base.copy()
+
 
 def shaft(diameter, length):
     """A new document's body with a round shaft `diameter` across and `length` long, up from the XY plane:
