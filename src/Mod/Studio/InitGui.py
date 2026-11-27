@@ -263,6 +263,36 @@ class _Thread:
 
 
 FreeCADGui.addCommand("Studio_Thread", _Thread())
+
+
+class _Text:
+    """Text in a sketch, like Fusion's (PLAN 4.1, docs/adr/0015): a new text, or the picked one edited."""
+
+    def GetResources(self):
+        import os
+
+        import FreeCAD
+
+        return {
+            "MenuText": "Text",
+            "ToolTip": "Text in the sketch, in any installed font: type it, size it, align it, drag it into place. "
+                       "With a text picked, changes it",
+            "Pixmap": os.path.join(FreeCAD.getHomePath(), "Mod", "Studio", "Resources", "icons", "line",
+                                   "text-box.svg"),
+        }
+
+    def IsActive(self):
+        from studio.shell import sketching
+
+        return sketching.sketch_in_edit() is not None
+
+    def Activated(self):
+        from studio.shell import sketch_text
+
+        sketch_text.start()
+
+
+FreeCADGui.addCommand("Studio_Text", _Text())
 FreeCADGui.addCommand("Studio_Finish", _PanelButton(accept=True))
 FreeCADGui.addCommand("Studio_Cancel", _PanelButton(accept=False))
 

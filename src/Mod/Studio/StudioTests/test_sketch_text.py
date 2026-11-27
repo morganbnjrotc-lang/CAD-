@@ -247,6 +247,32 @@ class SketchText(unittest.TestCase):
         self.assertEqual(len(self.sketch.Geometry), 1)
         self.assertEqual(len(self.sketch.Constraints), 0)
 
+    # a box fitted to its text (a new text's, as it is typed)
+
+    def test_a_fitted_box_wraps_the_text(self):
+        frame = self.add(box("H\nHH", fit=True, width=1.0, depth=1.0))
+        settings = sketch_text.read(self.sketch, frame)
+        ink = self.letters(frame).BoundBox
+        pitch = 10.0 * self.font.line_spacing / self.font.cap_height
+        self.assertAlmostEqual(settings.depth, 10.0 + pitch, places=6)  # the capitals' top to the last baseline
+        self.assertAlmostEqual(settings.width, ink.XLength, delta=1e-6)  # the widest line
+        self.assertAlmostEqual(ink.XMin, 0.0, delta=1e-6)
+        self.assertAlmostEqual(ink.YMax, settings.depth, delta=0.02)
+        self.assertAlmostEqual(self.sketch.Geometry[frame].length(), settings.width, places=6)
+
+    def test_a_fitted_box_follows_an_edit(self):
+        frame = self.add(box("H", fit=True))
+        narrow = sketch_text.read(self.sketch, frame).width
+        frame = sketch_text.edit(self.sketch, frame, box("HHH", fit=True), self.font)
+        self.doc.recompute()
+        self.assertGreater(sketch_text.read(self.sketch, frame).width, 2.5 * narrow)
+
+    def test_an_empty_fitted_box_stays_a_square(self):
+        frame = self.add(box("", fit=True))
+        settings = sketch_text.read(self.sketch, frame)
+        self.assertEqual((settings.width, settings.depth), (10.0, 10.0))
+        self.assertEqual([i for i in sketch_text.members(self.sketch, frame) if not self.sketch.getConstruction(i)], [])
+
     def test_only_studios_texts(self):
         # a plain line, and FreeCAD's own Text, aren't Studio texts
         self.sketch.addGeometry(Part.LineSegment(V(0, 0, 0), V(10, 0, 0)), True)

@@ -53,3 +53,8 @@ survives save and reopen. Part's `GeometryStringExtension` on a sketch geometry 
 - FreeCAD's own Text edit dialog doesn't open Studio texts (they are Groups, not Texts); Studio's panel does.
 - Text is many curves: a long text is a heavy sketch, as FreeCAD's is.
 - Lines break only where typed for now; wrapping at the box's width can come later.
+- The Text panel sits at the top of the Tasks panel, above the sketch's own: FreeCAD shows one dialog at a
+  time and the edited sketch's holds it, but its contextual panels take any widget (`StudioGui.add_task_panel`).
+- A new text starts in the middle of the view and is dragged into place. Clicking the box's corners, as in
+  Fusion, would need a sketcher tool (a C++ `DrawSketchHandler`), which would load the sketcher with Studio's
+  C++ helpers at every start; left for later if placing by dragging falls short.

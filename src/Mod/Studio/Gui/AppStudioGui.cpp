@@ -83,6 +83,7 @@
 #include <Gui/OverlayManager.h>
 #include <Gui/Inventor/Draggers/SoLinearDragger.h>
 #include <Gui/PrefWidgets.h>
+#include <Gui/PythonWrapper.h>
 #include <Gui/Selection/Selection.h>
 #include <Gui/Utilities.h>  // Base::Color as Coin's SbColor
 #include <Gui/QuantitySpinBox.h>
@@ -1213,6 +1214,22 @@ public:
             "For tests: where the floating Tasks panel (FreeCAD's OverlayRight) shows, in the main area's\n"
             "pixels from its top left; None while it's hidden."
         );
+        add_varargs_method(
+            "add_task_panel",
+            &Module::addTaskPanel,
+            "add_task_panel(widget) -> bool\n\n"
+            "Shows a Studio widget at the top of the Tasks panel of the active document, above the open\n"
+            "dialog's boxes (FreeCAD's contextual panels): a tool's panel while a sketch is edited, whose own\n"
+            "dialog holds the Tasks panel (PLAN 4.1). FreeCAD owns it from then on and deletes it when it is\n"
+            "taken out (remove_task_panel) or the Tasks panel goes: make it with a parent, so Python doesn't\n"
+            "delete it too, and don't use it once taken out. False without a task view or document."
+        );
+        add_varargs_method(
+            "remove_task_panel",
+            &Module::removeTaskPanel,
+            "remove_task_panel(widget) -> bool\n\n"
+            "Takes out a widget add_task_panel showed; FreeCAD deletes it. False if it isn't there."
+        );
         initialize("Studio's C++ helpers for the shell (docs/adr/0007, 0008, 0010).");
     }
 
@@ -1987,6 +2004,48 @@ private:
             Py::Long(panel->width()),
             Py::Long(panel->height())
         );
+    }
+
+    static QWidget* widgetFrom(PyObject* object)
+    {
+        Gui::PythonWrapper wrap;
+        if (!wrap.loadWidgetsModule()) {
+            return nullptr;
+        }
+        return qobject_cast<QWidget*>(wrap.toQObject(Py::Object(object)));
+    }
+
+    Py::Object addTaskPanel(const Py::Tuple& args)
+    {
+        PyObject* object = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "O", &object)) {
+            throw Py::Exception();
+        }
+        QWidget* widget = widgetFrom(object);
+        Gui::TaskView::TaskView* tasks = Gui::Control().taskPanel();
+        App::Document* document = App::GetApplication().getActiveDocument();
+        if (widget == nullptr || tasks == nullptr || document == nullptr) {
+            return Py::False();
+        }
+        tasks->addContextualPanel(widget, document);
+        return Py::Boolean(tasks->isAncestorOf(widget));  // FreeCAD adds it only for a document it shows
+    }
+
+    Py::Object removeTaskPanel(const Py::Tuple& args)
+    {
+        PyObject* object = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "O", &object)) {
+            throw Py::Exception();
+        }
+        QWidget* widget = widgetFrom(object);
+        Gui::TaskView::TaskView* tasks = Gui::Control().taskPanel();
+        if (widget == nullptr || tasks == nullptr) {
+            return Py::False();
+        }
+        for (App::Document* document : App::GetApplication().getDocuments()) {
+            tasks->removeContextualPanel(widget, document);  // the one holding it takes it out
+        }
+        return Py::True();
     }
 
     Py::Object focusField(const Py::Tuple& args)

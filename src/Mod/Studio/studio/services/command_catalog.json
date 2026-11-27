@@ -1601,6 +1601,14 @@
    "icon": "src/Mod/Studio/Resources/icons/line/section.svg"
   },
   {
+   "name": "Studio_Text",
+   "workbench": null,
+   "menu_text": "Text",
+   "tooltip": "Text in the sketch, in any installed font: type it, size it, align it, drag it into place. With a text picked, changes it",
+   "shortcut": "",
+   "icon": "src/Mod/Studio/Resources/icons/line/text-box.svg"
+  },
+  {
    "name": "Studio_Thread",
    "workbench": null,
    "menu_text": "Thread",

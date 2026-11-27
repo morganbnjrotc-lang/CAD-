@@ -17,6 +17,7 @@ PLAIN_NAMES = {
     "PartDesign_SubtractivePipe": "Sweep Cut",
     "PartDesign_AdditiveLoft": "Loft",
     "PartDesign_SubtractiveLoft": "Loft Cut",
+    "Sketcher_CreateText": "Text Along a Line",  # Studio's Text is the text box (PLAN 4.1)
 }
 
 

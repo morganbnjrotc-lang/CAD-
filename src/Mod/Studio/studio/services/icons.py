@@ -208,6 +208,7 @@ STUDIO_ONLY = {"Studio": "search", "fully-constrain": "fully-constrain",
                "section": "section",  # the section view (PLAN 3.7)
                "hole-chamfer": "hole-chamfer",  # one-click hole chamfer (PLAN 3.9)
                "thread": "thread",  # the Thread tool for round faces (PLAN 3.20)
+               "text-box": "text-box",  # Studio's Text, a text box (PLAN 4.1)
                # ways to draw FreeCAD has no command for (studio.viewmodels.context_toolbar.WAYS)
                "rectangle-3-point": "rectangle-3-point", "rectangle-3-point-center": "rectangle-3-point-center",
                "line-center": "line-center", "circle-2-point": "circle-2-point",

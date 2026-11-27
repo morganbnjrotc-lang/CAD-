@@ -47,6 +47,7 @@ class TextBox:
     align: str = "left"
     valign: str = "top"
     spacing: float = 1.0  # times the font's line spacing
+    fit: bool = False  # the box sized to the text (width and depth are then the text's)
 
 
 _cap_scale = {}  # font file → the capitals' drawn height per unit of makeWireString's size
@@ -86,22 +87,41 @@ def _geometry(edge):
     return spline
 
 
+def _pitch(box, font):
+    """From one line's baseline to the next."""
+    return box.height * font.line_spacing / font.cap_height * box.spacing
+
+
+def _drawn(box, font):
+    """Each line drawn, at the size giving the capitals the box's height: [(line number, wires, ink box)]."""
+    size = box.height / _caps(font)
+    drawn = []
+    for i, line in enumerate(box.text.split("\n")):
+        wires = _draw(line, font, size) if line.strip() else []
+        if wires:
+            drawn.append((i, wires, Part.Compound(wires).BoundBox))
+    return drawn
+
+
+def fit(box, font):
+    """`box` sized to its text when it fits (`box.fit`): as wide as its widest line, as deep as from the
+    capitals' top to the last line's baseline; an empty text, a square of the height."""
+    if not box.fit:
+        return box
+    drawn = _drawn(box, font)
+    lines = box.text.count("\n") + 1
+    width = max(ink.XLength for _, _, ink in drawn) if drawn else box.height
+    return dataclasses.replace(box, width=width, depth=box.height + (lines - 1) * _pitch(box, font))
+
+
 def _letters(box, font):
     """The letters' sketch geometry, in the box's own coordinates (its corner at 0, 0, its width along x)."""
-    lines = box.text.split("\n")
     cap = box.height
-    size = cap / _caps(font)
-    pitch = cap * font.line_spacing / font.cap_height * box.spacing
-    last = (len(lines) - 1) * pitch
+    pitch = _pitch(box, font)
+    last = box.text.count("\n") * pitch
     first = {"top": box.depth - cap, "bottom": last, "middle": (box.depth - cap + last) / 2}[box.valign]
     letters = []
-    for i, line in enumerate(lines):
-        if not line.strip():
-            continue
-        wires = _draw(line, font, size)
-        if not wires:
-            continue
-        ink = Part.Compound(wires).BoundBox
+    for i, wires, ink in _drawn(box, font):
         dx = {"left": -ink.XMin, "center": box.width / 2 - (ink.XMin + ink.XMax) / 2,
               "right": box.width - ink.XMax}[box.align]
         for wire in wires:
@@ -180,6 +200,7 @@ def add(sketch, box, font, corner=(0.0, 0.0), angle=0.0, step=True):
     """Adds the text `box` in `font` with the box's corner at `corner` (sketch coordinates), turned `angle`
     degrees; returns its frame's index."""
     _check(box)
+    box = fit(box, font)
     placement = _placement(corner, angle)
     with _Step(sketch, "Text", step):
         line = Part.LineSegment(V(0, 0, 0), V(box.width, 0, 0))
@@ -226,6 +247,7 @@ def edit(sketch, frame, box, font, step=True):
     """Gives the text at `frame` the settings `box`, at the same place and angle, its frame `box.width` long
     and keeping the constraints on it; returns the frame's index (it moves when letters stood before it)."""
     _check(box)
+    box = fit(box, font)
     with _Step(sketch, "Edit Text", step):
         old = members(sketch, frame)
         if old:

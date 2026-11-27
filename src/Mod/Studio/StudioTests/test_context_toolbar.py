@@ -179,6 +179,8 @@ class Ways(unittest.TestCase):
             "Spline": ["Fit Point Spline", "Control Point Spline"],
             "Ellipse": ["Center Ellipse", "3-Point Ellipse", "Elliptical Arc"],
             "Pattern": ["Rectangular Pattern", "Circular Pattern", "Mirror"],
+            # Studio's text box (PLAN 4.1), and FreeCAD's text stretched along a line
+            "Text": ["Text Box", "Along a Line"],
         })
 
     def test_patterns_in_the_model_too(self):

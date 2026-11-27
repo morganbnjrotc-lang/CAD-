@@ -43,7 +43,7 @@ TOOLS = {
                 ("Sketcher_CreateArc", "Arc"), ("Sketcher_CreateRegularPolygon", "Polygon"),
                 ("Sketcher_CreateSlot", None), ("Sketcher_CreateBSplineByInterpolation", "Spline"),
                 ("Sketcher_CreateEllipseByCenter", "Ellipse"), ("Sketcher_CreatePoint", None),
-                ("Sketcher_CreateText", None), ("Sketcher_Translate", "Pattern"), ("Studio_Construction", None),
+                ("Studio_Text", None), ("Sketcher_Translate", "Pattern"), ("Studio_Construction", None),
                 ("Sketcher_Dimension", None), ("Studio_FullyConstrain", None), ("Sketcher_LeaveSketch", "Close Sketch")],
 }
 
@@ -123,6 +123,8 @@ WAYS = {
     # Patterns, in the sketch and in the model (the user asked for both, 2026-11-19), with Fusion's
     # names. FreeCAD's Move / Array and Rotate / Polar tools start with one element (a plain move or
     # turn); Fusion's patterns with three: their first panel number, Elements.
+    # Studio's text box (PLAN 4.1, docs/adr/0015), and FreeCAD's text stretched along a line
+    "Studio_Text": (Way("Studio_Text", "Text Box"), Way("Sketcher_CreateText", "Along a Line")),
     "Sketcher_Translate": (Way("Sketcher_Translate", "Rectangular Pattern", settings=((1, 3),)),
                            Way("Sketcher_Rotate", "Circular Pattern", settings=((1, 3),)),
                            Way("Sketcher_Symmetry", "Mirror")),

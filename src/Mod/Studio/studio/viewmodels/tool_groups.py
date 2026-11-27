@@ -123,7 +123,7 @@ SKETCH = (
         _ways("Sketcher_CreateSlot"), _ways("Sketcher_CreateBSplineByInterpolation", "Spline"),
         _ways("Sketcher_CreateEllipseByCenter", "Ellipse"),
         Side("Conic", (Tool("Sketcher_CreateArcOfParabola"), Tool("Sketcher_CreateArcOfHyperbola"))),
-        Tool("Sketcher_CreatePoint"), Tool("Sketcher_CreateText"),
+        Tool("Sketcher_CreatePoint"), _ways("Studio_Text", "Text"),
         _,
         Tool("Sketcher_CreateFillet"), Tool("Sketcher_CreateChamfer"), Tool("Sketcher_Offset"),
         _ways("Sketcher_Translate", "Pattern"),
