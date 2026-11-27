@@ -4,7 +4,8 @@
 A text box: lines as typed, the capitals the given height whatever the word, aligned in the box; the letters'
 outlines are sketch geometry held by a sketch Group to a construction line along the box's bottom edge (the
 frame), which carries the text's settings, so the text moves with it and is edited again later.
-Font: Noto Sans Regular (StudioTests/fonts), cap height 714 of 1000 units.
+A text's font file is kept in its sketch (PLAN 4.2), so the text can be edited on a computer without the font.
+Font: Noto Sans Regular (StudioTests/fonts), cap height 714 of 1000 units; Arial where it is (Windows).
 """
 
 import os
@@ -12,16 +13,19 @@ import shutil
 import tempfile
 import unittest
 import uuid
+import zipfile
 
 import FreeCAD
 import Part
 import Sketcher
 
+from StudioTests.test_fonts import with_fs_type
 from studio.services import fonts, sketch_text
 from studio.services.sketch_text import TextBox
 
 V = FreeCAD.Vector
 NOTO = os.path.join(os.path.dirname(__file__), "fonts", "NotoSans-Regular.ttf")
+ARIAL = os.path.join(os.environ.get("WINDIR", "C:/Windows"), "Fonts", "arial.ttf")
 
 
 def box(text, **kw):
@@ -31,7 +35,9 @@ def box(text, **kw):
     return TextBox(**settings)
 
 
-class SketchText(unittest.TestCase):
+class InASketch(unittest.TestCase):
+    """A sketch in a body, and texts added to it in Noto Sans."""
+
     def setUp(self):
         self.font = fonts.read(NOTO)
         self.doc = FreeCAD.newDocument("Text" + uuid.uuid4().hex[:8])
@@ -54,6 +60,23 @@ class SketchText(unittest.TestCase):
         ids = [i for f in frames for i in sketch_text.members(self.sketch, f) if not self.sketch.getConstruction(i)]
         return Part.Compound([self.sketch.Geometry[i].toShape() for i in ids])
 
+    def save(self):
+        """Saves the document in a folder of its own; its path."""
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        path = os.path.join(folder, "text.FCStd")
+        self.doc.saveAs(path)
+        return path
+
+    def reopen(self, path):
+        """Closes the document and opens `path` (opening a file already open gives back the same document)."""
+        name = self.sketch.Name
+        FreeCAD.closeDocument(self.doc.Name)
+        self.doc = FreeCAD.openDocument(path)
+        self.sketch = self.doc.getObject(name)
+
+
+class SketchText(InASketch):
     # sizes
 
     def test_the_capitals_are_the_height(self):
@@ -165,17 +188,11 @@ class SketchText(unittest.TestCase):
         # quotes, ampersands and angle brackets too: FreeCAD writes a geometry's text unescaped into the file
         settings = box("Lesleigh's \"sun\" flower\nséance & <more>")
         self.add(settings)
-        folder = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, folder, True)
-        path = os.path.join(folder, "text.FCStd")
-        self.doc.saveAs(path)
-        letters, name = len(self.sketch.Geometry), self.sketch.Name
-        FreeCAD.closeDocument(self.doc.Name)  # else opening the file gives back the same document
-        self.doc = FreeCAD.openDocument(path)
-        sketch = self.doc.getObject(name)
-        self.assertEqual(len(sketch.Geometry), letters)
-        [frame] = sketch_text.frames(sketch)
-        self.assertEqual(sketch_text.read(sketch, frame), settings)
+        letters = len(self.sketch.Geometry)
+        self.reopen(self.save())
+        self.assertEqual(len(self.sketch.Geometry), letters)
+        [frame] = sketch_text.frames(self.sketch)
+        self.assertEqual(sketch_text.read(self.sketch, frame), settings)
 
     def test_found_after_other_geometry_goes(self):
         self.sketch.addGeometry(Part.LineSegment(V(-50, -50, 0), V(-40, -40, 0)))
@@ -279,3 +296,72 @@ class SketchText(unittest.TestCase):
         self.add(box("Hi"))
         self.assertEqual(len(sketch_text.frames(self.sketch)), 1)
         self.assertIsNone(sketch_text.read(self.sketch, 0))
+
+
+class KeptFonts(InASketch):
+    """A text's font file kept in its sketch (PLAN 4.2): saved in the file, offered for editing where the font
+    isn't installed; never for a font whose license forbids it (its OS/2 fsType)."""
+
+    def folder(self):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        return folder
+
+    def test_a_texts_font_is_kept(self):
+        self.add(box("Hi"))
+        [kept] = sketch_text.kept_fonts(self.sketch)
+        self.assertEqual((kept.family, kept.style), ("Noto Sans", "Regular"))
+        self.assertNotEqual(os.path.normcase(kept.path), os.path.normcase(NOTO))
+        self.assertEqual(open(kept.path, "rb").read(), open(NOTO, "rb").read())
+        self.assertEqual(sketch_text.unkept(self.sketch), [])
+
+    def test_once_for_two_texts(self):
+        self.add(box("Hi"))
+        self.add(box("there"), corner=(0, 50))
+        self.assertEqual(len(sketch_text.kept_fonts(self.sketch)), 1)
+
+    def test_in_the_file(self):
+        self.add(box("Hi"))
+        path = self.save()
+        noto = open(NOTO, "rb").read()
+        with zipfile.ZipFile(path) as archive:
+            self.assertTrue(any(archive.read(n) == noto for n in archive.namelist() if n.lower().endswith(".ttf")))
+
+    def test_edited_on_a_computer_without_the_font(self):
+        installed = os.path.join(self.folder(), "GoneSoon.ttf")
+        shutil.copy(NOTO, installed)
+        frame = sketch_text.add(self.sketch, box("Hi"), fonts.read(installed))
+        self.doc.recompute()
+        path = self.save()
+        self.reopen(path)
+        os.remove(installed)  # the font isn't on this computer any more
+        [kept] = sketch_text.kept_fonts(self.sketch)
+        self.assertTrue(os.path.exists(kept.path))
+        frame = sketch_text.edit(self.sketch, frame, box("HEL"), kept)  # capitals: their height is the text's
+        self.doc.recompute()
+        self.assertEqual(sketch_text.read(self.sketch, frame).text, "HEL")
+        self.assertAlmostEqual(self.letters().BoundBox.YLength, 10.0, delta=0.05)
+
+    def test_a_font_whose_license_forbids_it_is_left_out(self):
+        restricted = fonts.read(with_fs_type(NOTO, self.folder(), 2))
+        sketch_text.add(self.sketch, box("Hi"), restricted)
+        self.doc.recompute()
+        self.assertEqual(sketch_text.kept_fonts(self.sketch), [])
+        self.assertEqual(sketch_text.unkept(self.sketch), ["Noto Sans Regular"])
+
+    @unittest.skipUnless(os.path.exists(ARIAL), "Windows' Arial")
+    def test_a_font_no_longer_used_goes(self):
+        frame = self.add(box("Hi"))
+        arial = fonts.read(ARIAL)
+        frame = sketch_text.edit(self.sketch, frame, box("Hi", family="Arial"), arial)
+        self.doc.recompute()
+        self.assertEqual([f.family for f in sketch_text.kept_fonts(self.sketch)], ["Arial"])
+        sketch_text.remove(self.sketch, frame)
+        self.doc.recompute()
+        self.assertEqual(sketch_text.kept_fonts(self.sketch), [])
+
+    def test_undone_with_its_text(self):
+        self.add(box("Hi"))
+        self.doc.undo()
+        self.doc.recompute()
+        self.assertEqual(sketch_text.kept_fonts(self.sketch), [])

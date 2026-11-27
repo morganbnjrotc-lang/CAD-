@@ -28,7 +28,10 @@ import FreeCAD
 import Part
 import Sketcher
 
+from studio.services import fonts as font_service
+
 SETTINGS = "StudioText"  # the frame's extension
+FONTS = "Studio Fonts"  # the sketch's property group of kept fonts (PLAN 4.2)
 CALIBRATION = 100.0  # the size the capitals are measured at
 ALIGN = ("left", "center", "right")
 VALIGN = ("top", "middle", "bottom")
@@ -208,6 +211,7 @@ def add(sketch, box, font, corner=(0.0, 0.0), angle=0.0, step=True):
         line.setExtension(Part.GeometryStringExtension(_encode(box), SETTINGS))
         frame = sketch.addGeometry(line, True)
         _members_for(sketch, frame, box, font, placement)
+        _keep(sketch, font)
     return frame
 
 
@@ -262,6 +266,7 @@ def edit(sketch, frame, box, font, step=True):
         line.setExtension(Part.GeometryStringExtension(_encode(box), SETTINGS))
         sketch.Geometry = geometry
         _members_for(sketch, frame, box, font, _placement((start.x, start.y), angle))
+        _keep(sketch, font)
     return frame
 
 
@@ -269,3 +274,54 @@ def remove(sketch, frame, step=True):
     """Deletes the text at `frame`: its letters, box and frame."""
     with _Step(sketch, "Delete Text", step):
         sketch.delGeometries(sorted(members(sketch, frame) + [frame]))
+        _keep(sketch, None)
+
+
+# -- fonts kept in the sketch (PLAN 4.2) ------------------------------------------------------------
+
+
+def _kept(sketch):
+    """{property name: font} of the fonts kept in `sketch`."""
+    kept = {}
+    for name in sketch.PropertiesList:
+        if sketch.getGroupOfProperty(name) != FONTS or sketch.getTypeIdOfProperty(name) != "App::PropertyFileIncluded":
+            continue
+        path = getattr(sketch, name)
+        font = font_service.read(path) if path and os.path.exists(path) else None
+        if font is not None:
+            kept[name] = font
+    return kept
+
+
+def _used(sketch):
+    """(family, style) of each text's font in `sketch`."""
+    return {(box.family, box.style) for box in (read(sketch, f) for f in frames(sketch)) if box is not None}
+
+
+def kept_fonts(sketch):
+    """The fonts kept in `sketch` for its texts, read from the copies it holds (their `path`), by name."""
+    return sorted(_kept(sketch).values(), key=lambda f: (f.family.casefold(), f.weight, f.italic, f.style))
+
+
+def unkept(sketch):
+    """The names ("Family Style") of the fonts of `sketch`'s texts it doesn't hold: their licenses forbid it."""
+    kept = {(f.family, f.style) for f in _kept(sketch).values()}
+    return sorted(f"{family} {style}" for family, style in _used(sketch) - kept)
+
+
+def _keep(sketch, font):
+    """Keeps `font`'s file in `sketch` when a text uses it and its license allows it (once a font), and drops
+    the fonts no text uses any more."""
+    used, kept = _used(sketch), _kept(sketch)
+    for name, held in kept.items():
+        if (held.family, held.style) not in used:
+            sketch.removeProperty(name)
+    if font is None or not font.embeddable or (font.family, font.style) not in used:
+        return
+    if any((held.family, held.style) == (font.family, font.style) for held in kept.values()):
+        return
+    name = "StudioFont" + re.sub(r"[^A-Za-z0-9]", "", font.family + font.style)
+    sketch.addProperty("App::PropertyFileIncluded", name, FONTS,
+                       f"{font.name}, kept so this sketch's text can be edited where it isn't installed (Studio)")
+    setattr(sketch, name, font.path)
+    sketch.setEditorMode(name, 2)  # not in the property editor

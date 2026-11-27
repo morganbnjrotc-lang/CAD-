@@ -136,3 +136,18 @@ class TextTool(ToolbarDrawing):
         self.assertIsNone(text_tool.current_panel())
         self.assertEqual(self.settings().text, "Kept")
         self.assertFalse(self.doc.HasPendingTransaction)
+
+    def test_a_text_in_a_font_only_the_sketch_has(self):
+        # Noto Sans, from beside the tests (not a Windows font): kept in the sketch, it's offered for editing
+        import os
+
+        noto = fonts.read(os.path.join(os.path.dirname(fonts.__file__), "..", "..", "StudioTests", "fonts",
+                                       "NotoSans-Regular.ttf"))
+        frame = sketch_text.add(self.sketch, TextBox("Hi", "Noto Sans", "Regular", 6.0, 20.0, 6.0, fit=True), noto)
+        self.doc.recompute()
+        FreeCADGui.Selection.addSelection(self.doc.Name, self.sketch.Name, f"Edge{frame + 1}")
+        settle(300)
+        panel = self.start()
+        self.assertEqual(panel.family.currentText(), "Noto Sans")
+        self.assertIsNotNone(panel.model.font, panel.model.missing)
+        self.assertFalse(panel.missing.isVisible())

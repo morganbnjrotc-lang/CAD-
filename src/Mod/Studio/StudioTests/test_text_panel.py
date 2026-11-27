@@ -6,6 +6,7 @@ time), its box fitted to it; an edited text starts as it is. Picking another fam
 family has it, else takes the nearest; the font, style and height used are remembered for the next text.
 """
 
+import dataclasses
 import unittest
 import uuid
 
@@ -14,7 +15,7 @@ import FreeCAD
 from studio.services import fonts
 from studio.services.settings import Settings
 from studio.services.sketch_text import TextBox
-from studio.viewmodels.text_panel import TextPanel
+from studio.viewmodels.text_panel import TextPanel, with_kept
 
 TEST_PARENT = "User parameter:BaseApp/Preferences/Mod/Studio/Tests"
 
@@ -139,3 +140,23 @@ class Panel(unittest.TestCase):
                                         "the text")
         panel.set_family("Arial")
         self.assertEqual((panel.box.family, panel.box.style, panel.missing), ("Arial", "Bold", ""))
+
+    # fonts kept in the file (PLAN 4.2)
+
+    def test_a_font_that_cant_be_kept_says_so(self):
+        locked = dataclasses.replace(font("Locked", "Regular"), embeddable=False)
+        panel = self.panel(found=INSTALLED + [locked])
+        self.assertEqual(panel.note, "")
+        panel.set_family("Locked")
+        self.assertEqual(panel.note, "Locked Regular's license doesn't let it be kept in the file: on a computer "
+                                     "without it, the text shows but can't be changed")
+
+    def test_fonts_kept_in_the_sketch_join_the_installed(self):
+        kept = [dataclasses.replace(font("Arial", "Regular"), path="kept/arial.ttf"),
+                dataclasses.replace(font("Gone", "Bold", 700), path="kept/gone.ttf")]
+        found = with_kept(INSTALLED, kept)
+        self.assertEqual(fonts.find("Arial", "Regular", found).path, "Arial-Regular.ttf")  # the installed one
+        panel = self.panel(found=found, box=TextBox("Hi", "Gone", "Bold", 6.0, 40.0, 10.0))
+        self.assertEqual(panel.font.path, "kept/gone.ttf")
+        self.assertEqual(panel.missing, "")
+        self.assertIn("Gone", panel.families)

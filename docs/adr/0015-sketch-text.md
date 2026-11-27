@@ -43,8 +43,12 @@ survives save and reopen. Part's `GeometryStringExtension` on a sketch geometry 
    and the user's own) read for its family and style names (the font's `name` table), its metrics and its
    embedding permission (`OS/2 fsType`), without loading Qt: a headless service.
 5. **FreeCAD's Text stays** as the tool's "Along a Line" way; Studio's text box is the default way.
-6. Fonts kept in the file come next (PLAN 4.2) and build on this: the font's file is found from the family
-   and style named in the frame's settings.
+6. **Fonts kept in the file** (PLAN 4.2): each font the sketch's texts use is kept in the sketch as an
+   included file (`App::PropertyFileIncluded`, group "Studio Fonts"), once a font, added and dropped with the
+   texts; FreeCAD saves it in the `.FCStd` and unpacks it on opening. Editing offers the computer's fonts and,
+   where one isn't installed, the sketch's copy, matched by the family and style in the frame's settings. A
+   font whose license forbids embedding (OS/2 `fsType`: restricted, or preview and print only) is used but
+   not kept, and the panel says so.
 
 ## Consequences
 
@@ -52,6 +56,8 @@ survives save and reopen. Part's `GeometryStringExtension` on a sketch geometry 
   (editable as geometry, not as text).
 - FreeCAD's own Text edit dialog doesn't open Studio texts (they are Groups, not Texts); Studio's panel does.
 - Text is many curves: a long text is a heavy sketch, as FreeCAD's is.
+- A kept font is kept whole: the file grows by its size (on this computer: half the fonts under 0.07 MB, Arial 1 MB, the biggest Asian and Unicode ones 17–35 MB).
+  Keeping only the letters used would need a font subsetter, which neither FreeCAD nor its libraries have.
 - Lines break only where typed for now; wrapping at the box's width can come later.
 - The Text panel sits at the top of the Tasks panel, above the sketch's own: FreeCAD shows one dialog at a
   time and the edited sketch's holds it, but its contextual panels take any widget (`StudioGui.add_task_panel`).

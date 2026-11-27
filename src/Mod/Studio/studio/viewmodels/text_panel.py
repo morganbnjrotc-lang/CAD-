@@ -76,6 +76,15 @@ class TextPanel:
             return ""
         return f"{self.box.family} {self.box.style} isn't on this computer: pick another font to change the text"
 
+    @property
+    def note(self):
+        """What to tell the user when the font can't be kept in the file (PLAN 4.2), else ""."""
+        font = self.font
+        if font is None or font.embeddable:
+            return ""
+        return (f"{font.name}'s license doesn't let it be kept in the file: on a computer without it, the text "
+                "shows but can't be changed")
+
     # changes
 
     def _set(self, **changes):
@@ -139,3 +148,10 @@ def _style_guess(style):
     name = style.lower()
     weight = 700 if "bold" in name else 900 if "black" in name else 300 if "light" in name else 400
     return weight, "italic" in name or "oblique" in name
+
+
+def with_kept(installed, kept):
+    """The installed fonts and those kept in a sketch (PLAN 4.2) that aren't installed: the installed copy
+    first, a kept one where there is none."""
+    have = {(f.family, f.style) for f in installed}
+    return list(installed) + [f for f in kept if (f.family, f.style) not in have]

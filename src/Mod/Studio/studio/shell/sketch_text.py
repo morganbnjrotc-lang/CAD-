@@ -9,6 +9,9 @@ spacing, and the box: fitted to the text, or of its own size. Every change shows
 to place it (FreeCAD's sketcher drags a group whole). Finish keeps it as one undo step; Cancel takes it back.
 With a text picked (a click on its letters picks it), Text edits it instead.
 
+A text's font is kept in its sketch (PLAN 4.2), so the fonts offered are the computer's and, where one isn't
+installed, the sketch's own copy; a font whose license forbids keeping it is used, and the panel says so.
+
 Dragging the text while the panel is open makes an undo step of its own, which closes the panel's: Cancel
 then puts the text back by hand (a new one removed, an edited one as it was).
 """
@@ -19,7 +22,7 @@ from PySide import QtCore, QtGui, QtWidgets  # FreeCAD's PySide shim
 
 from studio.services import fonts as font_service
 from studio.services import sketch_text
-from studio.viewmodels.text_panel import TextPanel
+from studio.viewmodels.text_panel import TextPanel, with_kept
 
 PANEL = "StudioTextPanel"
 DELAY_MS = 120  # typing: the text is redrawn once the keys pause
@@ -106,7 +109,8 @@ class TextPanelView:
         self.sketch, self.doc = sketch, sketch.Document
         self.new = frame is None
         self.original = None if self.new else sketch_text.read(sketch, frame)
-        self.model = TextPanel(installed_fonts(), _units(), box=self.original)
+        self.found = with_kept(installed_fonts(), sketch_text.kept_fonts(sketch))
+        self.model = TextPanel(self.found, _units(), box=self.original)
         self._step()
         if self.new:
             if self.model.font is None:
@@ -152,12 +156,14 @@ class TextPanelView:
         self.style = QtWidgets.QComboBox(objectName="textStyle")
         self._fill_font()
         self.family.currentTextChanged.connect(self._family_changed)
-        self.style.currentTextChanged.connect(lambda s: s and self._change(self.model.set_style(s)))
+        self.style.currentTextChanged.connect(self._style_changed)
         layout.addRow("Font", self.family)
         layout.addRow("Style", self.style)
-        self.missing = QtWidgets.QLabel(self.model.missing, objectName="textMissing", wordWrap=True)
-        self.missing.setVisible(bool(self.model.missing))
+        self.missing = QtWidgets.QLabel(objectName="textMissing", wordWrap=True)
+        self.note = QtWidgets.QLabel(objectName="textNote", wordWrap=True)
         layout.addRow(self.missing)
+        layout.addRow(self.note)
+        self._notes()
 
         loader = FreeCADGui.UiLoader()
         self.height = self._size_box(loader, "textHeight", box.height, self.model.set_height)
@@ -234,10 +240,21 @@ class TextPanelView:
             combo.setCurrentIndex(index)
             combo.blockSignals(False)
 
+    def _notes(self):
+        """The font isn't installed (and not kept), or can't be kept in the file."""
+        for label, text in ((self.missing, self.model.missing), (self.note, self.model.note)):
+            label.setText(text)
+            label.setVisible(bool(text))
+
     def _family_changed(self, family):
         if family and self.model.set_family(family):
             self._fill_font()
-            self.missing.setVisible(bool(self.model.missing))
+            self._notes()
+            self._change(True)
+
+    def _style_changed(self, style):
+        if style and self.model.set_style(style):
+            self._notes()
             self._change(True)
 
     def _fit_changed(self, on):
@@ -299,7 +316,7 @@ class TextPanelView:
         if self.new and still:
             sketch_text.remove(self.sketch, self.frame)
         elif not self.new and still and still != self.original:
-            font = font_service.find(self.original.family, self.original.style, installed_fonts())
+            font = font_service.find(self.original.family, self.original.style, self.found)
             if font is not None:
                 sketch_text.edit(self.sketch, self.frame, self.original, font)
         self.doc.recompute()

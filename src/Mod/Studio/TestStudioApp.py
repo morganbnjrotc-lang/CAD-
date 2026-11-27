@@ -46,7 +46,7 @@ from StudioTests.test_threads import Fit, Threads  # noqa: F401
 from StudioTests.test_palette import ShippedCatalog as PaletteShippedCatalog  # noqa: F401
 from StudioTests.test_warmup import WarmUpPlan  # noqa: F401
 from StudioTests.test_fonts import InstalledFonts, ReadingAFont, WindowsFonts  # noqa: F401
-from StudioTests.test_sketch_text import SketchText  # noqa: F401
+from StudioTests.test_sketch_text import KeptFonts, SketchText  # noqa: F401
 from StudioTests.test_text_panel import Panel as TextPanelTest  # noqa: F401
 from StudioTests.test_settings import (  # noqa: F401
     Choices,
