@@ -24,7 +24,10 @@ hole.
    another standard or size.
 3. **Cosmetic by default**: the solid doesn't change; the face shows FreeCAD's thread texture, as a cosmetic
    hole thread does. **Modeled** cuts the thread's groove (ISO 68-1 / Unified profile, 60°) along a helix
-   from the face's end, full length or a length; left handed on request.
+   from the face's end, full length or a length; left handed on request. The thread is **its size's**: when
+   the user picks a size smaller than the face (a 0.56 in stem threaded 1/2-13, to screw into a 1/2-13 hole),
+   the face is turned down to the size's major diameter along the thread, as on a lathe; the rest of the face
+   stays. A modeled thread whose cut takes nothing is an error, never a smooth face passed off as threaded.
 4. **Export models it** (with the holes' threads, PLAN 3.9), and **the Fit box** applies: a positive fit makes
    an outside thread smaller (looser), as it makes a hole bigger.
 
@@ -34,3 +37,4 @@ hole.
   feature does; without it the feature shows its last shape.
 - Modeled threads are slow to compute and heavy to draw; cosmetic is the default for that reason.
 - Inside faces (holes) keep the Hole tool's threads for now.
+- The groove is swept along FreeCAD's long helix (one edge a turn), as the Hole tool's modeled threads are: a single approximated helix (Part.makeHelix) made sweeps whose cut silently took nothing, or failed, for about half the standard sizes and lengths (found 2026-11-26, the user's first export).

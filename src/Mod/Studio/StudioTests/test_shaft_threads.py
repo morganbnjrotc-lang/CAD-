@@ -153,3 +153,103 @@ class OnAShaft(unittest.TestCase):
                     if f.Surface.__class__.__name__ == "Plane")
         with self.assertRaises(ValueError):
             shaft_threads.make(self.body, self.shaft, flat, "inches")
+
+    def test_a_cut_that_takes_nothing_is_an_error(self):
+        # a groove that misses the shaft would leave it smooth with no sign: it has to show as an error
+        real = shaft_threads.groove
+        shaft_threads.groove = lambda *args, **kwargs: Part.makeBox(1, 1, 1, V(100, 100, 100))
+        self.addCleanup(setattr, shaft_threads, "groove", real)
+        thread = shaft_threads.make(self.body, self.shaft, self.face, "inches")
+        thread.Modeled = True
+        self.doc.recompute()
+        self.assertFalse(thread.isValid())
+        self.assertIn("couldn't be cut", thread.getStatusString())
+
+    def test_an_export_tells_which_threads_it_couldnt_model(self):
+        from studio.services import threads
+
+        thread = self.thread()
+        real = shaft_threads.groove
+        shaft_threads.groove = lambda *args, **kwargs: Part.makeBox(1, 1, 1, V(100, 100, 100))
+        self.addCleanup(setattr, shaft_threads, "groove", real)
+        with threads.modeled(self.doc) as made:
+            self.assertEqual(threads.not_modeled(made), [thread])
+        shaft_threads.groove = real
+        with threads.modeled(self.doc) as made:
+            self.assertEqual(threads.not_modeled(made), [])
+
+
+def shaft(diameter, length):
+    """A new document's body with a round shaft `diameter` across and `length` long, up from the XY plane:
+    (doc, body, the shaft's Pad, its round face's name)."""
+    doc = FreeCAD.newDocument("ShaftThreads" + uuid.uuid4().hex[:8])
+    body = doc.addObject("PartDesign::Body", "Body")
+    sketch = body.newObject("Sketcher::SketchObject", "Sketch")
+    sketch.AttachmentSupport = [(body.Origin.OriginFeatures[3], "")]
+    sketch.MapMode = "FlatFace"
+    sketch.addGeometry(Part.Circle(V(0, 0, 0), V(0, 0, 1), diameter / 2))
+    pad = body.newObject("PartDesign::Pad", "Shaft")
+    pad.Profile = sketch
+    pad.Length = length
+    doc.recompute()
+    face = next(f"Face{n}" for n, f in enumerate(pad.Shape.Faces, 1) if f.Surface.__class__.__name__ == "Cylinder")
+    return doc, body, pad, face
+
+
+def radii(shape, z):
+    """The nearest and farthest a cut through `shape` at height `z` comes to the Z axis."""
+    section = shape.slice(V(0, 0, 1), z)
+    points = [p for wire in section for p in wire.discretize(720)]
+    distances = [math.hypot(p.x, p.y) for p in points]
+    return min(distances), max(distances)
+
+
+class EverySize(unittest.TestCase):
+    """The user, 2026-11-26: the stem's 1/2-13 thread came out of an export smooth. The groove's sweep (one
+    long helix) failed, with no error, for about half the standard sizes and lengths; these are some."""
+
+    CASES = [  # (standard, size, threaded length mm): each cut nothing, or failed, before
+        ("UNC", "1/2", 10.16), ("UNC", "1/4", 25.4), ("UNC", "3/8", 25.4), ("UNF", "1/4", 10.16),
+        ("UNF", "#1", 25.4), ("ISOMetricProfile", "M6x1.0", 10.16), ("ISOMetricProfile", "M8x1.25", 10.16),
+        ("ISOMetricProfile", "M16x2.0", 25.4),
+    ]
+
+    def modeled(self, standard, name, length, diameter=None):
+        chosen = shaft_threads.size(standard, name)
+        doc, body, pad, face = shaft(diameter or chosen.diameter, length + 10)
+        self.addCleanup(FreeCAD.closeDocument, doc.Name)
+        thread = shaft_threads.make(body, pad, face, "inches")
+        shaft_threads.set_size(thread, standard, name)
+        thread.FullLength = False
+        thread.Length = length
+        thread.Modeled = True
+        doc.recompute()
+        return pad, thread
+
+    def test_the_groove_is_cut_on_every_size(self):
+        for standard, name, length in self.CASES:
+            with self.subTest(size=name, length=length):
+                pad, thread = self.modeled(standard, name, length)
+                self.assertTrue(thread.isValid(), thread.getStatusString())
+                chosen = shaft_threads.size(standard, name)
+                r = chosen.diameter / 2
+                depth = 5 / 8 * math.sqrt(3) / 2 * chosen.pitch
+                ring = math.pi * (r * r - (r - depth) ** 2) * length
+                removed = pad.Shape.Volume - thread.Shape.Volume
+                self.assertGreater(removed, 0.3 * ring)
+                self.assertLess(removed, 0.8 * ring)
+                self.assertEqual(len(thread.Shape.Solids), 1)
+
+    def test_a_thicker_face_is_turned_down_to_the_size(self):
+        # the user's stem: 0.56 in across, threaded 1/2-13 for 0.4 in from its end, to screw into a 1/2-13
+        # hole; the thread is the size's (1/2 in across), not the face's, and the rest stays as it was
+        pad, thread = self.modeled("UNC", "1/2", 0.4 * INCH, diameter=0.56 * INCH)
+        self.assertTrue(thread.isValid(), thread.getStatusString())
+        box = pad.Shape.BoundBox  # the shaft is 0.4 in + 10 mm long: 0.2 in from one end is threaded
+        threaded, plain = sorted((radii(thread.Shape, box.ZMin + 0.2 * INCH),
+                                  radii(thread.Shape, box.ZMax - 0.2 * INCH)), key=lambda r: r[1])
+        root = 0.25 * INCH - 5 / 8 * math.sqrt(3) / 2 * INCH / 13
+        self.assertAlmostEqual(threaded[1], 0.25 * INCH, delta=0.03)
+        self.assertAlmostEqual(threaded[0], root, delta=0.05)
+        self.assertAlmostEqual(plain[0], 0.28 * INCH, delta=0.01)
+        self.assertAlmostEqual(plain[1], 0.28 * INCH, delta=0.01)

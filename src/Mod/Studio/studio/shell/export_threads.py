@@ -36,13 +36,39 @@ def wrap(module):
             return original(objects, filename, *args, **kwargs)
         documents = {o.Document.Name: o.Document for o in objects if getattr(o, "Document", None) is not None}
         with ExitStack() as stack:
+            made = []
             for document in documents.values():
-                stack.enter_context(threads.modeled(document))
-            return original(objects, filename, *args, **kwargs)
+                made += stack.enter_context(threads.modeled(document))
+            plain = [_name(hole) for hole in threads.not_modeled(made)]
+            result = original(objects, filename, *args, **kwargs)
+        if plain:
+            _tell_not_modeled(plain)
+        return result
 
     export.studio_models_threads = True
     export.__doc__ = original.__doc__
     module.export = export
+
+
+def _name(hole):
+    body = hole.getParentGeoFeatureGroup()
+    return f"{hole.Label} in {body.Label}" if body is not None else hole.Label
+
+
+def _tell_not_modeled(names):
+    """Says, without stopping anything, which threads the exported file has plain."""
+    import FreeCADGui
+    from PySide import QtCore
+
+    box = QtWidgets.QMessageBox(
+        QtWidgets.QMessageBox.Warning, "Export",
+        "The file was written, but these threads couldn't be modeled, so they're plain in it:\n\n"
+        + "\n".join(f"• {name}" for name in names)
+        + "\n\nTurn on Modeled in a thread's panel to see why; another size or length may work.",
+        QtWidgets.QMessageBox.Ok, FreeCADGui.getMainWindow())
+    box.setObjectName("StudioThreadsNotModeled")
+    box.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+    box.open()
 
 
 class _WrapOnImport(importlib.abc.MetaPathFinder):

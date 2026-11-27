@@ -73,6 +73,12 @@ def _model(thread, on):
         thread.ModelThread = on
 
 
+def not_modeled(holes):
+    """Those of `holes`, inside `modeled`, whose thread couldn't be modeled (the feature failed): an export
+    has them plain."""
+    return [hole for hole in holes if not hole.isValid()]
+
+
 @contextmanager
 def modeled(doc):
     """Models every cosmetic thread of `doc` while inside; yields those holes."""

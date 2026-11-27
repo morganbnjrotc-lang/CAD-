@@ -35,7 +35,7 @@ from StudioTests.test_auto_constrain import Keeping, Limits, Report, Shapes  # n
 from StudioTests.test_extrude_direction import Switching, WhenToSwitch  # noqa: F401
 from StudioTests.test_profile_regions import Regions as ProfileRegions  # noqa: F401
 from StudioTests.test_new_features import HoleStart, Names as NewFeatureNames  # noqa: F401
-from StudioTests.test_shaft_threads import OnAShaft, Sizes as ThreadSizes  # noqa: F401
+from StudioTests.test_shaft_threads import EverySize, OnAShaft, Sizes as ThreadSizes  # noqa: F401
 from StudioTests.test_tool_groups import Groups as ToolGroupsTest, Pins as ToolPins  # noqa: F401
 from StudioTests.test_field_defaults import Defaults as FieldDefaultsTest  # noqa: F401
 from StudioTests.test_section import StartingPlane  # noqa: F401

@@ -12,6 +12,9 @@ The feature is Part Design's scripted cutting feature with `ThreadFeature` as it
   deep) swept along a helix and cut from the solid, kept within the face's own length (so it never cuts into
   a shoulder past it), full length or a Length from its end (Reversed: from the other end), LeftHanded on
   request; a Fit (mm, as the Fit box's) turns the shaft that much smaller across, looser for 3D printing.
+  The thread is its size's: a face thicker than that is turned down to it along the thread (a 0.56 in stem
+  threaded 1/2-13 gets a 1/2 in thread, to fit a 1/2-13 hole). A cut that takes nothing is an error, never
+  a smooth shaft passed off as threaded.
 The size's major diameter and pitch are kept on the feature, so a recompute needs no table.
 """
 
@@ -129,30 +132,35 @@ def span(thread, face):
     return (v0, v0 + length) if thread.Reversed else (v1 - length, v1)
 
 
-def groove(radius, pitch, start, end, left_handed=False, fit=0.0):
-    """The cutting tool of a modeled thread on a shaft of `radius` around the Z axis, between `start` and
-    `end` along it: the groove swept along a helix, with the shaft turned `fit` smaller across."""
-    outer = radius - fit / 2  # the thread's major radius
+def groove(radius, major, pitch, start, end, left_handed=False, fit=0.0):
+    """The cutting tool of a modeled thread `major` mm across (its size's) on a shaft of `radius` around the
+    Z axis, between `start` and `end` along it: the groove swept along a helix. A shaft thicker than the
+    thread, or a `fit`, is first turned down to the thread's outside, as on a lathe.
+
+    The helix is FreeCAD's long helix (one edge a turn), as the Hole tool's modeled threads use: one long
+    approximated helix made sweeps that cut nothing, or failed, for about half the standard sizes."""
+    outer = major / 2 - fit / 2  # the thread's major radius
+    skin = max(radius, outer)  # the outside of what is cut
     h = math.sqrt(3) / 2 * pitch  # the fundamental triangle's height
     root = outer - 5 * h / 8
     margin = 0.08 * pitch  # out past the surface, for a clean cut (a turn's groove stays clear of the next)
+    # the groove reaches just past the thread's outside; past that the sleeve below takes the rest
     side = 7 * pitch / 16 + margin * math.tan(math.radians(30))
     z0 = start - pitch  # one turn more at each end: the tool is trimmed to [start, end]
     mid = z0 + pitch / 2
-    corners = [FreeCAD.Vector(radius + margin, 0, mid - side), FreeCAD.Vector(root, 0, mid - pitch / 8),
-               FreeCAD.Vector(root, 0, mid + pitch / 8), FreeCAD.Vector(radius + margin, 0, mid + side)]
+    corners = [FreeCAD.Vector(outer + margin, 0, mid - side), FreeCAD.Vector(root, 0, mid - pitch / 8),
+               FreeCAD.Vector(root, 0, mid + pitch / 8), FreeCAD.Vector(outer + margin, 0, mid + side)]
     profile = Part.makePolygon(corners + corners[:1])
     height = end - start + 2 * pitch
-    helix = Part.makeHelix(pitch, height, radius, 0, left_handed)
+    helix = Part.makeLongHelix(pitch, height, outer, 0, left_handed)
     helix.translate(FreeCAD.Vector(0, 0, z0))
-    sweep = Part.Wire(helix).makePipeShell([profile], True, True)
-    tool = sweep
-    if fit > 1e-9:
+    tool = Part.Wire(helix).makePipeShell([profile], True, True)
+    if skin - outer > 1e-9:
         # out past the groove's outside: surfaces that coincide make booleans fail
-        sleeve = Part.makeCylinder(radius + 1.5 * margin, height).cut(Part.makeCylinder(outer, height))
+        sleeve = Part.makeCylinder(skin + 1.5 * margin, height).cut(Part.makeCylinder(outer, height))
         sleeve.translate(FreeCAD.Vector(0, 0, z0))
         tool = tool.fuse(sleeve)
-    span = Part.makeCylinder(radius + 2 * margin, end - start)
+    span = Part.makeCylinder(skin + 2 * margin, end - start)
     span.translate(FreeCAD.Vector(0, 0, start))
     return tool.common(span)
 
@@ -197,10 +205,19 @@ class ThreadFeature:
         face = round_face(link, names[0])
         surface = face.Surface
         start, end = span(obj, face)
-        tool = groove(surface.Radius, obj.ThreadPitch.Value, start, end, obj.LeftHanded, obj.Fit.Value)
-        tool.Placement = FreeCAD.Placement(surface.Center, FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), surface.Axis))
+        try:
+            tool = groove(surface.Radius, obj.ThreadDiameter.Value, obj.ThreadPitch.Value, start, end,
+                          obj.LeftHanded, obj.Fit.Value)
+            tool.Placement = FreeCAD.Placement(surface.Center,
+                                               FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), surface.Axis))
+            cut = base.cut(tool)
+        except Part.OCCError as e:
+            raise RuntimeError(f"The thread couldn't be cut ({e})") from e
+        if base.Volume - cut.Volume < 0.01 * tool.Volume:
+            # a boolean that goes wrong can leave the solid as it was, without a word: never pass that off
+            raise RuntimeError(f"The thread couldn't be cut: is {obj.ThreadSize} the right size for this face?")
         obj.AddSubShape = tool
-        obj.Shape = base.cut(tool)
+        obj.Shape = cut
 
     def onDocumentRestored(self, obj):
         self.add_properties(obj)
