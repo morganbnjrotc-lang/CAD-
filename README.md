@@ -5,7 +5,7 @@ A fast, fully local, lightweight CAD/CAM application built on top of [FreeCAD](h
 > **Status:** Phases 1 (foundation) and 2 (the clean, unified shell) are done: one environment with a
 > toolbar that follows the selection, keyboard shortcuts by context, a command palette, a Home page
 > with recent files and its own look (light and dark following Windows, line icons), checked against
-> reviewed screenshots in CI, and a 1.41 s startup. Now: Phase 3 (modeling UX), starting with sketching like Fusion. See [docs/PLAN.md](docs/PLAN.md).
+> reviewed screenshots in CI, and a 1.41 s startup. Phase 3 (modeling UX: sketching and modeling like Fusion) is closed. Now: Phase 4 (advanced sketching), starting with text like Fusion's. See [docs/PLAN.md](docs/PLAN.md).
 > Nothing below is implemented yet unless marked ✅.
 
 ## Principles

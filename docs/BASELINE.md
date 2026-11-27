@@ -141,6 +141,11 @@ which can't take focus. The last commit fails it the same way; run the GUI suite
 2026-11-17 (100 tests, 76 s locked): also `test_warmup_runner.WarmUpRunnerTest.test_a_failed_load_is_reported_and_the_rest_still_load`
 times out waiting for the background loads; both fail the same way without that day's changes.
 Seen again 2026-11-26 with the screen unlocked: `test_palette_window.Wiring` failed in every run (the palette never became visible), also on the slim build made before that day's changes. The cause: a McAfee "Antivirus protection expired" window on top of everything (a screen grab showed it). With it closed, all 189 passed. Any window holding the foreground can do this: check the screen before trusting a popup test's failure.
+Seen again 2026-11-26 and 2026-11-27, the screen locking in the middle of a run: in TestStudioModelingGui `test_tasks_panel.MediumSize` (twice: the empty panel stays shown, since FreeCAD hides it only once the 3D view takes the focus back) and `test_extrude_direction.Typing.test_a_cut_typed_out_of_the_part_extrudes` (Return never reaches the panel); TestStudioGui hung, in `test_extrude_regions` one day and `test_appearance.StudioWidgets` the next, until the runner killed it after 600 s. Nothing in those days' changes touched them.
+
+### Known upstream issue: a geometry's text extension is saved unescaped
+
+`Part::GeometryDefaultExtension<std::string>::saveAttributes` (`GeometryStringExtension`, `src/Mod/Part/App/GeometryDefaultExtension.cpp`) writes its value into the file as it is. A value with a quote (or `&`, `<`) makes `Document.xml` invalid there: on reopen the sketch fails to restore ("Error while restoring … Sketch") and comes back with no geometry at all. Found 2026-11-27 (PLAN 4.1). Studio's text settings ride on such an extension and are stored base64-encoded (`studio/services/sketch_text.py`); FreeCAD itself isn't patched.
 
 ### Known upstream issue: C++ tests fail on a fresh build folder on Windows (fixed)
 

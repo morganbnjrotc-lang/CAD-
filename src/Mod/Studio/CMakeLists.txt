@@ -60,6 +60,11 @@ add_custom_target(StudioScripts ALL
 )
 fc_copy_sources(StudioScripts "${CMAKE_BINARY_DIR}/Mod/Studio" ${Studio_All})
 
+# The text tests' font (StudioTests/test_fonts.py, PLAN 4.1): the visual check's vendored Noto Sans, in the
+# build tree only, where the tests run.
+configure_file(${CMAKE_SOURCE_DIR}/tests/visual/fonts/NotoSans-Regular.ttf
+               ${CMAKE_BINARY_DIR}/Mod/Studio/StudioTests/fonts/NotoSans-Regular.ttf COPYONLY)
+
 # Product configuration: FreeCAD reads <AppHomePath>/bin/branding.xml at startup
 # (src/App/Application.cpp). Copied at configure time; CMake re-runs when the file changes.
 configure_file(branding/branding.xml "${CMAKE_BINARY_DIR}/bin/branding.xml" COPYONLY)

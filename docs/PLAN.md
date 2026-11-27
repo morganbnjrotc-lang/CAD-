@@ -218,7 +218,7 @@ Foundations come first, then the visible changes built on them (order agreed 202
 **Exit:** a user can work in one environment without switching workbenches, find any command
 from the palette or keyboard, and start the app within the startup budget.
 
-### Phase 3 — Modeling UX *(current, started 2026-11-17)*
+### Phase 3 — Modeling UX *(closed 2026-11-27, started 2026-11-17)*
 
 **Goal:** making a part is quick and obvious: sketch the way Fusion does, pull it into 3D, look at it
 the way you need.
@@ -257,8 +257,12 @@ face, rounded edges. Whatever gets in the way becomes a fix in this phase.
 | 3.16 | **Pick regions while extruding** (the user, 2026-11-22: "I only have one selected and the sketch disappears before I haven't completed the extrusion… The sketch should disappear after the extrusion has been confirmed so I can select all the things that apply and deselect anything that might be accidentally selected"). Part Design hid the sketch as soon as Extrude started (`finishProfileBased`) and its panel took only the regions picked before it opened. Built ✅ 2026-11-22, like Fusion, without changing FreeCAD: while Extrude, Cut, Revolve or Revolve Cut is open (new or edited), the sketch stays shown and a click on one of its regions adds it to the feature or takes it out; the preview follows. FreeCAD's OK hides the sketch, its Cancel takes the clicks back. A click is left to the panel while it picks something itself (Up to face, an axis: `StudioGui.selection_gate`). A sketch picked whole takes the regions it extrudes (a circle inside a square is a hole); clicking the circle fills it. An extrude dragged into the part keeps its regions as a cut. `studio/services/profile_regions.py` (15 headless tests, Revolve among them), `studio/shell/extrude_regions.py` (11 tests in the app, real clicks). Tried by the user 2026-11-23 ("looks good") ✅ | Regions added and taken out by clicking, also on a whole sketch, an edit and a cut; Finish hides the sketch, Cancel restores; tried by the user |
 
 **Exit:** the user has modeled the yarn holder in Studio without leaving it or looking anything up.
+Closed 2026-11-27 at the user's word ("everything is working great, commit and move on to part 4"):
+the yarn holder itself wasn't reported; the user modeled and printed-prepared a two-part threaded
+piece (a sunflower with a stem screwed into it) in Studio instead. Items marked "Waiting: tried by
+the user" stay open to the user's notes.
 
-### Phase 4 — Advanced sketching
+### Phase 4 — Advanced sketching *(current, started 2026-11-27)*
 
 - **Text tool:** text box / area / centered area, any installed font, **fonts embedded in the file**.
 - **Sketch on curved surfaces:** sketch maps onto and wraps around faces; text on surfaces; extrude in or out.
@@ -266,6 +270,25 @@ face, rounded edges. Whatever gets in the way becomes a fix in this phase.
 
 *Tests first:* font embedding survives save → reopen on a machine without the font; surface mapping
 keeps arc length on cylinders; spline node edits update the sweep with a valid solid.
+
+**Test project (proposed):** a name on the sunflower's stem: typed in a font from the computer,
+wrapped around the round stem and raised from it, the file opening with its text editable on
+another computer.
+
+FreeCAD's sketcher already has a Text tool (on Studio's sketch toolbar since 3.12): two clicks give
+a line and one line of text is stretched along it, its letters' outline as sketch geometry held
+together by a "Text" constraint. The stretch is to the word's own outline, so "ace" comes out with
+letters as tall as "ABC"'s; a typed line break is dropped; fonts are listed by file name (`arialbd`)
+and only the font's name is kept in the file.
+
+| # | Task | Done when |
+|---|---|---|
+| 4.1 | **Text like Fusion** ([ADR 0015](adr/0015-sketch-text.md)): drag a box, type one or more lines, pick the font by its name and style from every installed font (Windows' and the user's own), give a height (the capitals' height, as in drafting), align left, center or right and top, middle or bottom in the box. Studio lays the text out itself and holds it in the sketch with FreeCAD's sketch Group (a construction line the letters follow; moved and turned with it); the text's settings ride on that line, so it can be edited later. FreeCAD's Text stays as the drop-down's "Along a Line" way. Steps: the installed fonts by name and style (`studio/services/fonts.py`); laying out and editing a text in a sketch (`studio/services/sketch_text.py`); the tool and its panel in the app. **Fonts** ✅ 2026-11-27: read from the font files' own tables, headless (family and style as Windows lists them, typographic names first: "Segoe UI" "Semibold"; weight and slant order a family's styles; metrics; embedding permission), Windows' and the user's font folders, each family and style once; this computer: 488 fonts, 274 families, 0.55 s the first time and 0.08 s after (15 headless tests, on Noto Sans copied next to the tests by the build). **Layout** ✅ 2026-11-27: `TextBox` (text, family, style, height, box width and depth, alignment, spacing); `add`, `frames`, `members`, `read`, `edit`, `remove` (26 headless tests: the capitals the height whatever the word, lines and blank lines, spacing, the six alignments, placed and turned, the box drawn as construction, moving with the frame, fully defined with it, extruding, read back, a longer frame making it bigger, edited keeping the user's constraints on the frame, a wider box, saved and reopened with quotes and accents, one undo step each or none inside a panel's). Found on the way: FreeCAD saves a geometry's text unescaped, and a quote in it loses the sketch's geometry on reopen (BASELINE.md); Studio's settings are stored base64. | Fonts listed by family and style; letters the typed height whatever the word; lines and alignment in the box; text moves with its line, extrudes, edits, survives save; one undo step; tried by the user |
+| 4.2 | **Fonts kept in the file:** a text's font file is saved inside the `.FCStd`, so the text stays editable on a computer without it; a font whose license forbids embedding (its `fsType`) is named and left out, and the user told. | A file reopened with the font gone edits its text in the same font; a restricted font isn't embedded |
+| 4.3 | **Emboss on a round face** (Fusion's Emboss): a sketch, text or shapes, wrapped onto a cylinder or cone keeping its lengths along the surface, raised from it or cut into it by a depth. | Wrapped lengths equal the sketch's on cylinders; raised and cut both valid solids; text on the stem |
+| 4.4 | **Sketch on curved faces** beyond Emboss: project a sketch onto any face; wrap onto other round faces. | To be detailed after 4.3 |
+| 4.5 | **3D sketch splines:** points placed in 3D, dragged, the curve extended by adding points. | Node edits keep a smooth curve through the points |
+| 4.6 | **Pipe along a path** (wires, cables, tubing): a round or hollow section swept along a 3D spline or edges, following it when it changes. | A node edit updates the pipe with a valid solid |
 
 ### Phase 5 — Parts & assemblies in one environment
 
