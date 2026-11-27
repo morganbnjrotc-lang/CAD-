@@ -1,7 +1,7 @@
 # 0015 — Text in sketches, laid out by Studio like Fusion's
 
-- **Status:** proposed (2026-11-27, when the user moved on to Phase 4: Fusion's way, as the user has picked
-  for each tool so far; to be confirmed on the user's first try)
+- **Status:** accepted (2026-11-27: proposed when the user moved on to Phase 4, Fusion's way as the user has
+  picked for each tool so far; the user tried the tool the same day: "it works")
 - **Date:** 2026-11-27
 
 ## Context
