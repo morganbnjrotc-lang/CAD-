@@ -160,7 +160,8 @@ class ThreadPanel:
         self.doc.recompute()
 
     def getStandardButtons(self):
-        return int(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        # the flags as they are: FreeCAD reads Qt's enums (PySide6's can't be made an int)
+        return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 
     def accept(self):
         self.doc.recompute()

@@ -83,6 +83,14 @@ class ThreadTool(unittest.TestCase):
         self.assertEqual((thread.ThreadType, thread.ThreadSize, thread.Modeled), ("UNC", "1/4", False))
         self.assertEqual(self.panel().size.currentText(), "1/4")
 
+    def test_the_panel_has_ok_and_cancel(self):
+        # FreeCAD asks the panel for its buttons and, when that raises, prints the error and uses its own
+        from PySide import QtWidgets
+
+        self.thread_tool()
+        buttons = QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        self.assertEqual(self.panel().getStandardButtons(), buttons)
+
     def test_cancel_takes_it_away(self):
         self.thread_tool()
         self.panel().reject()
