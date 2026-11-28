@@ -127,7 +127,7 @@ class FollowsSelection(unittest.TestCase):
     def test_each_kind_of_selection_shows_its_tools(self):
         window = session_window()
         window.show_tools_for([Selected("Sketcher::SketchObject")], None)
-        self.assertEqual(labels(), ["Extrude", "Cut", "Revolve", "Hole", "Edit Sketch"])
+        self.assertEqual(labels(), ["Extrude", "Cut", "Revolve", "Hole", "Emboss", "Edit Sketch"])
         window.show_tools_for([], "Sketcher::SketchObject")
         self.assertEqual(labels(), ["Line", "Rectangle", "Circle", "Arc", "Polygon", "Slot", "Spline", "Ellipse",
                                     "Point", "Text", "Pattern", "Construction", "Dimension", "Fully Constrain",
