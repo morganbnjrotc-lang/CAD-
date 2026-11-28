@@ -10,7 +10,9 @@ A cylinder 20 mm in radius, 40 mm tall, on the XY plane; profiles on the XZ plan
 normal points to the face's side the wrap lands on. And cones: a cone unrolls flat too (into a ring's slice), so
 across the sketch becomes a level circle around the cone and along it goes up the cone's slope, lengths kept up
 the slope and around the cone at the sketch's middle height (the sketch's shapes a little wider toward the
-cone's wide end, narrower toward its tip, in proportion to its radius there).
+cone's wide end, narrower toward its tip, in proportion to its radius there). Any other face (flat, a dome, a
+fillet) doesn't unroll: the sketch is projected onto it along the sketch's normal, on the side it looks at, and
+its patches on the face raised or cut along the face's normal (letters on a dome stand out of it, not up).
 """
 
 import math
@@ -180,12 +182,6 @@ class OnACylinder(_Sketches, unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "along the round face"):
             emboss.wrapped_edges(profile, self.pad, self.face)
 
-    def test_a_flat_face_is_refused(self):
-        flat = next(f"Face{n}" for n, f in enumerate(self.pad.Shape.Faces, 1)
-                    if f.Surface.__class__.__name__ == "Plane")
-        with self.assertRaisesRegex(ValueError, "isn't round"):
-            emboss.make(self.body, self.square_profile(), self.pad, flat)
-
     def test_nothing_raised_on_the_face_is_an_error(self):
         # the square above the cylinder's top: wrapped onto the face's surface, but off the face
         feature = emboss.make(self.body, self.square_profile(y=HEIGHT + 5), self.pad, self.face, 1.0)
@@ -324,3 +320,138 @@ class OnACone(_Sketches, unittest.TestCase):
         feature = self.emboss(profile, depth=0.8)
         self.assertEqual(len(feature.Shape.Solids), 1)
         self.assertGreater(feature.Shape.Volume, self.volume)
+
+
+def shell(outer, inner, across=6.0, radius=20.0):
+    """The volume between spheres `outer` and `inner` in radius, inside the cone from their middle through the
+    circle `across` in radius around the pole of a sphere `radius` in radius."""
+    return 2 * math.pi / 3 * (1 - math.sqrt(1 - (across / radius) ** 2)) * (outer ** 3 - inner ** 3)
+
+
+class OnAnyFace(_Sketches, unittest.TestCase):
+    """Faces that don't unroll: the top of a 40 x 40 x 20 mm box, and a dome (a sphere 20 mm in radius); the
+    profiles on the XY plane, looking up at them."""
+
+    def setUp(self):
+        self.doc = FreeCAD.newDocument("EmbossAny" + uuid.uuid4().hex[:8])
+        self.doc.UndoMode = 1
+        self.addCleanup(lambda: FreeCAD.closeDocument(self.doc.Name))
+        self.body = self.doc.addObject("PartDesign::Body", "Body")
+
+    def box(self):
+        self.pad = self.body.newObject("PartDesign::AdditiveBox", "Box")
+        self.pad.Length, self.pad.Width, self.pad.Height = 40, 40, 20
+        self.doc.recompute()
+        self.volume = self.pad.Shape.Volume
+        self.face = next(f"Face{n}" for n, f in enumerate(self.pad.Shape.Faces, 1)
+                         if abs(f.CenterOfMass.z - 20) < 1e-9)
+
+    def dome(self):
+        self.pad = self.body.newObject("PartDesign::AdditiveSphere", "Sphere")
+        self.pad.Radius = 20
+        self.doc.recompute()
+        self.volume = self.pad.Shape.Volume
+        self.face = next(f"Face{n}" for n, f in enumerate(self.pad.Shape.Faces, 1)
+                         if f.Surface.__class__.__name__ == "Sphere")
+
+    def up(self, tilt=0.0):
+        """A profile on the XY plane, looking up; tilted `tilt` degrees about X."""
+        sketch = self.sketch(plane=3)
+        sketch.AttachmentOffset = FreeCAD.Placement(V(0, 0, 0), FreeCAD.Rotation(V(1, 0, 0), tilt))
+        self.doc.recompute()
+        return sketch
+
+    def circle(self, sketch, radius, center=(0.0, 0.0)):
+        sketch.addGeometry(Part.Circle(V(center[0], center[1], 0), V(0, 0, 1), radius))
+        self.doc.recompute()
+        return sketch
+
+    def added(self, feature):
+        return feature.Shape.Volume - self.volume
+
+    def test_a_flat_face(self):
+        self.box()
+        raised = self.emboss(self.rectangle(self.up(), 10, 10, 20, 20), depth=1.0)
+        self.assertEqual(len(raised.Shape.Solids), 1)
+        self.assertAlmostEqual(self.added(raised), 100.0, places=6)
+        self.assertAlmostEqual(raised.Shape.BoundBox.ZMax, 21.0, places=6)
+        cut = self.emboss(self.rectangle(self.up(), 25, 25, 35, 35), depth=1.0, cut=True)
+        self.assertAlmostEqual(raised.Shape.Volume - cut.Shape.Volume, 100.0, places=6)
+
+    def test_a_tilted_sketch_is_stretched_onto_the_face(self):
+        # seen from a plane tilted 30° to the face, the square covers 1 / cos 30° as much of it
+        self.box()
+        raised = self.emboss(self.rectangle(self.up(tilt=30), 10, 20, 20, 30), depth=1.0)
+        self.assertAlmostEqual(self.added(raised), 100.0 / math.cos(math.radians(30)), places=6)
+
+    def test_a_dome(self):
+        # a circle 6 mm in radius seen from the dome's middle plane: the cap it covers, 1 mm out of the sphere
+        # (or into it) along the sphere's radius
+        self.dome()
+        raised = self.emboss(self.circle(self.up(), 6.0), depth=1.0)
+        self.assertEqual(len(raised.Shape.Solids), 1)
+        self.assertAlmostEqual(self.added(raised), shell(21, 20), places=4)
+        cut = self.emboss(self.circle(self.up(), 6.0), depth=1.0, cut=True)
+        self.assertAlmostEqual(raised.Shape.Volume - cut.Shape.Volume, shell(20, 19), places=4)
+
+    def test_on_the_side_the_sketch_looks_at(self):
+        # from the dome's middle, looking up: on the top half only
+        self.dome()
+        raised = self.emboss(self.circle(self.up(), 6.0), depth=1.0)
+        added = raised.Shape.cut(self.pad.Shape)
+        self.assertGreater(added.BoundBox.ZMin, 0.0)
+
+    def test_text_on_a_dome(self):
+        from StudioTests.test_sketch_text import NOTO
+        from studio.services import fonts, sketch_text
+        from studio.services.sketch_text import TextBox
+
+        self.dome()
+        profile = self.up()
+        sketch_text.add(profile, TextBox("Lesleigh", "Noto Sans", "Regular", 6.0, 1.0, 1.0, fit=True),
+                        fonts.read(NOTO), corner=(-12.0, -3.0))
+        self.doc.recompute()
+        feature = self.emboss(profile, depth=0.8)
+        self.assertEqual(len(feature.Shape.Solids), 1)
+        self.assertGreater(self.added(feature), 0.0)
+
+    def test_a_rounded_edge(self):
+        # a cylinder's top edge rounded 5 mm (a torus): a dot under the rounding, looking up, raised out of it
+        base = self.sketch(plane=3)
+        base.addGeometry(Part.Circle(V(0, 0, 0), V(0, 0, 1), 20))
+        pad = self.body.newObject("PartDesign::Pad", "Pad")
+        pad.Profile, pad.Length = base, 40
+        self.doc.recompute()
+        top = next(f"Edge{n}" for n, e in enumerate(pad.Shape.Edges, 1)
+                   if e.Curve.__class__.__name__ == "Circle" and abs(e.BoundBox.ZMin - 40) < 1e-9)
+        self.pad = self.body.newObject("PartDesign::Fillet", "Fillet")
+        self.pad.Base, self.pad.Radius = (pad, [top]), 5
+        self.doc.recompute()
+        base.Visibility = False
+        self.volume = self.pad.Shape.Volume
+        self.face = next(f"Face{n}" for n, f in enumerate(self.pad.Shape.Faces, 1)
+                         if f.Surface.__class__.__name__ == "Toroid")
+        raised = self.emboss(self.circle(self.up(), 1.5, center=(17.5, 0.0)), depth=0.5)
+        self.assertEqual(len(raised.Shape.Solids), 1)
+        added = raised.Shape.cut(self.pad.Shape)
+        self.assertGreater(added.Volume, 0.5 * math.pi * 1.5 ** 2 * 0.5)  # more than the dot's own size
+        # on the rounding, under the dot (17.5 ± 1.5 mm out, so from 38 mm up): OCC's quick bounding box of a
+        # torus patch spans the whole rounding
+        self.assertGreater(added.optimalBoundingBox().ZMin, 37.5)
+
+    def test_off_the_face_is_an_error(self):
+        self.box()
+        for cut in (False, True):
+            with self.subTest(cut=cut):
+                feature = emboss.make(self.body, self.rectangle(self.up(), 50, 10, 60, 20), self.pad, self.face,
+                                      1.0, cut)
+                self.doc.recompute()
+                self.assertFalse(feature.isValid())
+                self.assertIn("off the face", feature.getStatusString())
+                self.body.removeObject(feature)
+                self.doc.removeObject(feature.Name)
+
+    def test_not_a_face_is_refused(self):
+        self.box()
+        with self.assertRaisesRegex(ValueError, "isn't a face"):
+            emboss.make(self.body, self.rectangle(self.up(), 10, 10, 20, 20), self.pad, "Edge1")

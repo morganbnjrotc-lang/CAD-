@@ -298,7 +298,8 @@ FreeCADGui.addCommand("Studio_Text", _Text())
 
 
 class _Emboss:
-    """A sketch wrapped onto a round face, raised or cut, like Fusion's Emboss (PLAN 4.3, docs/adr/0016)."""
+    """A sketch wrapped around a round face or projected onto any other, raised or cut, like Fusion's Emboss
+    (PLAN 4.3, 4.4, docs/adr/0016)."""
 
     def GetResources(self):
         import os
@@ -307,8 +308,8 @@ class _Emboss:
 
         return {
             "MenuText": "Emboss",
-            "ToolTip": "Wraps the picked sketch (text, shapes) onto a round face and raises it from the face or "
-                       "cuts it in. Pick the sketch, then the face",
+            "ToolTip": "Wraps the picked sketch (text, shapes) around a round face, or projects it onto any other, "
+                       "and raises it from the face or cuts it in. Pick the sketch, then the face",
             "Pixmap": os.path.join(FreeCAD.getHomePath(), "Mod", "Studio", "Resources", "icons", "line",
                                    "emboss.svg"),
         }

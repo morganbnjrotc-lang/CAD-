@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-"""The Emboss tool in the app (PLAN 4.3, docs/adr/0016; studio.shell.emboss), on a 20 mm radius cylinder with a
-10 mm square sketched on the plane through its axis: the toolbar offers Emboss for the sketch; the panel waits
-for the round face, then shows the emboss; Deboss cuts instead; OK keeps it (one undo step) and hides the
-sketch; Cancel takes it away; double-click edits it."""
+"""The Emboss tool in the app (PLAN 4.3, 4.4, docs/adr/0016; studio.shell.emboss), on a 20 mm radius cylinder
+with a 10 mm square sketched on the plane through its axis: the toolbar offers Emboss for the sketch; the panel
+waits for the face, then shows the emboss, wrapped around the round face; Deboss cuts instead; OK keeps it (one
+undo step) and hides the sketch; Cancel takes it away; double-click edits it. A flat face (the top) gets a
+sketch projected onto it; a pick on the emboss itself picks the face under it, never the emboss."""
 
 import unittest
 import uuid
@@ -84,11 +85,41 @@ class EmbossTool(unittest.TestCase):
         self.pick((self.profile, ""))
         panel = self.tool()
         self.assertEqual(self.embosses(), [])
-        self.assertIn("Pick the round face", panel.face_label.text())
+        self.assertIn("Pick the face", panel.face_label.text())
         self.pick((self.pad, self.face))
         [made] = self.embosses()
         self.assertTrue(made.isValid(), made.getStatusString())
         self.assertGreater(self.body.Shape.Volume, self.volume)
+        self.assertIn("wrapped", panel.face_label.text())
+
+    def test_a_flat_face_too(self):
+        top = next(f"Face{n}" for n, f in enumerate(self.pad.Shape.Faces, 1) if abs(f.CenterOfMass.z - 40) < 1e-9)
+        under = self.body.newObject("Sketcher::SketchObject", "Under")
+        under.AttachmentSupport = [(self.body.Origin.OriginFeatures[3], "")]
+        under.MapMode = "FlatFace"
+        corners = [V(-5, -5, 0), V(5, -5, 0), V(5, 5, 0), V(-5, 5, 0)]
+        for a, b in zip(corners, corners[1:] + corners[:1]):
+            under.addGeometry(Part.LineSegment(a, b))
+        self.doc.recompute()
+        self.pick((under, ""), (self.pad, top))
+        panel = self.tool()
+        [made] = self.embosses()
+        self.assertTrue(made.isValid(), made.getStatusString())
+        # the 10 mm square raised by the panel's first depth (0.04 in or 1 mm, by the units)
+        self.assertAlmostEqual(self.body.Shape.Volume - self.volume, 100.0 * made.Depth.Value, places=4)
+        self.assertIn("projected", panel.face_label.text())
+
+    def test_a_pick_on_the_emboss_picks_the_face_under_it(self):
+        self.pick((self.profile, ""), (self.pad, self.face))
+        self.tool()
+        [made] = self.embosses()
+        top = next(f"Face{n}" for n, f in enumerate(made.Shape.Faces, 1) if abs(f.CenterOfMass.z - 40) < 1e-9)
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(self.doc.Name, made.Name, top, 3.0, 2.0, 40.0)
+        settle(300)
+        link, names = made.Face
+        self.assertEqual(link, self.pad)
+        self.assertEqual(self.pad.Shape.getElement(names[0]).CenterOfMass.z, 40.0)
 
     def test_ok_keeps_it_and_hides_the_sketch(self):
         self.pick((self.profile, ""), (self.pad, self.face))

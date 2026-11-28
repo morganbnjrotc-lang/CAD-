@@ -44,10 +44,22 @@ radius: 102.5 mm³, cut: 97.5 mm³); text wraps and fuses into one solid.
    adds 100 · (1 + cos 14° / 30) mm³ to 1e-4, for a cone narrowing upward and one widening; the cylinder is the
    same map with no slope. Heights away from the middle land a little nearer it than in the sketch (8 mm up
    the slope rises 8 · cos 14° = 7.76 mm), since lengths up the slope are kept.
+7. **Any other face is projected onto** (added 2026-11-28, PLAN 4.4): flat faces, domes, rounded edges and
+   free-form shapes don't unroll. The sketch, from any plane, is projected along its normal onto the face, on
+   the side it looks at (from the sketch's plane on); the face's patches inside the shapes' prism are thickened
+   along the face's normal, as wrapped shapes are, so letters on a dome stand out of it rather than straight up,
+   and shapes stretch where the face slopes away from the sketch (1 / cos of the angle on a flat face). The kind
+   of face decides: cylinders and cones wrap, the rest project, with no setting; the panel says which. Measured
+   (headless, exact): a 10 mm square raised 1 mm on a flat face adds 100 mm³, from a plane tilted 30° 115.47 mm³;
+   a 6 mm circle over a 20 mm dome's top, the shell over the cap it covers (2π/3 (1 − cos θ)(21³ − 20³), raised;
+   20³ − 19³, cut). OCC gives a patch around a sphere's pole thickened as a closed, inside-out shell instead
+   of a solid; made a solid, it is oriented and exact. Before, a flat face was refused ("isn't round"); now it is
+   projected onto, and only what isn't a face is refused.
+8. **A pick on the emboss itself** (or on a feature after it) while its panel is open picks the face under the
+   point on the shape the emboss is made on: the emboss never points at itself, which would loop.
 
 ## Consequences
 
-- Cylinders and cones; other round faces (spheres, fillets, free-form) don't unroll and need projecting instead
-  (PLAN 4.4).
+- Cylinders and cones are wrapped (lengths kept), every other face projected onto (stretched where it slopes away).
 - Another Studio feature type in documents: opening one needs Studio (the proxies), as any Python feature does.
 - Curved outlines are thickened by OCC with approximated sides: volumes within ~0.01 %, not to the last digit.

@@ -1,15 +1,18 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-"""The Emboss tool in the app, like Fusion's (PLAN 4.3, docs/adr/0016; studio.services.emboss makes the feature).
+"""The Emboss tool in the app, like Fusion's (PLAN 4.3, 4.4, docs/adr/0016; studio.services.emboss makes the
+feature).
 
-Pick a sketch drawn on a plane along a round face (text, shapes) and press Emboss (on the toolbar for a sketch,
-and under Create); then pick the round face, or pick both first. The sketch is wrapped onto the face and raised
-from it (Emboss) or cut into it (Deboss) by the depth, shown straight away; picking another round face moves it
-there. OK keeps it as one undo step and hides the sketch, as Extrude does; Cancel takes it away. Double-click it
-in the model tree to change it.
+Pick a sketch (text, shapes) and press Emboss (on the toolbar for a sketch, and under Create); then pick the face,
+or pick both first. The sketch is wrapped around a round face (a cylinder's or a cone's, from a plane along it)
+or projected onto any other, and raised from it (Emboss) or cut into it (Deboss) by the depth, shown straight
+away; picking another face moves it there (a pick on the emboss itself, or on a feature after it, picks the face
+under it before the emboss). OK keeps it as one undo step and hides the sketch, as Extrude does; Cancel takes it
+away. Double-click it in the model tree to change it.
 """
 
 import FreeCAD
 import FreeCADGui
+import Part
 from PySide import QtCore, QtGui, QtWidgets  # FreeCAD's PySide shim
 
 from studio.services import emboss as emboss_service
@@ -28,26 +31,26 @@ def current_panel():
     return _panel
 
 
-def _round_face(obj, sub):
-    """(feature, face) when `sub` of `obj` is a round face of a Part Design feature, else None."""
+def _face(obj, sub):
+    """(feature, face) when `sub` of `obj` is a face of a Part Design feature, else None."""
     if not sub.startswith("Face") or not obj.isDerivedFrom("PartDesign::Feature"):
         return None
     try:
-        emboss_service.round_face(obj, sub)
-    except Exception:
+        emboss_service.face_of(obj, sub)
+    except ValueError:
         return None
     return obj, sub
 
 
 def picked():
-    """(sketch, (feature, face) or None): one sketch picked, and maybe one round face; else None."""
+    """(sketch, (feature, face) or None): one sketch picked, and maybe one face; else None."""
     sketches, faces = [], []
     for pick in FreeCADGui.Selection.getSelectionEx():
         if pick.Object.TypeId == "Sketcher::SketchObject" and not pick.SubElementNames:
             sketches.append(pick.Object)
             continue
         for sub in pick.SubElementNames:
-            face = _round_face(pick.Object, sub)
+            face = _face(pick.Object, sub)
             if face is None:
                 return None
             faces.append(face)
@@ -73,7 +76,7 @@ def _icon():
 
 
 class _Picks:
-    """Hears round faces picked while the panel is open."""
+    """Hears faces picked while the panel is open."""
 
     def __init__(self, panel):
         self.panel = panel
@@ -82,7 +85,12 @@ class _Picks:
         if current_panel() is not self.panel:
             return
         target = FreeCAD.getDocument(doc).getObject(obj)
-        face = _round_face(target, sub or "") if target is not None else None
+        if target is None:
+            return
+        if self.panel.after_it(target):
+            face = self.panel.face_under(point) if (sub or "").startswith("Face") else None
+        else:
+            face = _face(target, sub or "")
         if face is not None:
             QtCore.QTimer.singleShot(0, lambda: self.panel.use_face(*face))
 
@@ -144,18 +152,41 @@ class EmbossPanel:
 
     def _show(self):
         if self.emboss is None:
-            self.face_label.setText("Pick the round face to wrap the sketch onto")
+            self.face_label.setText("Pick the face to emboss the sketch onto")
             self.problem.setText("")
             return
         link, names = self.emboss.Face
-        self.face_label.setText(f"{names[0]} of {link.Label}")
+        try:
+            how = "wrapped around it" if emboss_service.wraps(emboss_service.face_of(link, names[0])) else \
+                "projected onto it"
+            self.face_label.setText(f"{names[0]} of {link.Label}, {how}")
+        except ValueError:
+            self.face_label.setText(f"{names[0]} of {link.Label}")
         valid = self.emboss.isValid()
         self.problem.setText("" if valid else self.emboss.getStatusString())
 
     # -- changes -----------------------------------------------------------------------------------
 
+    def after_it(self, feature):
+        """Whether `feature` is the emboss or comes after it (a face of it would make the emboss depend on itself)."""
+        return self.emboss is not None and (feature == self.emboss or self.emboss in feature.OutListRecursive)
+
+    def face_under(self, point):
+        """(feature, face): the face under `point` (picked on the emboss, or after it) of the shape the emboss is
+        made on, or None."""
+        base = self.emboss.BaseFeature
+        if base is None or not base.Shape.Faces:
+            return None
+        body = base.getParentGeoFeatureGroup()
+        local = FreeCAD.Vector(*point)
+        if body is not None:
+            local = body.getGlobalPlacement().inverse().multVec(local)
+        vertex = Part.Vertex(local)
+        number, _ = min(enumerate(base.Shape.Faces, 1), key=lambda pair: pair[1].distToShape(vertex)[0])
+        return base, f"Face{number}"
+
     def use_face(self, feature, face):
-        """Wraps onto `feature`'s round face `face`: the emboss made, or moved there."""
+        """Embosses onto `feature`'s face `face`: the emboss made, or moved there."""
         if self.emboss is None:
             body = feature.getParentGeoFeatureGroup()
             if body is None:

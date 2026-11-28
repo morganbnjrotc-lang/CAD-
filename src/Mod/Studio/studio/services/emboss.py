@@ -11,6 +11,10 @@ proportion to its radius there. The sketch is wrapped as seen along its normal, 
 looks at; its closed shapes (text's letters with their holes) are raised from the face by a depth (an
 **Emboss**, adding) or cut into it (a **Deboss**, cutting), as a Part Design feature in the body.
 
+Any other face (flat, a dome, a fillet, a free-form shape) doesn't unroll: the sketch is projected onto it
+along the sketch's normal, on the side the sketch looks at (from any plane), stretched where the face slopes
+away from the sketch; the shapes' patches on the face are thickened along its normal, as wrapped ones are.
+
 How: each sketch curve, as a B-spline, has its poles mapped to the face's own coordinates (around / the radius
 at the sketch's middle height, along the slope): the map is linear on the sketch plane, so the curve on the
 face is exact. The wrapped faces are thickened along the face's normal (outward for an emboss, inward for a
@@ -30,12 +34,35 @@ NAMES = {ADD: "Emboss", CUT: "Deboss"}
 ROUND = ("Cylinder", "Cone")
 
 
+def face_of(feature, face):
+    """The face `face` ("Face3") of `feature`, else ValueError."""
+    try:
+        shape = feature.Shape.getElement(face)
+    except Exception:
+        shape = None
+    if shape is None or shape.ShapeType != "Face":
+        raise ValueError(f"{face} of {feature.Label} isn't a face")
+    return shape
+
+
+def wraps(face):
+    """Whether the sketch is wrapped onto a face (a cylinder's or a cone's, which unroll) or projected onto it."""
+    return face.Surface.__class__.__name__ in ROUND
+
+
 def round_face(feature, face):
     """The face `face` ("Face3") of `feature` if it is round (a cylinder's or a cone's), else ValueError."""
-    shape = feature.Shape.getElement(face)
-    if shape.ShapeType != "Face" or shape.Surface.__class__.__name__ not in ROUND:
+    shape = face_of(feature, face)
+    if not wraps(shape):
         raise ValueError(f"{face} of {feature.Label} isn't round")
     return shape
+
+
+def _in_body(profile, feature):
+    """The sketch's placement in the coordinates of the face's feature (its body)."""
+    body = _body_of(feature)
+    inverse = body.getGlobalPlacement().inverse() if body is not None else FreeCAD.Placement()
+    return inverse.multiply(profile.getGlobalPlacement())
 
 
 def _body_of(obj):
@@ -52,10 +79,7 @@ class _Unrolling:
         self.axis = V(surface.Axis).normalize()
         slope = getattr(surface, "SemiAngle", 0.0)  # a cone's; along its slope is along the axis on a cylinder
         self.sin = math.sin(slope)
-        # the sketch's own coordinates, in the coordinates of the face's feature (its body)
-        body = _body_of(feature)
-        inverse = body.getGlobalPlacement().inverse() if body is not None else FreeCAD.Placement()
-        self.sketch = inverse.multiply(profile.getGlobalPlacement())
+        self.sketch = _in_body(profile, feature)  # the sketch's own coordinates into the feature's
         normal = self.sketch.Rotation.multVec(V(0, 0, 1))
         if abs(normal.dot(self.axis)) > 1e-6:
             raise ValueError("Draw the sketch on a plane along the round face (through its axis, tangent to it "
@@ -153,17 +177,55 @@ def _thick(face, depth, outward):
     u, v = (u0 + u1) / 2, (v0 + v1) / 2
     point, normal = face.valueAt(u, v), face.normalAt(u, v)  # the normal the offset follows
     out = normal.x * point.x + normal.y * point.y > 0
-    return face.makeOffsetShape(depth if out == outward else -depth, 1e-6, fill=True)
+    return _solid(face.makeOffsetShape(depth if out == outward else -depth, 1e-6, fill=True))
+
+
+def _regions(profile):
+    """The sketch's closed shapes as flat faces in its own coordinates, each with its holes (an O's middle)."""
+    closed = [w for w in _flat(profile).Wires if w.isClosed()]
+    if not closed:
+        raise RuntimeError("The sketch has no closed shapes to emboss")
+    return Part.makeFace(closed, "Part::FaceMakerBullseye")
 
 
 def tool(profile, feature, face, depth, cut=False):
-    """The material an emboss adds (or a deboss cuts), in the feature's coordinates."""
-    unrolling = _Unrolling(profile, feature, face)
-    flat = _flat(profile)
-    closed = [w for w in flat.Wires if w.isClosed()]
-    if not closed:
-        raise RuntimeError("The sketch has no closed shapes to emboss")
-    regions = Part.makeFace(closed, "Part::FaceMakerBullseye")  # each with its holes (an O's middle)
+    """The material an emboss adds (or a deboss cuts), in the feature's coordinates: the sketch wrapped onto
+    the face if it unrolls, else projected onto it."""
+    target = face_of(feature, face)
+    if wraps(target):
+        return _wrapped(_Unrolling(profile, feature, face), _regions(profile), depth, cut)
+    return _projected(_in_body(profile, feature), _regions(profile), feature.Shape, target, depth, cut)
+
+
+def _projected(placement, regions, shape, target, depth, cut):
+    """The shapes (`regions`, placed by `placement`) projected along their normal onto `target`, a face of
+    `shape`, on the side they look at: the face's patches inside the shapes' prism, thickened `depth` along the
+    face's normal, outward from the solid (or inward with `cut`)."""
+    regions = regions.copy()
+    regions.Placement = placement
+    normal = placement.Rotation.multVec(V(0, 0, 1))
+    box = shape.BoundBox
+    corners = [V(x, y, z) for x in (box.XMin, box.XMax) for y in (box.YMin, box.YMax) for z in (box.ZMin, box.ZMax)]
+    reach = max((corner - placement.Base).dot(normal) for corner in corners) + 2 * depth + 1.0
+    if reach <= 0:  # all of it behind the sketch
+        return Part.Compound([])
+    patches = target.common(regions.extrude(normal * reach)).Faces
+    if not patches:
+        return Part.Compound([])
+    solids = [_solid(patch.makeOffsetShape(-depth if cut else depth, 1e-6, fill=True)) for patch in patches]
+    return solids[0].fuse(solids[1:]) if len(solids) > 1 else solids[0]
+
+
+def _solid(thick):
+    """A thickened face as a solid: OCC gives some (a patch around a sphere's pole) as a closed shell, turned
+    inside out; made a solid, it is oriented."""
+    if thick.Solids or not thick.Shells or not all(s.isClosed() for s in thick.Shells):
+        return thick
+    return Part.Compound([Part.Solid(s) for s in thick.Shells]) if len(thick.Shells) > 1 else Part.Solid(thick.Shells[0])
+
+
+def _wrapped(unrolling, regions, depth, cut):
+    """The shapes (`regions`) wrapped onto the face `unrolling` unrolls, thickened `depth`."""
     solids = []
     for region in regions.Faces:
         solid = _thick(_face_on(unrolling, region.OuterWire), depth, not cut)
@@ -189,8 +251,8 @@ class EmbossFeature:
                 if value is not None:
                     setattr(obj, name, value)
 
-        add("App::PropertyLink", "Profile", "The sketch wrapped onto the face")
-        add("App::PropertyLinkSub", "Face", "The round face")
+        add("App::PropertyLink", "Profile", "The sketch wrapped or projected onto the face")
+        add("App::PropertyLinkSub", "Face", "The face: a round one is wrapped around, any other projected onto")
         add("App::PropertyLength", "Depth", "How far the shapes stand out of the face, or are cut into it", 1.0)
 
     def execute(self, obj):
@@ -199,6 +261,8 @@ class EmbossFeature:
         cut = obj.TypeId == CUT
         try:
             shape = tool(obj.Profile, link, names[0], obj.Depth.Value, cut)
+            if not shape.Solids or shape.Volume < 1e-9:
+                raise RuntimeError("Nothing to raise or cut there: the sketch is off the face")
             result = base.cut(shape) if cut else base.fuse(shape).removeSplitter()
         except Part.OCCError as e:
             raise RuntimeError(f"The emboss couldn't be made ({e})") from e
@@ -220,8 +284,8 @@ class EmbossFeature:
 
 
 def make(body, profile, feature, face, depth=1.0, cut=False):
-    """An Emboss (or with `cut`, a Deboss) of `profile` on `feature`'s round face `face`, `depth` deep."""
-    round_face(feature, face)
+    """An Emboss (or with `cut`, a Deboss) of `profile` on `feature`'s face `face`, `depth` deep."""
+    face_of(feature, face)
     kind = CUT if cut else ADD
     emboss = body.newObject(kind, NAMES[kind])
     EmbossFeature(emboss)

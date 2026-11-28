@@ -1572,7 +1572,7 @@
    "name": "Studio_Emboss",
    "workbench": null,
    "menu_text": "Emboss",
-   "tooltip": "Wraps the picked sketch (text, shapes) onto a round face and raises it from the face or cuts it in. Pick the sketch, then the face",
+   "tooltip": "Wraps the picked sketch (text, shapes) around a round face, or projects it onto any other, and raises it from the face or cuts it in. Pick the sketch, then the face",
    "shortcut": "",
    "icon": "src/Mod/Studio/Resources/icons/line/emboss.svg"
   },
