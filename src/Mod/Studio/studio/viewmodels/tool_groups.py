@@ -69,7 +69,7 @@ MODEL = (
         _,
         Tool("PartDesign_Pad"), Tool("PartDesign_Revolution"), Tool("PartDesign_AdditivePipe"),
         Tool("PartDesign_AdditiveLoft"), Tool("PartDesign_AdditiveHelix", "Helix"), Tool("PartDesign_Hole"),
-        Tool("Studio_Thread"),
+        Tool("Studio_Thread"), Tool("Studio_Emboss"),
         Side("Primitive", _primitives("PartDesign_CompPrimitiveAdditive", "Additive")),
         _,
         Tool("PartDesign_Pocket"), Tool("PartDesign_Groove"), Tool("PartDesign_SubtractivePipe"),

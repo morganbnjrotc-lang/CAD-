@@ -26,7 +26,7 @@ TOOLS = {
                 ("Std_Import", None), ("Std_Measure", None), ("Studio_Section", None),
                 ("Studio_CommandPalette", "Search")],
     "sketch": [("PartDesign_Pad", None), ("PartDesign_Pocket", None), ("PartDesign_Revolution", None),
-               ("PartDesign_Hole", None), ("Sketcher_EditSketch", None)],
+               ("PartDesign_Hole", None), ("Studio_Emboss", None), ("Sketcher_EditSketch", None)],
     "face": [("PartDesign_NewSketch", "Sketch on Face"), ("PartDesign_Fillet", None), ("PartDesign_Chamfer", None),
              ("PartDesign_Thickness", None), ("PartDesign_Draft", None), ("Studio_Thread", None),
              ("Std_Measure", None), ("Studio_Section", None)],

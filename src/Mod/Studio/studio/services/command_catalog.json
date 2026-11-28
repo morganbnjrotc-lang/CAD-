@@ -1569,6 +1569,14 @@
    "icon": "src/Mod/Sketcher/Gui/Resources/icons/geometry/Sketcher_ToggleConstruction.svg"
   },
   {
+   "name": "Studio_Emboss",
+   "workbench": null,
+   "menu_text": "Emboss",
+   "tooltip": "Wraps the picked sketch (text, shapes) onto a round face and raises it from the face or cuts it in. Pick the sketch, then the face",
+   "shortcut": "",
+   "icon": "src/Mod/Studio/Resources/icons/line/emboss.svg"
+  },
+  {
    "name": "Studio_Finish",
    "workbench": null,
    "menu_text": "Finish",

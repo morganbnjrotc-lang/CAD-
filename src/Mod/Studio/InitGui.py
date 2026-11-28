@@ -26,7 +26,7 @@ class StudioWorkbench(FreeCADGui.Workbench):
                 self.removeMenu(name)
 
     def Activated(self):
-        from studio.shell import (appearance, display, environment, export_threads, extrude_direction,
+        from studio.shell import (appearance, display, emboss, environment, export_threads, extrude_direction,
                                   extrude_regions, feature_panels, field_defaults, home, new_features,
                                   shaft_threads, shortcuts, sketching, tasks_panel, thread_fit, tool_groups, units,
                                   warmup, window)
@@ -61,6 +61,8 @@ class StudioWorkbench(FreeCADGui.Workbench):
         export_threads.install_once()
         # Threads on a shaft's round face, cosmetic ones drawn with FreeCAD's thread texture (PLAN 3.20).
         shaft_threads.install_once()
+        # Emboss on a round face: its features get their icon and panel back when a file opens (PLAN 4.3).
+        emboss.install_once()
         # A threaded hole picked: the toolbar's Fit box loosens or tightens it (PLAN 3.9).
         thread_fit.install_once()
         # The Tasks panel medium-sized at the right of the 3D view, following the window (PLAN 3.10).
@@ -293,6 +295,36 @@ class _Text:
 
 
 FreeCADGui.addCommand("Studio_Text", _Text())
+
+
+class _Emboss:
+    """A sketch wrapped onto a round face, raised or cut, like Fusion's Emboss (PLAN 4.3, docs/adr/0016)."""
+
+    def GetResources(self):
+        import os
+
+        import FreeCAD
+
+        return {
+            "MenuText": "Emboss",
+            "ToolTip": "Wraps the picked sketch (text, shapes) onto a round face and raises it from the face or "
+                       "cuts it in. Pick the sketch, then the face",
+            "Pixmap": os.path.join(FreeCAD.getHomePath(), "Mod", "Studio", "Resources", "icons", "line",
+                                   "emboss.svg"),
+        }
+
+    def IsActive(self):
+        from studio.shell import emboss
+
+        return emboss.current_panel() is None and emboss.picked() is not None
+
+    def Activated(self):
+        from studio.shell import emboss
+
+        emboss.start()
+
+
+FreeCADGui.addCommand("Studio_Emboss", _Emboss())
 FreeCADGui.addCommand("Studio_Finish", _PanelButton(accept=True))
 FreeCADGui.addCommand("Studio_Cancel", _PanelButton(accept=False))
 

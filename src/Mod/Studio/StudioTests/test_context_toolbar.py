@@ -101,7 +101,7 @@ class Buttons(unittest.TestCase):
     def test_tools_for_each_kind(self):
         self.assertEqual(self.labels("nothing"),
                          ["New Sketch", "New Body", "Pattern", "Import", "Measure", "Section", "Search"])
-        self.assertEqual(self.labels("sketch"), ["Extrude", "Cut", "Revolve", "Hole", "Edit Sketch"])
+        self.assertEqual(self.labels("sketch"), ["Extrude", "Cut", "Revolve", "Hole", "Emboss", "Edit Sketch"])
         self.assertEqual(self.labels("face"),
                          ["Sketch on Face", "Fillet", "Chamfer", "Shell", "Draft", "Thread", "Measure", "Section"])
         self.assertEqual(self.labels("edge"), ["Fillet", "Chamfer", "Measure", "Fit Selection"])

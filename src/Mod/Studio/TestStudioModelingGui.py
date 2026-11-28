@@ -20,3 +20,4 @@ from StudioTests.gui.test_thread_fit import ThreadFit  # noqa: F401
 from StudioTests.gui.test_feature_panels import PicksEdges  # noqa: F401
 from StudioTests.gui.test_model_patterns import ModelPatterns  # noqa: F401
 from StudioTests.gui.test_tasks_panel import MediumSize  # noqa: F401
+from StudioTests.gui.test_emboss import EmbossTool  # noqa: F401
