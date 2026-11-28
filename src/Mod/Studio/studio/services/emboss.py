@@ -4,15 +4,18 @@
 A sketch drawn on a plane along a round face (parallel to its axis: through it, tangent to it or offset from
 it) is wrapped onto the face as the face would unroll: across the sketch becomes around the face, along it
 stays along the axis. A cylinder unrolls without stretching, so every length in the sketch is kept on the face,
-slanted ones too. The sketch is wrapped as seen along its normal, onto the side of the face it looks at; its
-closed shapes (text's letters with their holes) are raised from the face by a depth (an **Emboss**, adding)
-or cut into it (a **Deboss**, cutting), as a Part Design feature in the body.
+slanted ones too. A cone unrolls too, into a slice of a ring: across the sketch becomes a level circle around
+the cone and along it goes up the cone's slope; lengths are kept up the slope and around the cone at the
+sketch's middle height, the shapes a little wider toward the cone's wide end and narrower toward its tip, in
+proportion to its radius there. The sketch is wrapped as seen along its normal, onto the side of the face it
+looks at; its closed shapes (text's letters with their holes) are raised from the face by a depth (an
+**Emboss**, adding) or cut into it (a **Deboss**, cutting), as a Part Design feature in the body.
 
-How: each sketch curve, as a B-spline, has its poles mapped to the face's unrolled coordinates (around / radius,
-along the axis): the map is linear on the sketch plane, so the curve on the face is exact. The wrapped faces
-are thickened along the face's normal (outward for an emboss, inward for a deboss) and fused with the body or
-cut from it. Raised material that doesn't join the body, or a cut that takes nothing, is an error: the sketch
-is off the face.
+How: each sketch curve, as a B-spline, has its poles mapped to the face's own coordinates (around / the radius
+at the sketch's middle height, along the slope): the map is linear on the sketch plane, so the curve on the
+face is exact. The wrapped faces are thickened along the face's normal (outward for an emboss, inward for a
+deboss) and fused with the body or cut from it. Raised material that doesn't join the body, or a cut that
+takes nothing, is an error: the sketch is off the face.
 """
 
 import math
@@ -24,12 +27,13 @@ V = FreeCAD.Vector
 GROUP = "Emboss"
 ADD, CUT = "PartDesign::FeatureAdditivePython", "PartDesign::FeatureSubtractivePython"
 NAMES = {ADD: "Emboss", CUT: "Deboss"}
+ROUND = ("Cylinder", "Cone")
 
 
 def round_face(feature, face):
-    """The face `face` ("Face3") of `feature` if it is round (a cylinder's), else ValueError."""
+    """The face `face` ("Face3") of `feature` if it is round (a cylinder's or a cone's), else ValueError."""
     shape = feature.Shape.getElement(face)
-    if shape.ShapeType != "Face" or shape.Surface.__class__.__name__ != "Cylinder":
+    if shape.ShapeType != "Face" or shape.Surface.__class__.__name__ not in ROUND:
         raise ValueError(f"{face} of {feature.Label} isn't round")
     return shape
 
@@ -40,13 +44,14 @@ def _body_of(obj):
 
 
 class _Unrolling:
-    """The face's unrolled coordinates for a sketch: (around, along) of a point, and back to the face."""
+    """The face's own coordinates for a sketch: (around, along) of a point, and back to the face."""
 
     def __init__(self, profile, feature, face):
         surface = round_face(feature, face).Surface
-        self.radius = surface.Radius
         self.origin = V(surface.Center)
         self.axis = V(surface.Axis).normalize()
+        slope = getattr(surface, "SemiAngle", 0.0)  # a cone's; along its slope is along the axis on a cylinder
+        self.sin = math.sin(slope)
         # the sketch's own coordinates, in the coordinates of the face's feature (its body)
         body = _body_of(feature)
         inverse = body.getGlobalPlacement().inverse() if body is not None else FreeCAD.Placement()
@@ -61,14 +66,38 @@ class _Unrolling:
                                self.facing.y, self.around.y, self.axis.y, self.origin.y,
                                self.facing.z, self.around.z, self.axis.z, self.origin.z,
                                0, 0, 0, 1)
-        self.placement = FreeCAD.Placement(frame)  # the unrolled cylinder's (axis Z, angle 0 on X) into place
-        self.surface = Part.Cylinder()
-        self.surface.Radius = self.radius
+        self.placement = FreeCAD.Placement(frame)  # the face's surface (axis Z, angle 0 on X) into place
+        if slope:
+            self.surface = Part.Cone()
+            self.surface.SemiAngle = slope
+        else:
+            self.surface = Part.Cylinder()
+        self.surface.Radius = self.base = surface.Radius  # at the face's origin
+        # the sketch's middle height, from the face's origin along the axis, and there along the slope: around
+        # the face, the sketch's lengths are kept at that height
+        shape = _flat(profile)
+        shape.Placement = self.placement.inverse().multiply(self.sketch)
+        box = shape.optimalBoundingBox() if shape.Edges else None
+        self.middle = (box.ZMin + box.ZMax) / 2 if box is not None else 0.0
+        self.middle_along = self.middle / math.cos(slope)
+        self.radius = self.base + self.middle_along * self.sin
+        if self.radius <= 1e-6:
+            raise ValueError("The sketch's middle is past the cone's tip: move it onto the cone")
+
+    def along(self, height):
+        """How far up the face's slope from its origin a height of the sketch (along the axis) is wrapped to."""
+        return self.middle_along + height - self.middle
 
     def uv(self, local):
-        """A point of the sketch (its own coordinates) as (angle, along the axis) on the face."""
+        """A point of the sketch (its own coordinates) as (angle, along the slope) on the face."""
         point = self.sketch.multVec(local) - self.origin
-        return FreeCAD.Base.Vector2d(point.dot(self.around) / self.radius, point.dot(self.axis))
+        return FreeCAD.Base.Vector2d(point.dot(self.around) / self.radius, self.along(point.dot(self.axis)))
+
+    def area(self, flat):
+        """The area a flat face of the sketch has wrapped: the same on a cylinder; on a cone, in proportion to the
+        cone's radius at the face's middle (its centroid), to the radius at the sketch's middle."""
+        height = (self.sketch.multVec(flat.CenterOfMass) - self.origin).dot(self.axis)
+        return flat.Area * (self.base + self.along(height) * self.sin) / self.radius
 
     def edge(self, edge):
         """`edge` of the sketch (its own coordinates) wrapped onto the unrolled cylinder."""
@@ -108,8 +137,8 @@ def wrapped_edges(profile, feature, face):
 
 
 def _face_on(unrolling, flat_wire):
-    """The region a closed sketch wire bounds, on the unrolled cylinder (as large as it is flat)."""
-    area = Part.Face(flat_wire).Area
+    """The region a closed sketch wire bounds, on the face's surface."""
+    area = unrolling.area(Part.Face(flat_wire))
     wire = unrolling.wire(flat_wire)
     for candidate in (wire, Part.Wire(list(reversed(wire.Edges)))):
         face = Part.Face(unrolling.surface, candidate)
@@ -119,12 +148,12 @@ def _face_on(unrolling, flat_wire):
 
 
 def _thick(face, depth, outward):
-    """`face` thickened `depth` along the cylinder's radius, outward or inward."""
-    solid = face.makeOffsetShape(depth, 1e-6, fill=True)
-    center = solid.CenterOfMass
-    if (math.hypot(center.x, center.y) > face.Surface.Radius) != outward:
-        solid = face.makeOffsetShape(-depth, 1e-6, fill=True)
-    return solid
+    """`face` (on a surface around Z through the origin) thickened `depth` along its normal, outward or inward."""
+    u0, u1, v0, v1 = face.ParameterRange
+    u, v = (u0 + u1) / 2, (v0 + v1) / 2
+    point, normal = face.valueAt(u, v), face.normalAt(u, v)  # the normal the offset follows
+    out = normal.x * point.x + normal.y * point.y > 0
+    return face.makeOffsetShape(depth if out == outward else -depth, 1e-6, fill=True)
 
 
 def tool(profile, feature, face, depth, cut=False):

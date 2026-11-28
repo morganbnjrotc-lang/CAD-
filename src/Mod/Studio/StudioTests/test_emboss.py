@@ -7,7 +7,10 @@ stays along the axis, so every length in the sketch is kept on the face. The wra
 face or cut into it by a depth, as a Part Design feature (Emboss: adds; Deboss: cuts).
 
 A cylinder 20 mm in radius, 40 mm tall, on the XY plane; profiles on the XZ plane (along the axis), whose
-normal points to the face's side the wrap lands on.
+normal points to the face's side the wrap lands on. And cones: a cone unrolls flat too (into a ring's slice), so
+across the sketch becomes a level circle around the cone and along it goes up the cone's slope, lengths kept up
+the slope and around the cone at the sketch's middle height (the sketch's shapes a little wider toward the
+cone's wide end, narrower toward its tip, in proportion to its radius there).
 """
 
 import math
@@ -21,23 +24,11 @@ from studio.services import emboss
 
 V = FreeCAD.Vector
 R, HEIGHT = 20.0, 40.0
+CONES = ((20.0, 10.0), (10.0, 20.0))  # foot and top radii: narrowing upward, widening
 
 
-class OnACylinder(unittest.TestCase):
-    def setUp(self):
-        self.doc = FreeCAD.newDocument("Emboss" + uuid.uuid4().hex[:8])
-        self.doc.UndoMode = 1
-        self.addCleanup(lambda: FreeCAD.closeDocument(self.doc.Name))
-        self.body = self.doc.addObject("PartDesign::Body", "Body")
-        base = self.sketch(plane=3)
-        base.addGeometry(Part.Circle(V(0, 0, 0), V(0, 0, 1), R))
-        self.pad = self.body.newObject("PartDesign::Pad", "Pad")
-        self.pad.Profile = base
-        self.pad.Length = HEIGHT
-        self.doc.recompute()
-        self.volume = self.pad.Shape.Volume
-        self.face = next(f"Face{n}" for n, f in enumerate(self.pad.Shape.Faces, 1)
-                         if f.Surface.__class__.__name__ == "Cylinder")
+class _Sketches:
+    """Profiles on the body's planes, and embossing them on `self.pad`'s `self.face`."""
 
     def sketch(self, plane=4, offset=0.0):
         """A sketch on the body's XY (3), XZ (4) or YZ (5) plane, `offset` along its normal."""
@@ -63,6 +54,23 @@ class OnACylinder(unittest.TestCase):
         self.doc.recompute()
         self.assertTrue(feature.isValid(), feature.getStatusString())
         return feature
+
+
+class OnACylinder(_Sketches, unittest.TestCase):
+    def setUp(self):
+        self.doc = FreeCAD.newDocument("Emboss" + uuid.uuid4().hex[:8])
+        self.doc.UndoMode = 1
+        self.addCleanup(lambda: FreeCAD.closeDocument(self.doc.Name))
+        self.body = self.doc.addObject("PartDesign::Body", "Body")
+        base = self.sketch(plane=3)
+        base.addGeometry(Part.Circle(V(0, 0, 0), V(0, 0, 1), R))
+        self.pad = self.body.newObject("PartDesign::Pad", "Pad")
+        self.pad.Profile = base
+        self.pad.Length = HEIGHT
+        self.doc.recompute()
+        self.volume = self.pad.Shape.Volume
+        self.face = next(f"Face{n}" for n, f in enumerate(self.pad.Shape.Faces, 1)
+                         if f.Surface.__class__.__name__ == "Cylinder")
 
     # the wrap
 
@@ -208,3 +216,111 @@ class OnACylinder(unittest.TestCase):
         self.doc.recompute()
         self.assertTrue(feature.isValid(), feature.getStatusString())
         self.assertAlmostEqual(feature.Shape.Volume - self.volume, 100 * (2 + 4 / (2 * R)), places=4)
+
+
+class OnACone(_Sketches, unittest.TestCase):
+    """A cone 20 mm in radius at its foot and 10 mm at its top, 40 mm tall (sloping 14°), so 15 mm in radius at
+    mid-height, where the profiles' middle is; and the same cone upside down (widening upward)."""
+
+    def setUp(self):
+        self.doc = None
+        self.addCleanup(self.close)
+
+    def close(self):
+        if self.doc is not None:
+            FreeCAD.closeDocument(self.doc.Name)
+            self.doc = None
+
+    def cone(self, foot, top):
+        """A new document with the cone in a body."""
+        self.close()
+        self.doc = FreeCAD.newDocument("EmbossCone" + uuid.uuid4().hex[:8])
+        self.body = self.doc.addObject("PartDesign::Body", "Body")
+        self.foot, self.top = foot, top
+        self.pad = self.body.newObject("PartDesign::AdditiveCone", "Cone")
+        self.pad.Radius1, self.pad.Radius2, self.pad.Height = foot, top, HEIGHT
+        self.doc.recompute()
+        self.volume = self.pad.Shape.Volume
+        self.face = next(f"Face{n}" for n, f in enumerate(self.pad.Shape.Faces, 1)
+                         if f.Surface.__class__.__name__ == "Cone")
+        self.cos = HEIGHT / math.hypot(HEIGHT, foot - top)  # of its slope
+
+    def radius_at(self, z):
+        return self.foot + (self.top - self.foot) * z / HEIGHT
+
+    def test_on_the_face(self):
+        for foot, top in CONES:
+            with self.subTest(foot=foot, top=top):
+                self.cone(foot, top)
+                for edge in emboss.wrapped_edges(self.square_profile(), self.pad, self.face):
+                    for point in edge.discretize(8):
+                        self.assertAlmostEqual(math.hypot(point.x, point.y), self.radius_at(point.z), places=6)
+
+    def test_lengths_up_the_slope_and_around_the_middle_are_kept(self):
+        for foot, top in CONES:
+            with self.subTest(foot=foot, top=top):
+                self.cone(foot, top)
+                profile = self.sketch()
+                profile.addGeometry(Part.LineSegment(V(-8, 20, 0), V(8, 20, 0)))  # across the middle
+                profile.addGeometry(Part.LineSegment(V(3, 12, 0), V(3, 28, 0)))  # up the slope
+                self.doc.recompute()
+                flat = [e.Length for e in profile.Shape.Edges]
+                wrapped = [e.Length for e in emboss.wrapped_edges(profile, self.pad, self.face)]
+                for a, b in zip(sorted(flat), sorted(wrapped)):
+                    self.assertAlmostEqual(a, b, places=6)
+
+    def test_across_is_level_and_along_goes_up_the_slope(self):
+        for foot, top in CONES:
+            with self.subTest(foot=foot, top=top):
+                self.cone(foot, top)
+                profile = self.sketch()
+                profile.addGeometry(Part.LineSegment(V(-8, 12, 0), V(8, 12, 0)))  # across, 8 mm below the middle
+                profile.addGeometry(Part.LineSegment(V(4, 12, 0), V(4, 28, 0)))  # along, off the axis
+                self.doc.recompute()
+                across, along = emboss.wrapped_edges(profile, self.pad, self.face)
+                heights = [p.z for p in across.discretize(9)]
+                self.assertAlmostEqual(max(heights) - min(heights), 0.0, places=6)  # a level circle
+                # 8 mm down the slope from mid-height, as long as the circle there is to the one at mid-height
+                self.assertAlmostEqual(heights[0], 20.0 - 8.0 * self.cos, places=6)
+                self.assertAlmostEqual(across.Length, 16.0 * self.radius_at(heights[0]) / self.radius_at(20.0),
+                                       places=6)
+                angles = [math.atan2(p.y, p.x) for p in along.discretize(9)]
+                self.assertAlmostEqual(max(angles) - min(angles), 0.0, places=9)  # one of the cone's lines
+                self.assertAlmostEqual(along.Length, 16.0, places=6)
+
+    def test_on_the_side_the_sketch_faces_at_its_height(self):
+        for foot, top in CONES:
+            with self.subTest(foot=foot, top=top):
+                self.cone(foot, top)
+                profile = self.square_profile()
+                normal = profile.getGlobalPlacement().Rotation.multVec(V(0, 0, 1))
+                middle = Part.Compound(emboss.wrapped_edges(profile, self.pad, self.face)).BoundBox.Center
+                self.assertGreater(V(middle.x, middle.y, 0).dot(normal), 0.9 * self.radius_at(20.0))
+                self.assertAlmostEqual(middle.z, 20.0, places=6)
+
+    def test_raised_and_cut_by_the_depth(self):
+        # the 10 mm square on the cone at mid-height (15 mm radius), 1 mm along the face's normal: the cone
+        # curves around by cos(slope) / radius, so 100 mm² times 1 mm, a little more outward and less inward
+        for foot, top in CONES:
+            with self.subTest(foot=foot, top=top):
+                self.cone(foot, top)
+                bulge = self.cos / (2 * 15.0)
+                raised = self.emboss(self.square_profile(), depth=1.0)
+                self.assertEqual(len(raised.Shape.Solids), 1)
+                self.assertAlmostEqual(raised.Shape.Volume - self.volume, 100 * (1 + bulge), places=4)
+                cut = self.emboss(self.square_profile(), depth=1.0, cut=True)
+                self.assertAlmostEqual(raised.Shape.Volume - cut.Shape.Volume, 100 * (1 - bulge), places=4)
+
+    def test_text(self):
+        from StudioTests.test_sketch_text import NOTO
+        from studio.services import fonts, sketch_text
+        from studio.services.sketch_text import TextBox
+
+        self.cone(20.0, 10.0)
+        profile = self.sketch()
+        sketch_text.add(profile, TextBox("Lesleigh", "Noto Sans", "Regular", 6.0, 1.0, 1.0, fit=True),
+                        fonts.read(NOTO), corner=(-12.0, 17.0))
+        self.doc.recompute()
+        feature = self.emboss(profile, depth=0.8)
+        self.assertEqual(len(feature.Shape.Solids), 1)
+        self.assertGreater(feature.Shape.Volume, self.volume)

@@ -48,7 +48,7 @@ from StudioTests.test_warmup import WarmUpPlan  # noqa: F401
 from StudioTests.test_fonts import InstalledFonts, ReadingAFont, WindowsFonts  # noqa: F401
 from StudioTests.test_sketch_text import KeptFonts, SketchText  # noqa: F401
 from StudioTests.test_text_panel import Panel as TextPanelTest  # noqa: F401
-from StudioTests.test_emboss import OnACylinder  # noqa: F401
+from StudioTests.test_emboss import OnACone, OnACylinder  # noqa: F401
 from StudioTests.test_settings import (  # noqa: F401
     Choices,
     DefaultsAndOverrides,
