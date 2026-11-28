@@ -1,7 +1,8 @@
 # 0016 — Emboss on a round face, like Fusion's
 
-- **Status:** proposed (2026-11-27: Phase 4's "text on curved surfaces + extrude in or out", built Fusion's way
-  as the user has picked for each tool so far; to be confirmed on the user's first try)
+- **Status:** accepted (2026-11-27: Phase 4's "text on curved surfaces + extrude in or out", built Fusion's way
+  as the user has picked for each tool so far; the user tried it on the sunflower's stem 2026-11-28: "great
+  success")
 - **Date:** 2026-11-27
 
 ## Context
